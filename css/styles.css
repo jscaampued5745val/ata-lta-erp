@@ -550,3 +550,23 @@ tbody tr:hover {
 .kpi-value { font-size: 1.75rem; font-weight: 700; color: var(--color-text); }
 .page h1 { margin-bottom: var(--spacing-lg); }
 .entity-comparison h2 { margin-bottom: var(--spacing-md); }
+
+/* Actions Bar */
+.actions-bar { display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-lg); }
+.search-input { flex: 1; max-width: 320px; padding: var(--spacing-sm) var(--spacing-md); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-family: inherit; font-size: 0.875rem; }
+.empty-state { color: var(--color-text-muted); font-style: italic; }
+
+/* Inline Errors */
+.field-error { display: block; color: var(--color-danger); font-size: 0.75rem; margin-top: var(--spacing-xs); }
+.field-error.hidden { display: none; }
+
+/* Radio / Checkbox */
+.radio-group { display: flex; gap: var(--spacing-lg); }
+.radio-label { display: flex; align-items: center; gap: var(--spacing-xs); cursor: pointer; font-size: 0.875rem; }
+.checkbox-label { display: flex; align-items: center; gap: var(--spacing-xs); cursor: pointer; font-size: 0.875rem; }
+
+/* Small Button */
+.btn-sm { padding: var(--spacing-xs) var(--spacing-sm); font-size: 0.75rem; }
+
+/* Form Actions */
+.form-actions { display: flex; gap: var(--spacing-sm); }
