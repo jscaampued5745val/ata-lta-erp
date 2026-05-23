@@ -67,7 +67,19 @@ const Workflow = {
   refreshList(grid, statusFilter) {
     while (grid.firstChild) grid.removeChild(grid.firstChild);
     const entity = Auth.activeEntity;
+    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+
     let wrs = DB.getWhere('workRequests', r => r.entity === entity);
+
+    if (!isManagerial) {
+      // Find tasks assigned to this user
+      const myTasks = DB.getWhere('tasks', t => t.assigneeId === Auth.user.id || t.assignedTo === Auth.user.id);
+      const myWrIds = new Set(myTasks.map(t => t.workRequestId));
+      
+      // Filter WRs to those where the user is assigned a task, OR assigned the entire WR
+      wrs = wrs.filter(r => myWrIds.has(r.id) || r.assignedTo === Auth.user.id);
+    }
+
     if (statusFilter) wrs = wrs.filter(r => r.status === statusFilter);
 
     if (wrs.length === 0) {
@@ -556,14 +568,20 @@ const Workflow = {
       tr.appendChild(el('td', { text: t.dueDate ? formatDate(t.dueDate) : '—' }));
       const tdAct = el('td');
 
+      const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+      const isMyTask = (t.assigneeId === Auth.user.id || t.assignedTo === Auth.user.id);
+      const canUpdate = !isManagerial && isMyTask; // Admins/Managers can't update, Staff can only update their own.
+
       const statusSel = el('select', { class: 'task-status-sel' });
       const validStatuses = this.getValidNextStatuses(t);
       ['Draft', 'Assigned', 'In Progress', 'For Review', 'Completed', 'Cancelled'].forEach(s => {
         const opt = el('option', { value: s, text: s });
         if (s === t.status) opt.selected = true;
-        if (!validStatuses.includes(s)) opt.disabled = true;
+        if (!validStatuses.includes(s) || !canUpdate) opt.disabled = true;
         statusSel.appendChild(opt);
       });
+      statusSel.disabled = !canUpdate;
+      
       statusSel.addEventListener('change', () => {
         const res = this.updateTaskStatus(t.id, statusSel.value);
         if (res.error) {

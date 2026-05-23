@@ -303,6 +303,30 @@ const seedData = {
       assignedTo: makeId('u', 5),
       createdAt: lastMonth,
       updatedAt: now
+    },
+    {
+      id: makeId('wr', 7),
+      title: 'Business Permit Renewal 2026',
+      description: 'Local Government Unit (LGU) business permit renewal process.',
+      clientId: makeId('c', 1),
+      entity: 'ATA',
+      status: 'Processing',
+      requestedBy: makeId('u', 1),
+      assignedTo: makeId('u', 6),
+      createdAt: lastWeek,
+      updatedAt: now
+    },
+    {
+      id: makeId('wr', 8),
+      title: 'SEC GIS Filing 2026',
+      description: 'General Information Sheet filing with the Securities and Exchange Commission.',
+      clientId: makeId('c', 7),
+      entity: 'LTA',
+      status: 'Pre-processing',
+      requestedBy: makeId('u', 4),
+      assignedTo: makeId('u', 7),
+      createdAt: today,
+      updatedAt: today
     }
   ],
 
@@ -491,6 +515,56 @@ const seedData = {
       dueDate: today,
       createdAt: today,
       updatedAt: today
+    },
+    // Work Request 7 - Business Permit Renewal (ATA)
+    {
+      id: makeId('t', 16),
+      workRequestId: makeId('wr', 7),
+      title: 'Assess LGU requirements',
+      description: 'Gather necessary documents for business permit renewal.',
+      status: 'In Progress',
+      assigneeId: makeId('u', 6),
+      predecessors: [],
+      dueDate: today,
+      createdAt: lastWeek,
+      updatedAt: now
+    },
+    {
+      id: makeId('t', 17),
+      workRequestId: makeId('wr', 7),
+      title: 'Submit application to City Hall',
+      description: 'Process and file the business permit renewal physically.',
+      status: 'Draft',
+      assigneeId: makeId('u', 6),
+      predecessors: [makeId('t', 16)],
+      dueDate: today,
+      createdAt: lastWeek,
+      updatedAt: now
+    },
+    // Work Request 8 - SEC GIS Filing (LTA)
+    {
+      id: makeId('t', 18),
+      workRequestId: makeId('wr', 8),
+      title: 'Draft GIS 2026',
+      description: 'Prepare the General Information Sheet for review.',
+      status: 'For Review',
+      assigneeId: makeId('u', 7),
+      predecessors: [],
+      dueDate: today,
+      createdAt: today,
+      updatedAt: now
+    },
+    {
+      id: makeId('t', 19),
+      workRequestId: makeId('wr', 8),
+      title: 'Upload GIS via eFAST',
+      description: 'Upload the signed and notarized GIS through the SEC portal.',
+      status: 'Draft',
+      assigneeId: makeId('u', 7),
+      predecessors: [makeId('t', 18)],
+      dueDate: today,
+      createdAt: today,
+      updatedAt: now
     }
   ],
 
