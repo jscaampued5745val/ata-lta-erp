@@ -1,47 +1,44 @@
 /**
- * App Stub — Task 3
- * Minimal bootstrapping: login wiring, entity switcher, session restore.
- * Full router and module loaders will replace this in Task 4.
+ * App Shell — Task 4
+ * Hash router, navigation, module loader with placeholder stubs.
  */
 
 const App = {
+  currentModule: null,
+
   init() {
-    this.renderHeader();
-    this.setupEntitySwitcher();
+    if (!Auth.restoreSession()) return;
+    this.renderShell();
+    this.setupRouting();
+    this.setupNavigation();
     this.setupLogout();
-    this.refreshView();
+    const defaultRoute = Auth.user.role === 'Admin' || Auth.user.role === 'Manager' ? '#dashboard' : '#workflow';
+    location.hash = defaultRoute;
+    this.handleRoute();
   },
 
-  renderHeader() {
-    const userNameEl = document.getElementById('user-name');
-    if (userNameEl && Auth.user) {
-      userNameEl.textContent = Auth.user.name;
-    }
-    this.updateEntityBadge();
+  renderShell() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app-shell').classList.remove('hidden');
+    document.getElementById('user-name').textContent = Auth.user.name;
+    this.renderEntitySwitcher();
   },
 
-  setupEntitySwitcher() {
-    const switcher = document.getElementById('entity-switcher');
-    if (!switcher) return;
-
-    // Clear existing options
-    switcher.innerHTML = '';
-
-    if (Auth.user) {
-      Auth.user.entities.forEach(entity => {
-        const option = document.createElement('option');
-        option.value = entity;
-        option.textContent = entity === 'ATA' ? 'ATA Accounting' : 'LTA Accounting';
-        switcher.appendChild(option);
-      });
-      switcher.value = Auth.activeEntity;
-    }
-
-    switcher.addEventListener('change', (e) => {
-      Auth.switchEntity(e.target.value);
-      this.updateEntityBadge();
-      this.refreshView();
+  renderEntitySwitcher() {
+    const sel = document.getElementById('entity-switcher');
+    sel.innerHTML = '';
+    Auth.user.entities.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e;
+      opt.textContent = e === 'ATA' ? 'ATA Accounting' : 'LTA Accounting';
+      if (e === Auth.activeEntity) opt.selected = true;
+      sel.appendChild(opt);
     });
+    sel.onchange = (ev) => {
+      Auth.switchEntity(ev.target.value);
+      this.updateEntityBadge();
+      this.handleRoute();
+    };
   },
 
   updateEntityBadge() {
@@ -49,11 +46,21 @@ const App = {
     if (!badge) return;
     badge.textContent = Auth.activeEntity || '';
     badge.className = 'badge';
-    if (Auth.activeEntity === 'ATA') {
-      badge.classList.add('badge-ata');
-    } else if (Auth.activeEntity === 'LTA') {
-      badge.classList.add('badge-lta');
-    }
+    if (Auth.activeEntity === 'ATA') badge.classList.add('badge-ata');
+    else if (Auth.activeEntity === 'LTA') badge.classList.add('badge-lta');
+  },
+
+  setupRouting() {
+    window.addEventListener('hashchange', () => this.handleRoute());
+  },
+
+  setupNavigation() {
+    document.querySelectorAll('nav a[data-module]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        location.hash = link.getAttribute('href');
+      });
+    });
   },
 
   setupLogout() {
@@ -71,19 +78,42 @@ const App = {
     }
   },
 
-  refreshView() {
+  handleRoute() {
+    const hash = location.hash || '#dashboard';
+    const moduleMap = {
+      '#dashboard': Dashboard,
+      '#clients': Clients,
+      '#workflow': Workflow,
+      '#billing': Billing,
+      '#disbursement': Disbursement,
+      '#documents': DMS,
+      '#reports': Reports,
+      '#admin': Users
+    };
+    const module = moduleMap[hash];
     const content = document.getElementById('content');
-    if (content) {
+    if (module && module.render) {
       content.innerHTML = '';
-      const p = document.createElement('p');
-      p.style.color = 'var(--color-text-muted)';
-      p.textContent = 'Welcome, ' + (Auth.user?.name || 'User') + '. Active entity: ' + (Auth.activeEntity || '—');
-      content.appendChild(p);
+      const rendered = module.render();
+      if (typeof rendered === 'string') {
+        content.innerHTML = rendered;
+      } else {
+        content.appendChild(rendered);
+      }
+      if (module.init) module.init();
+      this.highlightNav(hash);
+      this.updateEntityBadge();
     }
+  },
+
+  highlightNav(hash) {
+    document.querySelectorAll('nav a').forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === hash);
+    });
   }
 };
 
-// Wire login form
+// Login form wiring
 document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('login-form');
   if (loginForm) {
@@ -107,7 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Try restore session
   if (Auth.restoreSession()) {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-shell').classList.remove('hidden');
