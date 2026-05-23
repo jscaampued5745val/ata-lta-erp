@@ -618,3 +618,12 @@ tbody tr:hover {
   #content { margin: 0; padding: 0; }
   .invoice-detail { max-width: 100%; }
 }
+
+/* DMS — Document Management */
+.doc-type-badge-original { background: #dbeafe; color: #1e40af; }
+.doc-type-badge-generated { background: #f3e8ff; color: #7c3aed; }
+.handover-completed { color: var(--color-success); font-weight: 500; }
+.handover-pending { color: var(--color-text-muted); }
+.dms-detail-section { margin-top: var(--spacing-lg); }
+.dms-detail-section h3 { margin-bottom: var(--spacing-md); }
+.version-table tbody tr:last-child { font-weight: 600; background: #f8fafc; }
