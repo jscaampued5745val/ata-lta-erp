@@ -228,7 +228,7 @@ const Disbursement = {
     const d = DB.getById('disbursements', this.detailId);
     if (!d) { this.view = 'list'; App.handleRoute(); return el('div'); }
     const emp = DB.getById('users', this.getEmployeeId(d));
-    const container = el('div');
+    const container = el('div', { class: 'invoice-detail' });
     
     // Top actions bar
     const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });
