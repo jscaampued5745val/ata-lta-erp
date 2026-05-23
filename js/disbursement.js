@@ -36,33 +36,47 @@ const Disbursement = {
   // ============================================================
   renderList() {
     const entity = Auth.activeEntity;
-    const items = DB.getWhere('disbursements', d => d.entity === entity);
 
     const actions = el('div', { class: 'actions-bar' });
     const addBtn = el('button', { class: 'btn btn-primary', text: 'File Expense' });
     addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
     actions.appendChild(addBtn);
 
-    const fundFilter = el('select', { class: 'form-select', style: 'max-width:180px' });
+    const fundFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     fundFilter.appendChild(el('option', { value: '', text: 'All Funds' }));
     ['Firm Fund', 'Client Fund'].forEach(f => fundFilter.appendChild(el('option', { value: f, text: f })));
-    fundFilter.addEventListener('change', () => this.refreshList(listContainer, fundFilter.value, statusFilter.value));
     actions.appendChild(fundFilter);
 
-    const statusFilter = el('select', { class: 'form-select', style: 'max-width:180px' });
+    const statusFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Draft', 'Submitted', 'Under Review', 'Approved', 'Released', 'Rejected'].forEach(s => {
       statusFilter.appendChild(el('option', { value: s, text: s }));
     });
-    statusFilter.addEventListener('change', () => this.refreshList(listContainer, fundFilter.value, statusFilter.value));
     actions.appendChild(statusFilter);
+
+    // Month/Year Filters
+    const monthFilter = el('select', { class: 'form-select', style: 'max-width:120px' });
+    monthFilter.appendChild(el('option', { value: '', text: 'All Months' }));
+    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].forEach((m, i) => {
+      monthFilter.appendChild(el('option', { value: String(i), text: m }));
+    });
+    actions.appendChild(monthFilter);
+
+    const years = [...new Set(DB.getAll('disbursements').map(d => new Date(d.submittedAt || Date.now()).getFullYear()))].sort((a,b) => b-a);
+    const yearFilter = el('select', { class: 'form-select', style: 'max-width:110px' });
+    yearFilter.appendChild(el('option', { value: '', text: 'All Years' }));
+    years.forEach(y => yearFilter.appendChild(el('option', { value: String(y), text: String(y) })));
+    actions.appendChild(yearFilter);
+
+    const updateFilters = () => this.refreshList(listContainer, fundFilter.value, statusFilter.value, monthFilter.value, yearFilter.value);
+    [fundFilter, statusFilter, monthFilter, yearFilter].forEach(f => f.addEventListener('change', updateFilters));
 
     const reportBtn = el('button', { class: 'btn btn-ghost', text: 'Summary Report' });
     reportBtn.addEventListener('click', () => { this.view = 'report'; App.handleRoute(); });
     actions.appendChild(reportBtn);
 
     const listContainer = el('div');
-    this.refreshList(listContainer, '', '');
+    this.refreshList(listContainer, '', '', '', '');
 
     const wrapper = el('div');
     wrapper.appendChild(actions);
@@ -70,12 +84,18 @@ const Disbursement = {
     return wrapper;
   },
 
-  refreshList(container, fundFilter, statusFilter) {
+  refreshList(container, fundFilter, statusFilter, monthFilter, yearFilter) {
     while (container.firstChild) container.removeChild(container.firstChild);
     const entity = Auth.activeEntity;
     let items = DB.getWhere('disbursements', d => d.entity === entity);
+    
     if (fundFilter) items = items.filter(d => this.getFundSource(d) === fundFilter);
     if (statusFilter) items = items.filter(d => d.status === statusFilter);
+    if (monthFilter) items = items.filter(d => new Date(d.submittedAt).getMonth() === parseInt(monthFilter));
+    if (yearFilter) items = items.filter(d => new Date(d.submittedAt).getFullYear() === parseInt(yearFilter));
+
+    // Default Sort: Latest first
+    items.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 
     if (items.length === 0) {
       container.appendChild(el('p', { text: 'No expenses found.', class: 'empty-state' }));
@@ -85,7 +105,7 @@ const Disbursement = {
     const table = el('table', { class: 'data-table' });
     const thead = el('thead');
     const thr = el('tr');
-    ['Employee', 'Category', 'Amount', 'Fund', 'Status', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
+    ['Employee', 'Category', 'Amount', 'Fund', 'Status', 'Date', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
     thead.appendChild(thr);
     table.appendChild(thead);
 
@@ -102,6 +122,7 @@ const Disbursement = {
       tdFund.appendChild(fundBadge);
       tr.appendChild(tdFund);
       tr.appendChild(el('td', { text: d.status }));
+      tr.appendChild(el('td', { text: formatDate(d.submittedAt) }));
       const tdAct = el('td');
       const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailId = d.id; App.handleRoute(); });
@@ -277,11 +298,12 @@ const Disbursement = {
     const isManagerial = role === 'Admin' || role === 'Manager';
     const isAccounting = dept === 'Accounting';
 
-    // 1. Initial Review Phase (Submitted -> Approved/Rejected)
+    // 1. Review Phase (Submitted -> Approved)
+    // Handled by Managers/Admins (cannot be requester)
     if (d.status === 'Submitted' || d.status === 'Under Review') {
       if (isManagerial) {
         if (isRequester) {
-          container.appendChild(el('p', { class: 'field-error', text: 'Managers cannot approve their own expense submissions.' }));
+          container.appendChild(el('p', { class: 'field-error', text: 'Conflict of Interest: You cannot approve your own expense submission.' }));
         } else {
           const approveBtn = el('button', { class: 'btn btn-primary', text: 'Approve Submission' });
           approveBtn.addEventListener('click', () => { this.approve(this.detailId); App.handleRoute(); });
@@ -299,12 +321,14 @@ const Disbursement = {
       }
     }
 
-    // 2. Final Release Phase (Approved -> Released/Rejected)
+    // 2. Release Phase (Approved -> Released)
+    // Handled by Accounting Staff (cannot be requester OR the same person who approved)
     if (d.status === 'Approved') {
-      const canRelease = (isAccounting || isManagerial) && !isRequester;
+      const isApprover = Auth.user.id === d.approvedBy;
+      const canRelease = (isAccounting || isManagerial) && !isRequester && !isApprover;
       
       if (canRelease) {
-        const releaseBtn = el('button', { class: 'btn btn-success', text: 'Release Payment' });
+        const releaseBtn = el('button', { class: 'btn btn-success', text: 'Authorize Release' });
         releaseBtn.addEventListener('click', () => { this.release(this.detailId); App.handleRoute(); });
         actions.appendChild(releaseBtn);
 
@@ -315,9 +339,11 @@ const Disbursement = {
         });
         actions.appendChild(rejectBtn);
       } else if (isRequester) {
-        container.appendChild(el('p', { class: 'field-error', text: 'You cannot release your own expense. Please wait for another manager or accounting staff to process it.' }));
+        container.appendChild(el('p', { class: 'field-error', text: 'Conflict of Interest: You cannot release your own expense.' }));
+      } else if (isApprover) {
+        container.appendChild(el('p', { class: 'field-error', text: 'Conflict of Interest: You approved this expense; a different user (Accounting or another Manager) must authorize the release.' }));
       } else {
-        container.appendChild(el('p', { class: 'empty-state', text: 'Waiting for Accounting release.' }));
+        container.appendChild(el('p', { class: 'empty-state', text: 'Waiting for Accounting release authorization.' }));
       }
     }
 
