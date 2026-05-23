@@ -368,6 +368,13 @@ const Billing = {
     const client = DB.getById('clients', inv.clientId);
 
     const container = el('div', { class: 'invoice-detail' });
+    
+    // Top actions bar
+    const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });
+    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+    backBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
+    topActions.appendChild(backBtn);
+    container.appendChild(topActions);
 
     const header = el('div', { class: 'invoice-header' });
     header.appendChild(el('h2', { text: inv.invoiceNumber }));
@@ -456,9 +463,6 @@ const Billing = {
       actions.appendChild(sentBtn);
     }
 
-    const backBtn = el('button', { class: 'btn btn-ghost', text: 'Back to List' });
-    backBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
-    actions.appendChild(backBtn);
     container.appendChild(actions);
 
     return container;
