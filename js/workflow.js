@@ -470,7 +470,7 @@ const Workflow = {
     const client = DB.getById('clients', wr.clientId);
     const tasks = DB.getWhere('tasks', t => t.workRequestId === wr.id);
 
-    const container = el('div', { class: 'invoice-detail wide' });
+    const container = el('div');
     
     // Top actions bar
     const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });

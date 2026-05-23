@@ -6,16 +6,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 :root {
-  --color-ata: #a855f7;
-  --color-lta: #f97316;
+  --color-ata: #2563eb;
+  --color-lta: #475569;
   --color-bg: #f4f6fb;
   --color-surface: #ffffff;
   --color-panel: #ffffff;
   --color-text: #2d2d3f;
   --color-text-muted: #9494a0;
   --color-border: #f0f0f5;
-  --color-primary: #8c52ff; /* The vibrant purple from the image */
-  --color-primary-dark: #7033ea;
+  --color-primary: #2563eb; /* Trust Blue */
+  --color-primary-dark: #1d4ed8;
   --color-danger: #ef4444;
   --color-success: #10b981;
   --color-warning: #f59e0b;
@@ -34,7 +34,7 @@
   --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.03);
   --shadow-card: 0 15px 35px rgba(0, 0, 0, 0.04);
   --shadow-float: 0 20px 50px rgba(0, 0, 0, 0.15);
-  --shadow-primary: 0 8px 20px rgba(140, 82, 255, 0.35);
+  --shadow-primary: 0 8px 20px rgba(37, 99, 235, 0.35);
 }
 
 /* Reset & Base */
@@ -94,7 +94,7 @@ a:hover {
   padding: var(--spacing-md);
   position: relative;
   z-index: 1;
-  background: #8234f8; /* Keep purple background just for login */
+  background: #0f172a; /* Keep dark background just for login */
 }
 
 .login-card {
@@ -286,7 +286,7 @@ a:hover {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: url('https://ui-avatars.com/api/?name=User&background=8c52ff&color=fff') center/cover;
+  background: url('https://ui-avatars.com/api/?name=User&background=2563eb&color=fff') center/cover;
   display: inline-block;
 }
 
