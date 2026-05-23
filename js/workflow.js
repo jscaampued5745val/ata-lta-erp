@@ -470,7 +470,7 @@ const Workflow = {
     const client = DB.getById('clients', wr.clientId);
     const tasks = DB.getWhere('tasks', t => t.workRequestId === wr.id);
 
-    const container = el('div', { class: 'invoice-detail' });
+    const container = el('div', { class: 'invoice-detail wide' });
     
     // Top actions bar
     const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });
@@ -578,10 +578,7 @@ const Workflow = {
       tbody.appendChild(tr);
     });
     taskTable.appendChild(tbody);
-    
-    const tableWrapper = el('div', { class: 'table-responsive' });
-    tableWrapper.appendChild(taskTable);
-    container.appendChild(tableWrapper);
+    container.appendChild(taskTable);
 
     if (tasks.length > 0) {
       if (!this.selectedTaskId || !tasks.find(t => t.id === this.selectedTaskId)) {
