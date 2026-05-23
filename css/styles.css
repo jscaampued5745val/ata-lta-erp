@@ -714,9 +714,33 @@ tbody tr:hover {
 .search-input { flex: 1; max-width: 320px; padding: 10px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); font-family: inherit; font-size: 0.875rem; background: var(--color-surface); }
 .empty-state { color: var(--color-text-muted); font-style: italic; text-align: center; padding: var(--spacing-lg); }
 
-/* Inline Errors */
+/* Inline Errors / Success */
 .field-error { display: block; color: var(--color-danger); font-size: 0.75rem; margin-top: var(--spacing-xs); font-weight: 500; }
-.field-error.hidden { display: none; }
+.field-success { display: block; color: var(--color-success); font-size: 0.75rem; margin-top: var(--spacing-xs); font-weight: 500; }
+.field-error.hidden, .field-success.hidden { display: none; }
+
+/* Sidebar Notifications */
+.nav-list li a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-badge {
+  background: var(--color-danger);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+}
 
 /* Radio / Checkbox */
 .radio-group { display: flex; gap: var(--spacing-lg); }

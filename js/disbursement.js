@@ -303,7 +303,7 @@ const Disbursement = {
     if (d.status === 'Submitted' || d.status === 'Under Review') {
       if (isManagerial) {
         if (isRequester) {
-          container.appendChild(el('p', { class: 'field-error', text: 'Conflict of Interest: You cannot approve your own expense submission.' }));
+          container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve your own expense submission.' }));
         } else {
           const approveBtn = el('button', { class: 'btn btn-primary', text: 'Approve Submission' });
           approveBtn.addEventListener('click', () => { this.approve(this.detailId); App.handleRoute(); });
@@ -339,9 +339,9 @@ const Disbursement = {
         });
         actions.appendChild(rejectBtn);
       } else if (isRequester) {
-        container.appendChild(el('p', { class: 'field-error', text: 'Conflict of Interest: You cannot release your own expense.' }));
+        container.appendChild(el('p', { class: 'field-error', text: 'You cannot release your own expense.' }));
       } else if (isApprover) {
-        container.appendChild(el('p', { class: 'field-error', text: 'Conflict of Interest: You approved this expense; a different user (Accounting or another Manager) must authorize the release.' }));
+        container.appendChild(el('p', { class: 'field-success', text: 'You approved this expense; a different user (Accounting or another Manager) must authorize the release.' }));
       } else {
         container.appendChild(el('p', { class: 'empty-state', text: 'Waiting for Accounting release authorization.' }));
       }
