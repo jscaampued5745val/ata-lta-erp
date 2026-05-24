@@ -37,15 +37,19 @@ const Workflow = {
   renderList() {
     const entity = Auth.activeEntity;
     const workRequests = DB.getWhere('workRequests', r => r.entity === entity);
+    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
 
     const actions = el('div', { class: 'actions-bar' });
-    const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Work Request' });
-    addBtn.addEventListener('click', () => { this.view = 'form'; this.editingId = null; App.handleRoute(); });
-    actions.appendChild(addBtn);
+    
+    if (isManagerial) {
+      const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Work Request' });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.editingId = null; App.handleRoute(); });
+      actions.appendChild(addBtn);
 
-    const templateBtn = el('button', { class: 'btn btn-ghost', text: 'Retainer Templates' });
-    templateBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
-    actions.appendChild(templateBtn);
+      const templateBtn = el('button', { class: 'btn btn-ghost', text: 'Retainer Templates' });
+      templateBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
+      actions.appendChild(templateBtn);
+    }
 
     const statusFilter = el('select', { class: 'form-select', style: 'max-width:200px' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
@@ -174,6 +178,13 @@ const Workflow = {
   // Create / Edit Form
   // ============================================================
   renderForm() {
+    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    if (!isManagerial) {
+      this.view = 'list';
+      App.handleRoute();
+      return el('div');
+    }
+
     const entity = Auth.activeEntity;
     const wr = this.editingId ? DB.getById('workRequests', this.editingId) : null;
     const container = el('div');
@@ -821,6 +832,13 @@ const Workflow = {
   // Retainer Templates
   // ============================================================
   renderTemplates() {
+    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    if (!isManagerial) {
+      this.view = 'list';
+      App.handleRoute();
+      return el('div');
+    }
+
     const entity = Auth.activeEntity;
     const templates = DB.getWhere('retainerTemplates', t => t.entity === entity);
 
@@ -872,6 +890,13 @@ const Workflow = {
   },
 
   renderTemplateForm() {
+    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    if (!isManagerial) {
+      this.view = 'list';
+      App.handleRoute();
+      return el('div');
+    }
+
     const entity = Auth.activeEntity;
     const template = this.templateEditingId ? DB.getById('retainerTemplates', this.templateEditingId) : null;
     const container = el('div');
