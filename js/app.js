@@ -21,35 +21,18 @@ const App = {
 
   updateSidebarNotifications() {
     const role = Auth.user.role;
-    const dept = Auth.user.department;
-    const isManagerial = role === 'Admin' || role === 'Manager';
-    const isAccounting = dept === 'Accounting';
+    const isAdmin = role === 'Admin';
     const entity = Auth.activeEntity;
-
-    if (!isManagerial && !isAccounting) return;
 
     const items = DB.getWhere('disbursements', d => d.entity === entity);
     let count = 0;
 
     items.forEach(d => {
       const isRequester = d.employeeId === Auth.user.id;
-      const fundSource = d.fundSource || (d.type === 'ClientFunded' ? 'Client Fund' : 'Firm Fund');
       
-      if (fundSource === 'Client Fund') {
-        // Client Funds: 1-tier, any authorized role can release immediately
-        if (d.status === 'Submitted' || d.status === 'Under Review' || d.status === 'Approved') {
-          count++;
-        }
-      } else {
-        // Firm Funds: 2-tier Approval Chain
-        // Managers: Initial review
-        if (isManagerial && (d.status === 'Submitted' || d.status === 'Under Review') && !isRequester) {
-          count++;
-        }
-        // Accounting/Other Managers: Final release (conflict block applies)
-        else if (d.status === 'Approved' && !isRequester && d.approvedBy !== Auth.user.id) {
-          count++;
-        }
+      // 1-Tier Admin Approval: Only Admins see notifications for pending submissions
+      if (isAdmin && (d.status === 'Submitted' || d.status === 'Under Review' || d.status === 'Approved') && !isRequester) {
+        count++;
       }
     });
 

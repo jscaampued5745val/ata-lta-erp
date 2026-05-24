@@ -293,77 +293,28 @@ const Disbursement = {
     const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border); padding-top: var(--spacing-lg);' });
 
     const isRequester = Auth.isSelfApprover(this.getEmployeeId(d));
-    const role = Auth.user.role;
-    const dept = Auth.user.department;
-    const isManagerial = role === 'Admin' || role === 'Manager';
-    const isAccounting = dept === 'Accounting';
+    const isAdmin = Auth.user.role === 'Admin';
     const fundSource = this.getFundSource(d);
 
-    if (fundSource === 'Client Fund') {
-      // 1-Tier Immediate Release for Client Funds
-      if (d.status !== 'Released' && d.status !== 'Rejected' && d.status !== 'Cancelled') {
-        if (isManagerial || isAccounting) {
-          const releaseBtn = el('button', { class: 'btn btn-success', text: 'Authorize Release' });
+    // 1-Tier Admin Approval Chain (Across all Fund Sources)
+    if (d.status === 'Submitted' || d.status === 'Under Review' || d.status === 'Approved') {
+      if (isAdmin) {
+        if (isRequester) {
+          container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve/release your own expense submission. Please wait for another Admin to process it.' }));
+        } else {
+          const releaseBtn = el('button', { class: 'btn btn-success', text: 'Approve & Release' });
           releaseBtn.addEventListener('click', () => { this.release(this.detailId); App.handleRoute(); });
           actions.appendChild(releaseBtn);
 
-          const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Reject / Void' });
+          const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Reject' });
           rejectBtn.addEventListener('click', () => {
             const reason = prompt('Enter rejection reason:');
             if (reason) { this.reject(this.detailId, reason); App.handleRoute(); }
           });
           actions.appendChild(rejectBtn);
-        } else {
-          container.appendChild(el('p', { class: 'empty-state', text: 'Waiting for Admin/Manager or Accounting release.' }));
         }
-      }
-    } else {
-      // 2-Tier Approval Chain for Firm Funds
-      // 1. Review Phase (Submitted -> Approved)
-      if (d.status === 'Submitted' || d.status === 'Under Review') {
-        if (isManagerial) {
-          if (isRequester) {
-            container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve your own expense submission.' }));
-          } else {
-            const approveBtn = el('button', { class: 'btn btn-primary', text: 'Approve Submission' });
-            approveBtn.addEventListener('click', () => { this.approve(this.detailId); App.handleRoute(); });
-            actions.appendChild(approveBtn);
-
-            const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Reject' });
-            rejectBtn.addEventListener('click', () => {
-              const reason = prompt('Enter rejection reason:');
-              if (reason) { this.reject(this.detailId, reason); App.handleRoute(); }
-            });
-            actions.appendChild(rejectBtn);
-          }
-        } else {
-          container.appendChild(el('p', { class: 'empty-state', text: 'Waiting for Admin/Manager review.' }));
-        }
-      }
-
-      // 2. Release Phase (Approved -> Released)
-      if (d.status === 'Approved') {
-        const isApprover = Auth.user.id === d.approvedBy;
-        const canRelease = (isAccounting || isManagerial) && !isRequester && !isApprover;
-        
-        if (canRelease) {
-          const releaseBtn = el('button', { class: 'btn btn-success', text: 'Authorize Release' });
-          releaseBtn.addEventListener('click', () => { this.release(this.detailId); App.handleRoute(); });
-          actions.appendChild(releaseBtn);
-
-          const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Void / Reject' });
-          rejectBtn.addEventListener('click', () => {
-            const reason = prompt('Enter reason for voiding:');
-            if (reason) { this.reject(this.detailId, reason); App.handleRoute(); }
-          });
-          actions.appendChild(rejectBtn);
-        } else if (isRequester) {
-          container.appendChild(el('p', { class: 'field-error', text: 'You cannot release your own expense.' }));
-        } else if (isApprover) {
-          container.appendChild(el('p', { class: 'field-success', text: 'You approved this expense; a different user (Accounting or another Manager) must authorize the release.' }));
-        } else {
-          container.appendChild(el('p', { class: 'empty-state', text: 'Waiting for Accounting release authorization.' }));
-        }
+      } else {
+        container.appendChild(el('p', { class: 'empty-state', text: 'Waiting for Admin review and release.' }));
       }
     }
 
