@@ -76,7 +76,27 @@ const Dashboard = {
       const ul = el('ul', { style: 'margin:0;padding:0;list-style:none;' });
       dueWrs.slice(0, 5).forEach(wr => {
         const li = el('li', { style: 'padding:8px 0;border-bottom:1px solid var(--color-border);font-size:0.875rem;' });
+        const due = new Date(wr.dueDate);
+        const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const diffDays = Math.round((dueMidnight - todayMidnight) / 86400000);
+        
+        let relText = '';
+        let color = 'inherit';
+        if (diffDays === 0) {
+          relText = ' (Today)';
+          color = '#dc2626'; // red
+        } else if (diffDays === 1) {
+          relText = ' (Tomorrow)';
+          color = '#ea580c'; // orange
+        } else {
+          const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          relText = ' (' + days[due.getDay()] + ')';
+          color = 'var(--color-text-muted, #6b7280)';
+        }
+        
         li.appendChild(document.createTextNode(wr.title + ' — Due ' + formatDate(wr.dueDate)));
+        li.appendChild(el('strong', { style: 'color: ' + color + ';' }, [relText]));
         ul.appendChild(li);
       });
       dueCard.appendChild(ul);
@@ -307,7 +327,27 @@ const Dashboard = {
       const ul = el('ul', { style: 'margin:0;padding:0;list-style:none;' });
       dueWrs.slice(0, 5).forEach(wr => {
         const li = el('li', { style: 'padding:8px 0;border-bottom:1px solid var(--color-border);font-size:0.875rem;' });
+        const due = new Date(wr.dueDate);
+        const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const diffDays = Math.round((dueMidnight - todayMidnight) / 86400000);
+        
+        let relText = '';
+        let color = 'inherit';
+        if (diffDays === 0) {
+          relText = ' (Today)';
+          color = '#dc2626'; // red
+        } else if (diffDays === 1) {
+          relText = ' (Tomorrow)';
+          color = '#ea580c'; // orange
+        } else {
+          const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          relText = ' (' + days[due.getDay()] + ')';
+          color = 'var(--color-text-muted, #6b7280)';
+        }
+        
         li.appendChild(document.createTextNode(wr.title + ' — Due ' + formatDate(wr.dueDate)));
+        li.appendChild(el('strong', { style: 'color: ' + color + ';' }, [relText]));
         ul.appendChild(li);
       });
       dueCard.appendChild(ul);

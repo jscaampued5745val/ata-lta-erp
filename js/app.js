@@ -180,7 +180,7 @@ const App = {
   getPreferredViewMode(module) {
     const key = `erp_preferred_view_${module}`;
     const stored = localStorage.getItem(key);
-    if (module === 'operations' || module === 'billing' || module === 'disbursement') {
+    if (module === 'operations' || module === 'billing' || module === 'disbursement' || module === 'transmittals') {
       if (!stored || stored === 'card') return 'board';
     }
     if (stored === 'list' || stored === 'table' || stored === 'board') return stored;
