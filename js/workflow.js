@@ -1541,15 +1541,27 @@ const Workflow = {
     const entity = Auth.activeEntity;
     const templates = DB.getWhere('retainerTemplates', t => t.entity === entity);
 
-    const wrapper = el('div');
+    const wrapper = el('div', { class: 'page' });
+
+    // Breadcrumb Title Bar
+    const titleBar = el('div', { class: 'page-title-bar-v2' });
+    const h1 = el('h1', { class: 'breadcrumb-h1' });
+    const opLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Operations' });
+    opLink.addEventListener('click', () => { this.view = 'list'; this.templateEditingId = null; App.handleRoute(); });
+    h1.appendChild(opLink);
+    h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
+    h1.appendChild(document.createTextNode('Retainer Templates'));
+    titleBar.appendChild(h1);
+
+    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+    backBtn.addEventListener('click', () => { this.view = 'list'; this.templateEditingId = null; App.handleRoute(); });
+    titleBar.appendChild(backBtn);
+    wrapper.appendChild(titleBar);
+
     const actions = el('div', { class: 'actions-bar' });
     const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Template' });
     addBtn.addEventListener('click', () => { this.view = 'templateForm'; this.templateEditingId = null; App.handleRoute(); });
     actions.appendChild(addBtn);
-
-    const backBtn = el('button', { class: 'btn btn-ghost', text: 'Back to Work Requests' });
-    backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-    actions.appendChild(backBtn);
     wrapper.appendChild(actions);
 
     if (templates.length === 0) {
@@ -1598,10 +1610,33 @@ const Workflow = {
 
     const entity = Auth.activeEntity;
     const template = this.templateEditingId ? DB.getById('retainerTemplates', this.templateEditingId) : null;
-    const container = el('div');
+    const container = el('div', { class: 'page' });
+
+    // Breadcrumb Title Bar
+    const titleBar = el('div', { class: 'page-title-bar-v2' });
+    const h1 = el('h1', { class: 'breadcrumb-h1' });
+    const opLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Operations' });
+    opLink.addEventListener('click', () => { this.view = 'list'; this.templateEditingId = null; App.handleRoute(); });
+    h1.appendChild(opLink);
+    h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
+    
+    const tplLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Templates' });
+    tplLink.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
+    h1.appendChild(tplLink);
+    h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
+    
+    h1.appendChild(document.createTextNode(template ? template.name : 'Create Template'));
+    titleBar.appendChild(h1);
+
+    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Templates' });
+    backBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
+    titleBar.appendChild(backBtn);
+    container.appendChild(titleBar);
+
+    const form = el('form', { id: 'template-form', class: 'form-stacked' });
 
     const headerBar = el('div', { class: 'form-header-bar' });
-    headerBar.appendChild(el('h2', { text: template ? 'Edit Retainer Template' : 'Create Retainer Template' }));
+    headerBar.appendChild(el('h3', { text: template ? 'Edit Template Details' : 'Template Details' }));
 
     const topActions = el('div', { class: 'form-actions-top' });
     const saveBtn = el('button', { type: 'submit', form: 'template-form', class: 'btn btn-primary', text: 'Save Template' });
@@ -1620,14 +1655,8 @@ const Workflow = {
       topActions.appendChild(delBtn);
     }
 
-    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel', style: 'margin-left: 8px;' });
-    cancelBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
-    topActions.appendChild(cancelBtn);
-
     headerBar.appendChild(topActions);
-    container.appendChild(headerBar);
-
-    const form = el('form', { id: 'template-form', class: 'form-stacked' });
+    form.appendChild(headerBar);
 
     form.appendChild(el('div', { class: 'form-group' }, [
       el('label', { text: 'Template Name *' }),
