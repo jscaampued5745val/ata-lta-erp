@@ -203,20 +203,37 @@ const Clients = {
     addrGroup.appendChild(addrInput);
     form.appendChild(addrGroup);
 
-    // Point of Contact (entity-scoped staff dropdown)
+    // Point of Contact (combobox)
     const pocGroup = el('div', { class: 'form-group' });
     pocGroup.appendChild(el('label', { text: 'Point of Contact' }));
-    const pocSel = el('select', { name: 'contactUserId', class: 'form-select' });
-    pocSel.appendChild(el('option', { value: '', text: '— Select Staff —' }));
+    
+    const pocInput = el('input', { 
+      type: 'text', 
+      name: 'pointOfContactInput', 
+      list: 'staff-list', 
+      placeholder: '— Select or type Staff —'
+    });
+    const datalist = el('datalist', { id: 'staff-list' });
+
     const entityUsers = DB.getWhere('users', u => {
       const userEntities = (u.entities || []).map(e => e.toUpperCase());
       return ['Admin', 'Manager', 'Staff'].includes(u.role) && userEntities.includes(Auth.activeEntity);
     });
     entityUsers.forEach(u => {
-      pocSel.appendChild(el('option', { value: u.id, text: u.name + ' (' + u.role + ')' }));
+      datalist.appendChild(el('option', { value: u.name + ' (' + u.role + ')' }));
     });
-    if (client && client.contactUserId) pocSel.value = client.contactUserId;
-    pocGroup.appendChild(pocSel);
+    
+    if (client) {
+      if (client.contactUserId) {
+        const u = DB.getById('users', client.contactUserId);
+        if (u) pocInput.value = u.name + ' (' + u.role + ')';
+      } else if (client.contactPerson) {
+        pocInput.value = client.contactPerson;
+      }
+    }
+    
+    pocGroup.appendChild(pocInput);
+    pocGroup.appendChild(datalist);
     form.appendChild(pocGroup);
 
     // Contact Details (multi-entry)
@@ -284,6 +301,33 @@ const Clients = {
     });
     if (data && data.type) typeSel.value = data.type;
     const valueInput = el('input', { type: 'text', placeholder: 'Value', name: 'cd-value-' + idx, value: data ? (data.value || '') : '' });
+    
+    const updatePlaceholder = () => {
+      if (typeSel.value === 'mobile') {
+        valueInput.placeholder = 'e.g. 09123456789 (11 digits)';
+        valueInput.maxLength = 11;
+      } else if (typeSel.value === 'landline') {
+        valueInput.placeholder = 'e.g. 123456789 (9 digits)';
+        valueInput.maxLength = 9;
+      } else if (typeSel.value === 'email') {
+        valueInput.placeholder = 'e.g. user@theiremail.com';
+        valueInput.removeAttribute('maxLength');
+      }
+      // Re-trigger restriction on type change if value exists
+      if (valueInput.value) {
+        valueInput.dispatchEvent(new Event('input'));
+      }
+    };
+    
+    valueInput.addEventListener('input', (e) => {
+      if (typeSel.value === 'mobile' || typeSel.value === 'landline') {
+        e.target.value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+      }
+    });
+
+    typeSel.addEventListener('change', updatePlaceholder);
+    updatePlaceholder();
+
     const labelInput = el('input', { type: 'text', placeholder: 'Label (e.g. Work, Home)', name: 'cd-label-' + idx, value: data ? (data.label || '') : '' });
     const removeBtn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: 'Remove' });
     removeBtn.addEventListener('click', () => row.remove());
@@ -348,17 +392,44 @@ const Clients = {
 
     // Collect contact details
     const contactDetails = [];
+    let hasContactError = false;
     const cdContainer = document.getElementById('contact-details-container');
     if (cdContainer) {
       cdContainer.querySelectorAll('.multi-entry-row').forEach(row => {
+        const valueInput = row.querySelector('input[name^="cd-value-"]');
+        const labelInput = row.querySelector('input[name^="cd-label-"]');
+        if (!valueInput || !labelInput) return;
+
         const type = row.querySelector('select[name^="cd-type-"]')?.value;
-        const value = row.querySelector('input[name^="cd-value-"]')?.value.trim();
-        const label = row.querySelector('input[name^="cd-label-"]')?.value.trim();
-        if (type && value) {
-          contactDetails.push({ type, value, label: label || '' });
+        const value = valueInput.value.trim();
+        const label = labelInput.value.trim();
+
+        if (value || label) {
+          if (!label) {
+            showFieldError(labelInput, 'Label is required.');
+            hasContactError = true;
+          }
+          if (!value) {
+            showFieldError(valueInput, 'Value is required.');
+            hasContactError = true;
+          } else {
+            if (type === 'mobile' && !/^\d{11}$/.test(value)) {
+              showFieldError(valueInput, 'Mobile must be exactly 11 digits.');
+              hasContactError = true;
+            } else if (type === 'landline' && !/^\d{9}$/.test(value)) {
+              showFieldError(valueInput, 'Landline must be exactly 9 digits.');
+              hasContactError = true;
+            } else if (type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+              showFieldError(valueInput, 'Please enter a valid email address.');
+              hasContactError = true;
+            }
+          }
+          contactDetails.push({ type, value, label });
         }
       });
     }
+
+    if (hasContactError) return;
 
     // Collect related companies
     const relatedCompanies = [];
@@ -373,12 +444,25 @@ const Clients = {
       });
     }
 
+    const pocInputValue = (data.pointOfContactInput || '').trim();
+    let contactUserId = '';
+    let contactPerson = '';
+
+    if (pocInputValue) {
+      const matchedUser = DB.getWhere('users', u => (u.name + ' (' + u.role + ')') === pocInputValue)[0];
+      if (matchedUser) {
+        contactUserId = matchedUser.id;
+      } else {
+        contactPerson = pocInputValue;
+      }
+    }
+
     const record = {
       name: data.name.trim(),
       tin: data.tin.trim(),
       address: data.address ? data.address.trim() : '',
       tradeName: data.tradeName ? data.tradeName.trim() : '',
-      contactUserId: data.contactUserId || '',
+      contactUserId,
       entity: entityRadio.value,
       retainer: !!form.querySelector('input[name="retainer"]:checked'),
       contactDetails,
@@ -391,14 +475,15 @@ const Clients = {
       if (old) {
         record.createdAt = old.createdAt;
         // Preserve legacy fields no longer in form
-        record.contactPerson = old.contactPerson || '';
         record.phone = old.phone || '';
         record.email = old.email || '';
       }
+      record.contactPerson = contactPerson;
       PendingChanges.submit('clients', record, false);
     } else {
       record.id = generateId('c');
       record.createdAt = new Date().toISOString();
+      record.contactPerson = contactPerson;
       PendingChanges.submit('clients', record, true);
     }
 

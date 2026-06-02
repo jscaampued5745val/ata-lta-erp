@@ -43,11 +43,18 @@ const Auth = {
     if (role === 'Admin') return true;
     if (!this.user.entities.includes(entity)) return false;
     const perms = {
-      Manager: ['clients:view','clients:edit','workflow:view','workflow:edit','workflow:approve','billing:view','billing:edit','billing:approve','disbursement:view','disbursement:approve','dms:view','dms:edit','dms:handover','reports:view','users:view'],
-      Staff: ['clients:view','workflow:view','workflow:edit','billing:view','disbursement:view','disbursement:create','dms:view','dms:edit','dms:handover','reports:view'],
+      Manager: ['clients:view','clients:edit','workflow:view','workflow:edit','workflow:approve','billing:view','billing:edit','billing:approve','disbursement:view','disbursement:approve','dms:view','dms:edit','reports:view','users:view'],
+      Staff: ['clients:view','workflow:view','workflow:edit','billing:view','disbursement:view','disbursement:create','dms:view','dms:edit','reports:view'],
       Viewer: ['clients:view','workflow:view','billing:view','disbursement:view','dms:view','reports:view']
     };
-    return perms[role]?.includes(action) || false;
+    let allowed = perms[role]?.includes(action) || false;
+    
+    // Special case: dms:handover for Documentation Staff
+    if (action === 'dms:handover' && role === 'Staff') {
+      if (this.user.name.toLowerCase().includes('documentation')) allowed = true;
+    }
+    
+    return allowed;
   },
 
   isSelfApprover(recordUserId) {

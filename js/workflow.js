@@ -94,7 +94,7 @@ const Workflow = {
     const headerBar = el('div', { class: 'form-header-bar' });
     headerBar.appendChild(el('h2', { text: 'Work Requests' }));
     const topActions = el('div', { class: 'form-actions-top' });
-    if (isManagerial) {
+    if (Auth.user.role === 'Manager') {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Work Request' });
       addBtn.addEventListener('click', () => { this.view = 'form'; this.editingId = null; App.handleRoute(); });
       topActions.appendChild(addBtn);
@@ -825,9 +825,12 @@ const Workflow = {
 
         // Assigned To
         const tdAssignee = el('td');
+        const assigneeWrap = el('div', { style: 'display:flex; align-items:center; gap:var(--spacing-xs);' });
         const av = el('div', { class: 'avatar-xs' });
         if (assignee?.avatarUrl) av.style.backgroundImage = `url('${assignee.avatarUrl}')`;
-        tdAssignee.appendChild(av);
+        assigneeWrap.appendChild(av);
+        assigneeWrap.appendChild(el('span', { text: assignee?.name || 'Unassigned', style: !assignee ? 'color:var(--color-text-muted);font-style:italic;' : '' }));
+        tdAssignee.appendChild(assigneeWrap);
         tr.appendChild(tdAssignee);
 
         // Due Date
@@ -889,25 +892,210 @@ const Workflow = {
         const detailsGrid = el('div', { class: 'task-details-grid' });
         
         // Attached Documents Section
+        const isAdmin = Auth.user.role === 'Admin';
+        const isDocStaff = Auth.user.role === 'Staff' && Auth.can('dms:handover');
+        
         const docsSection = el('div', { class: 'task-details-col' });
         const docsHeader = el('div', { class: 'details-section-title' });
         docsHeader.appendChild(el('span', { text: 'Attached Documents' }));
+        
+        // Only Documentation Staff can upload
         if (isDocStaff) {
           const addDocBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Upload Scanned' });
           addDocBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showAddDocumentModal(t.id); });
           docsHeader.appendChild(addDocBtn);
         }
+        
         docsSection.appendChild(docsHeader);
 
         const docsList = el('div', { class: 'details-content-list' });
         if ((t.taskDocuments || []).length === 0) {
           docsList.appendChild(el('div', { class: 'empty-state', text: 'No documents attached.' }));
         } else {
-          t.taskDocuments.forEach(d => {
-            const item = el('div', { class: 'detail-item-v2' });
-            item.appendChild(el('span', { text: d.filename }));
-            item.appendChild(el('span', { class: 'kpi-label', text: formatDate(d.uploadDate) }));
+          t.taskDocuments.forEach((d, dIdx) => {
+            const item = el('div', { class: 'detail-item-v2', style: 'display:flex; justify-content:space-between; align-items:center;' });
+            const leftSide = el('div', { style: 'display:flex; flex-direction:column;' });
+            
+            const fName = d.fileName || d.filename;
+
+            // Only Admin can click to view actual file
+            if (isAdmin) {
+              const dmsDoc = DB.getWhere('documents', doc => 
+                (doc.fileName === fName) && doc.workRequestId === wr.id
+              )[0];
+
+              if (dmsDoc && dmsDoc.dataUrl) {
+                const link = el('a', { 
+                  href: '#', 
+                  text: fName, 
+                  style: 'color:#2563eb; font-weight:600; text-decoration:underline; cursor:pointer;' 
+                });
+                link.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const win = window.open();
+                  if (win) {
+                    win.document.write('<iframe src="' + dmsDoc.dataUrl + '" frameborder="0" style="position:fixed; top:0; left:0; bottom:0; right:0; width:100%; height:100%; border:none; margin:0; padding:0; overflow:hidden; z-index:999999;" allowfullscreen></iframe>');
+                  }
+                });
+                leftSide.appendChild(link);
+              } else {
+                leftSide.appendChild(el('span', { text: fName }));
+              }
+            } else {
+              // Non-admins see the name but cannot click/view
+              leftSide.appendChild(el('span', { text: fName }));
+            }
+            
+            leftSide.appendChild(el('span', { class: 'kpi-label', text: formatDate(d.uploadDate) }));
+            item.appendChild(leftSide);
+
+            // Delete Button: Documentation Staff and Admin can remove
+            if (isDocStaff || isAdmin) {
+              const delBtn = el('button', { 
+                class: 'btn btn-ghost btn-xs', 
+                text: '×', 
+                style: 'color:var(--color-danger); font-size:1.2rem; padding:0 4px; line-height:1;' 
+              });
+              delBtn.title = 'Remove Attachment';
+              delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`Remove "${fName}" from this task?`)) {
+                  const updatedTaskDocs = t.taskDocuments.filter((_, i) => i !== dIdx);
+                  DB.update('tasks', t.id, { taskDocuments: updatedTaskDocs });
+                  const dmsMatch = DB.getWhere('documents', doc => 
+                    doc.fileName === fName && doc.workRequestId === wr.id
+                  )[0];
+                  if (dmsMatch) DB.delete('documents', dmsMatch.id);
+                  App.handleRoute();
+                }
+              });
+              item.appendChild(delBtn);
+            }
+
             docsList.appendChild(item);
+
+            // --- Start of Comment Section ---
+            const commentToggle = el('button', { 
+              class: 'btn btn-ghost btn-xs', 
+              text: '💬 Comments' + (d.comments?.length ? ` (${d.comments.length})` : ''), 
+              style: 'margin-left: 10px; font-size: 0.75rem; color: var(--color-text-muted);' 
+            });
+            const commentContainer = el('div', { class: 'doc-comments-container hidden', style: 'margin: 8px 0 16px 20px; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #cbd5e1;' });
+            
+            commentToggle.addEventListener('click', (e) => {
+              e.stopPropagation();
+              commentContainer.classList.toggle('hidden');
+            });
+            
+            const renderComments = () => {
+              commentContainer.innerHTML = '';
+              const list = el('div', { style: 'display:flex; flex-direction:column; gap:8px;' });
+              
+              if (!d.comments || d.comments.length === 0) {
+                list.appendChild(el('div', { class: 'empty-state', text: 'No comments for this document.', style: 'padding: 4px 0;' }));
+              } else {
+                d.comments.forEach((c, cIdx) => {
+                  const commentRow = el('div', { style: 'background:white; padding:8px 12px; border-radius:6px; border: 1px solid #e2e8f0; position:relative;' });
+                  const cUser = DB.getById('users', c.userId);
+                  
+                  const header = el('div', { style: 'display:flex; justify-content:space-between; margin-bottom:4px; font-size:0.75rem;' });
+                  header.appendChild(el('span', { text: cUser?.name || 'Unknown', style: 'font-weight:600; color:var(--color-primary);' }));
+                  header.appendChild(el('span', { text: formatDate(c.date), style: 'color:var(--color-text-muted);' }));
+                  commentRow.appendChild(header);
+
+                  const contentArea = el('div', { style: 'font-size:0.875rem; color:#334155; line-height:1.4;' });
+                  contentArea.textContent = c.text;
+                  commentRow.appendChild(contentArea);
+
+                  // Admin Actions: Edit/Delete
+                  if (isAdmin) {
+                    const cActions = el('div', { style: 'display:flex; gap:8px; margin-top:8px; border-top:1px solid #f1f5f9; padding-top:4px;' });
+                    
+                    const editBtn = el('button', { class: 'btn btn-link btn-xs', text: 'Edit', style: 'padding:0; font-size:0.7rem;' });
+                    editBtn.addEventListener('click', (e) => {
+                      e.stopPropagation();
+                      const originalText = c.text;
+                      contentArea.innerHTML = '';
+                      const editInput = el('textarea', { class: 'form-control', style: 'width:100%; min-height:40px; font-size:0.875rem;', text: originalText });
+                      contentArea.appendChild(editInput);
+                      
+                      cActions.classList.add('hidden');
+                      const editActions = el('div', { style: 'display:flex; gap:8px; margin-top:4px;' });
+                      const saveEditBtn = el('button', { class: 'btn btn-primary btn-xs', text: 'Save' });
+                      const cancelEditBtn = el('button', { class: 'btn btn-ghost btn-xs', text: 'Cancel' });
+                      
+                      saveEditBtn.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        const newText = editInput.value.trim();
+                        if (newText) {
+                          c.text = newText;
+                          c.date = new Date().toISOString();
+                          DB.update('tasks', t.id, { taskDocuments: t.taskDocuments });
+                          renderComments();
+                        }
+                      });
+                      
+                      cancelEditBtn.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        renderComments();
+                      });
+                      
+                      editActions.appendChild(saveEditBtn);
+                      editActions.appendChild(cancelEditBtn);
+                      contentArea.appendChild(editActions);
+                    });
+                    
+                    const delBtn = el('button', { class: 'btn btn-link btn-xs', text: 'Delete', style: 'padding:0; font-size:0.7rem; color:var(--color-danger);' });
+                    delBtn.addEventListener('click', (e) => {
+                      e.stopPropagation();
+                      if (confirm('Delete this comment?')) {
+                        d.comments.splice(cIdx, 1);
+                        DB.update('tasks', t.id, { taskDocuments: t.taskDocuments });
+                        renderComments();
+                        commentToggle.textContent = '💬 Comments' + (d.comments?.length ? ` (${d.comments.length})` : '');
+                      }
+                    });
+                    
+                    cActions.appendChild(editBtn);
+                    cActions.appendChild(delBtn);
+                    commentRow.appendChild(cActions);
+                  }
+                  list.appendChild(commentRow);
+                });
+              }
+              commentContainer.appendChild(list);
+
+              if (isAdmin) {
+                const addForm = el('div', { style: 'margin-top:12px; padding-top:12px; border-top: 1px solid #cbd5e1;' });
+                const addInput = el('textarea', { placeholder: 'Write a comment...', class: 'form-control', style: 'width:100%; min-height:50px; font-size:0.875rem;' });
+                const addBtnRow = el('div', { style: 'display:flex; gap:8px; margin-top:8px;' });
+                const saveNewBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Save Comment' });
+                
+                saveNewBtn.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  const text = addInput.value.trim();
+                  if (text) {
+                    if (!d.comments) d.comments = [];
+                    d.comments.push({ userId: Auth.user.id, date: new Date().toISOString(), text });
+                    DB.update('tasks', t.id, { taskDocuments: t.taskDocuments });
+                    addInput.value = '';
+                    renderComments();
+                    commentToggle.textContent = '💬 Comments' + (d.comments?.length ? ` (${d.comments.length})` : '');
+                  }
+                });
+                
+                addBtnRow.appendChild(saveNewBtn);
+                addForm.appendChild(addInput);
+                addForm.appendChild(addBtnRow);
+                commentContainer.appendChild(addForm);
+              }
+            };
+            
+            renderComments();
+            docsList.appendChild(commentToggle);
+            docsList.appendChild(commentContainer);
+            // --- End of Comment Section ---
           });
         }
         docsSection.appendChild(docsList);
@@ -973,6 +1161,10 @@ const Workflow = {
   },
 
   showAddDocumentModal(taskId) {
+    const task = DB.getById('tasks', taskId);
+    if (!task) return;
+    const wr = DB.getById('workRequests', task.workRequestId);
+
     const form = el('form', { class: 'form-stacked' });
     form.appendChild(el('div', { class: 'form-group' }, [
       el('label', { text: 'Select File *' }),
@@ -986,16 +1178,47 @@ const Workflow = {
       e.preventDefault();
       const file = form.querySelector('input[name="docFile"]').files[0];
       if (!file) return;
-      const entry = {
-        filename: file.name,
-        uploadDate: new Date().toISOString().slice(0, 10),
-        uploaderId: Auth.user.id
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target.result;
+        const now = new Date().toISOString();
+        
+        // 1. Update taskDocuments metadata
+        const entry = {
+          fileName: file.name,
+          uploadDate: now.slice(0, 10),
+          uploaderId: Auth.user.id
+        };
+        const updatedDocs = [...(task.taskDocuments || []), entry];
+        DB.update('tasks', taskId, { taskDocuments: updatedDocs, updatedAt: now });
+
+        // 2. Also create a record in DMS documents table so it is viewable
+        const dmsRecord = {
+          id: generateId('doc'),
+          fileName: file.name,
+          workRequestId: task.workRequestId,
+          document_type: 'original_scan',
+          category: 'Requirement Docs',
+          uploader: Auth.user.id,
+          uploadDate: now,
+          description: `Uploaded via task: ${task.title}`,
+          handover_log: [],
+          entity: wr?.entity || Auth.activeEntity,
+          dataUrl: dataUrl,
+          versions: [],
+          comments: [],
+          documentLifecycle: 'collected',
+          scannedBy: '',
+          envelopeId: '',
+          storedLocation: ''
+        };
+        DB.insert('documents', dmsRecord);
+
+        overlay.remove();
+        App.handleRoute();
       };
-      const task = DB.getById('tasks', taskId);
-      const updatedDocs = [...(task.taskDocuments || []), entry];
-      DB.update('tasks', taskId, { taskDocuments: updatedDocs, updatedAt: new Date().toISOString() });
-      overlay.remove();
-      App.handleRoute();
+      reader.readAsDataURL(file);
     });
   },
 
@@ -1376,9 +1599,35 @@ const Workflow = {
     const entity = Auth.activeEntity;
     const template = this.templateEditingId ? DB.getById('retainerTemplates', this.templateEditingId) : null;
     const container = el('div');
-    container.appendChild(el('h2', { text: template ? 'Edit Retainer Template' : 'Create Retainer Template' }));
 
-    const form = el('form', { class: 'form-stacked' });
+    const headerBar = el('div', { class: 'form-header-bar' });
+    headerBar.appendChild(el('h2', { text: template ? 'Edit Retainer Template' : 'Create Retainer Template' }));
+
+    const topActions = el('div', { class: 'form-actions-top' });
+    const saveBtn = el('button', { type: 'submit', form: 'template-form', class: 'btn btn-primary', text: 'Save Template' });
+    topActions.appendChild(saveBtn);
+    
+    if (template) {
+      const delBtn = el('button', { type: 'button', class: 'btn btn-danger', text: 'Delete', style: 'margin-left: 8px;' });
+      delBtn.addEventListener('click', () => {
+        if(confirm('Are you sure you want to delete this template?')) {
+          DB.delete('retainerTemplates', template.id);
+          this.view = 'templates'; 
+          this.templateEditingId = null; 
+          App.handleRoute();
+        }
+      });
+      topActions.appendChild(delBtn);
+    }
+
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel', style: 'margin-left: 8px;' });
+    cancelBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
+    topActions.appendChild(cancelBtn);
+
+    headerBar.appendChild(topActions);
+    container.appendChild(headerBar);
+
+    const form = el('form', { id: 'template-form', class: 'form-stacked' });
 
     form.appendChild(el('div', { class: 'form-group' }, [
       el('label', { text: 'Template Name *' }),
@@ -1435,14 +1684,6 @@ const Workflow = {
       this.addTaskRow(tasksList);
     }
     this.updatePredecessorOptions(tasksList);
-
-    const btnGroup = el('div', { class: 'form-group form-actions' });
-    const saveBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Template' });
-    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
-    cancelBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
-    btnGroup.appendChild(saveBtn);
-    btnGroup.appendChild(cancelBtn);
-    form.appendChild(btnGroup);
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();

@@ -67,6 +67,16 @@ const DMS = {
   renderList() {
     const entity = Auth.activeEntity;
 
+    // Restrict Documents module to Admin and Documentation Staff
+    const isAdmin = Auth.user.role === 'Admin';
+    const isDocStaff = Auth.user.role === 'Staff' && Auth.can('dms:handover');
+    
+    if (!isAdmin && !isDocStaff) {
+      const wrapper = el('div');
+      wrapper.appendChild(el('p', { text: 'Documents are restricted to Admin and Documentation users.', class: 'empty-state' }));
+      return wrapper;
+    }
+
     const actions = el('div', { class: 'actions-bar' });
     const addBtn = el('button', { class: 'btn btn-primary', text: 'Upload Document' });
     addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
@@ -469,6 +479,13 @@ const DMS = {
   // Detail View
   // ============================================================
   renderDetail() {
+    // Only Admin users may view document details
+    if (Auth.user.role !== 'Admin') {
+      this.view = 'list';
+      App.handleRoute();
+      return el('div');
+    }
+
     const doc = DB.getById('documents', this.detailId);
     if (!doc || !doc.fileName) {
       this.view = 'list';
