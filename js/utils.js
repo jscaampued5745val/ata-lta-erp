@@ -25,11 +25,18 @@ function generateId(prefix) {
 }
 
 function showFieldError(field, message) {
-  let errorEl = field.parentElement.querySelector('.field-error');
+  // If the field is inside a datepicker wrapper, target the form-group parent instead
+  let container = field.parentElement;
+  if (container && container.classList.contains('mdp-wrapper')) {
+    // Also show error style on the wrapper
+    container.classList.add('input-error');
+    container = container.parentElement;
+  }
+  let errorEl = container.querySelector('.field-error');
   if (!errorEl) {
     errorEl = document.createElement('span');
     errorEl.className = 'field-error';
-    field.parentElement.appendChild(errorEl);
+    container.appendChild(errorEl);
   }
   errorEl.textContent = message;
   field.classList.add('input-error');
