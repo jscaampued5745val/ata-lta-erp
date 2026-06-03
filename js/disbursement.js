@@ -1006,9 +1006,9 @@ const Disbursement = {
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
-    container.appendChild(table);
+    wrapper.appendChild(table);
 
-    return container;
+    return wrapper;
   },
 
   showTemplateForm() {
