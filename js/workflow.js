@@ -2249,6 +2249,3 @@ const Workflow = {
     App.handleRoute();
   }
 };
-App.handleRoute();
-  }
-};
