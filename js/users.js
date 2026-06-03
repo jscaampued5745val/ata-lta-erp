@@ -33,10 +33,19 @@ const Users = {
     tabs.appendChild(auditTab);
 
     if (isAdmin) {
+      const entity = Auth.activeEntity;
+      const pendingDisbursements = DB.getWhere('disbursements', d => d.entity === entity && (d.status === 'Submitted' || d.status === 'Under Review'));
+      const pendingChanges = PendingChanges.getAllPending();
+      const totalPending = pendingDisbursements.length + pendingChanges.length;
+
       const pendingTab = el('button', {
         class: 'btn ' + (this.view === 'pending' ? 'btn-primary' : 'btn-ghost'),
         text: 'Pending Approvals'
       });
+      if (totalPending > 0) {
+        const tabBadge = el('span', { class: 'nav-badge', style: 'margin-left:6px;', text: totalPending > 99 ? '99+' : String(totalPending) });
+        pendingTab.appendChild(tabBadge);
+      }
       pendingTab.addEventListener('click', () => { this.view = 'pending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
       tabs.appendChild(pendingTab);
     } else {
@@ -437,7 +446,7 @@ const Users = {
   },
 
   // ============================================================
-  // Pending Approvals Section
+  // Pending Approvals Section (merged: PendingChanges + Disbursement Submissions)
   // ============================================================
   renderPendingSection() {
     const wrapper = el('div');
@@ -447,40 +456,84 @@ const Users = {
       return wrapper;
     }
 
-    const pending = PendingChanges.getAllPending();
-    if (pending.length === 0) {
+    const entity = Auth.activeEntity;
+    const pendingChanges = PendingChanges.getAllPending();
+    const pendingDisbursements = DB.getWhere('disbursements', d => d.entity === entity && (d.status === 'Submitted' || d.status === 'Under Review'));
+
+    if (pendingChanges.length === 0 && pendingDisbursements.length === 0) {
       wrapper.appendChild(el('p', { text: 'No pending approvals.', class: 'empty-state' }));
       return wrapper;
     }
 
-    const table = el('table', { class: 'data-table' });
-    const thead = el('thead');
-    const thr = el('tr');
-    ['Table', 'Submitted By', 'Date', 'Type', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
-    thead.appendChild(thr);
-    table.appendChild(thead);
+    // ── Disbursement Submissions ──
+    if (pendingDisbursements.length > 0) {
+      wrapper.appendChild(el('h3', { text: 'Disbursement Submissions', style: 'margin-top:0;' }));
+      const dTable = el('table', { class: 'data-table' });
+      const dThead = el('thead');
+      const dThr = el('tr');
+      ['Category', 'Description', 'Amount', 'Requested By', 'Date', 'Actions'].forEach(h => dThr.appendChild(el('th', { text: h })));
+      dThead.appendChild(dThr);
+      dTable.appendChild(dThead);
 
-    const tbody = el('tbody');
-    pending.forEach(pc => {
-      const submitter = DB.getById('users', pc.submittedBy);
-      const tr = el('tr');
-      tr.appendChild(el('td', { text: pc.table }));
-      tr.appendChild(el('td', { text: submitter ? submitter.name : pc.submittedBy }));
-      tr.appendChild(el('td', { text: formatDate(pc.submittedAt) }));
-      tr.appendChild(el('td', { text: pc.parentRecordId ? 'Edit' : 'New' }));
+      const dBody = el('tbody');
+      pendingDisbursements.forEach(d => {
+        const requester = DB.getById('users', d.requestedBy);
+        const tr = el('tr');
+        tr.appendChild(el('td', { text: d.category }));
+        tr.appendChild(el('td', { text: d.description }));
+        tr.appendChild(el('td', { text: formatPHP(d.amount) }));
+        tr.appendChild(el('td', { text: requester ? requester.name : '—' }));
+        tr.appendChild(el('td', { text: formatDate(d.submittedAt) }));
 
-      const tdAct = el('td');
-      const reviewBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Review' });
-      reviewBtn.addEventListener('click', () => {
-        this.pendingDetailId = pc.id;
-        App.handleRoute();
+        const tdAct = el('td');
+        const reviewBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Review' });
+        reviewBtn.addEventListener('click', () => {
+          Disbursement.view = 'detail';
+          Disbursement.detailId = d.id;
+          location.hash = '#disbursement';
+        });
+        tdAct.appendChild(reviewBtn);
+        tr.appendChild(tdAct);
+        dBody.appendChild(tr);
       });
-      tdAct.appendChild(reviewBtn);
-      tr.appendChild(tdAct);
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    wrapper.appendChild(table);
+      dTable.appendChild(dBody);
+      wrapper.appendChild(dTable);
+    }
+
+    // ── Structural Change Approvals ──
+    if (pendingChanges.length > 0) {
+      if (pendingDisbursements.length > 0) {
+        wrapper.appendChild(el('h3', { text: 'Structural Change Approvals', style: 'margin-top:var(--spacing-lg);' }));
+      }
+      const table = el('table', { class: 'data-table' });
+      const thead = el('thead');
+      const thr = el('tr');
+      ['Table', 'Submitted By', 'Date', 'Type', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
+      thead.appendChild(thr);
+      table.appendChild(thead);
+
+      const tbody = el('tbody');
+      pendingChanges.forEach(pc => {
+        const submitter = DB.getById('users', pc.submittedBy);
+        const tr = el('tr');
+        tr.appendChild(el('td', { text: pc.table }));
+        tr.appendChild(el('td', { text: submitter ? submitter.name : pc.submittedBy }));
+        tr.appendChild(el('td', { text: formatDate(pc.submittedAt) }));
+        tr.appendChild(el('td', { text: pc.parentRecordId ? 'Edit' : 'New' }));
+
+        const tdAct = el('td');
+        const reviewBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Review' });
+        reviewBtn.addEventListener('click', () => {
+          this.pendingDetailId = pc.id;
+          App.handleRoute();
+        });
+        tdAct.appendChild(reviewBtn);
+        tr.appendChild(tdAct);
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrapper.appendChild(table);
+    }
 
     return wrapper;
   },

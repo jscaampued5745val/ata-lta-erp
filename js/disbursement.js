@@ -24,9 +24,12 @@ const Disbursement = {
       
       const actions = el('div', { class: 'title-bar-actions' });
       if (d) {
-        const genBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Generate Voucher', style: 'margin-right:8px;' });
-        genBtn.addEventListener('click', () => this.openPrintVoucher(d));
-        actions.appendChild(genBtn);
+        const genExpBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Generate Expense PDF', style: 'margin-right:8px;' });
+        genExpBtn.addEventListener('click', () => this.generateExpensePDF(d));
+        actions.appendChild(genExpBtn);
+        const genVouchBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Generate Voucher', style: 'margin-right:8px;' });
+        genVouchBtn.addEventListener('click', () => this.generateVoucher(d));
+        actions.appendChild(genVouchBtn);
       }
       const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
@@ -248,7 +251,13 @@ const Disbursement = {
     }
     if (empFilter) items = items.filter(d => this.getEmployeeId(d) === empFilter);
     if (fundFilter) items = items.filter(d => this.getFundSource(d) === fundFilter);
-    if (statusFilter) items = items.filter(d => d.status === statusFilter);
+    if (statusFilter) {
+      if (statusFilter === 'Pending') {
+        items = items.filter(d => ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status));
+      } else {
+        items = items.filter(d => d.status === statusFilter);
+      }
+    }
     if (dateFrom) {
       const fromDate = new Date(dateFrom).getTime();
       items = items.filter(d => new Date(d.submittedAt).getTime() >= fromDate);
@@ -323,7 +332,8 @@ const Disbursement = {
       return;
     }
     const board = el('div', { class: 'board-v2' });
-    const statuses = ['Pending', 'Approved', 'Released', 'Rejected'];
+    const isAdmin = Auth.user.role === 'Admin';
+    const statuses = isAdmin ? ['Approved', 'Released', 'Rejected'] : ['Pending', 'Approved', 'Released', 'Rejected'];
     const statusColors = {
       'Pending': '#f59e0b',
       'Approved': '#3b82f6',
@@ -335,7 +345,7 @@ const Disbursement = {
       const colColor = statusColors[st] || '#cbd5e1';
       const col = el('div', { class: 'board-column-v2' });
       col.style.borderTop = `4px solid ${colColor}`;
-      
+
       const header = el('div', { class: 'board-column-header-v2' });
       header.appendChild(el('div', { class: 'board-column-title', text: st }));
       col.appendChild(header);
@@ -346,7 +356,7 @@ const Disbursement = {
       } else {
         colItems = items.filter(d => d.status === st);
       }
-      
+
       const cardContainer = el('div', { class: 'board-cards-scroll' });
 
       colItems.forEach(d => {
@@ -426,7 +436,7 @@ const Disbursement = {
     cancelBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
     headerActions.appendChild(cancelBtn);
 
-    const saveBtnTop = el('button', { type: 'submit', class: 'btn btn-primary', text: isNew ? 'Submit Expense' : 'Save Changes' });
+    const saveBtnTop = el('button', { type: 'submit', class: 'btn btn-primary', text: isNew ? 'Submit Expense' : 'Save Changes', form: 'disbursement-form' });
     headerActions.appendChild(saveBtnTop);
 
     headerBar.appendChild(headerActions);
@@ -565,7 +575,7 @@ const Disbursement = {
       entity: entity,
       employeeId: Auth.user.id,
       requestedBy: Auth.user.id,
-      status: 'Pending',
+      status: isNew ? 'Submitted' : (DB.getById('disbursements', this.detailId)?.status || 'Submitted'),
       submittedAt: new Date().toISOString(),
       receiptFilename: receiptFile ? receiptFile.name : (isNew ? null : (DB.getById('disbursements', this.detailId)?.receiptFilename || null))
     };
@@ -575,9 +585,8 @@ const Disbursement = {
       const old = DB.getById('disbursements', this.detailId);
       if (old) {
         record.createdAt = old.createdAt;
-        record.status = old.status; // preserve status on edit
         record.submittedAt = old.submittedAt;
-        record.requestedBy = old.requestedBy || Auth.user.id; // preserve original requester
+        record.requestedBy = old.requestedBy || Auth.user.id;
         record.paymentHandledBy = old.paymentHandledBy || '';
         record.paymentDetails = old.paymentDetails || { method: '', reference: '', bank: '', date: '', processedBy: '' };
       }
@@ -596,7 +605,11 @@ const Disbursement = {
       }
     }
 
-    PendingChanges.submit('disbursements', record, isNew);
+    if (isNew) {
+      DB.insert('disbursements', record);
+    } else {
+      DB.update('disbursements', record.id, record);
+    }
 
     this.view = 'list';
     this.detailId = null;
@@ -714,32 +727,10 @@ const Disbursement = {
         container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve your own expense. Wait for another Admin.' }));
       } else {
         const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-xl); border-top: 1px solid #e2e8f0; padding-top: var(--spacing-lg);' });
-        
-        const handlerGroup = el('div', { class: 'form-group', style: 'max-width:300px; margin-bottom: var(--spacing-md);' });
-        handlerGroup.appendChild(el('label', { text: 'Assign Handler *' }));
-        const handlerSel = el('select', { class: 'form-select', name: 'assignedHandler' });
-        handlerSel.appendChild(el('option', { value: '', text: '— Select Handler —' }));
-        DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role)).forEach(u => {
-          handlerSel.appendChild(el('option', { value: u.id, text: u.name + ' (' + u.role + ')' }));
-        });
-        actions.appendChild(handlerGroup);
 
-        const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve & Assign Handler' });
+        const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve Expense' });
         approveBtn.addEventListener('click', () => {
-          const handlerId = handlerSel.value;
-          if (!handlerId) {
-            Workflow.showMessage('Required', 'Please assign a handler to process this request.', 'warning');
-            return;
-          }
-          Workflow.showConfirm('Confirm Approval', `Approve this expense and assign to ${DB.getById('users', handlerId)?.name}?`, () => {
-            DB.update('disbursements', d.id, { 
-              status: 'Approved', 
-              paymentHandledBy: handlerId,
-              approvedBy: Auth.user.id,
-              approvedAt: new Date().toISOString()
-            });
-            App.handleRoute();
-          }, 'success');
+          this.showApproveDialog(d.id);
         });
         actions.appendChild(approveBtn);
 
@@ -770,9 +761,65 @@ const Disbursement = {
     return container;
   },
 
+  showApproveDialog(id) {
+    const d = DB.getById('disbursements', id);
+    if (!d) return;
+    if (!['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status)) {
+      Workflow.showMessage('Error', 'This disbursement is not pending approval.', 'danger');
+      return;
+    }
+    if (Auth.isSelfApprover(this.getEmployeeId(d))) {
+      Workflow.showMessage('Conflict', 'You cannot approve your own expense.', 'warning');
+      return;
+    }
+
+    const form = el('form', { class: 'form-stacked' });
+
+    const handlerGroup = el('div', { class: 'form-group' });
+    handlerGroup.appendChild(el('label', { text: 'Assign Release Handler *' }));
+    const handlerSel = el('select', { name: 'handlerId', required: true, class: 'form-select' });
+    handlerSel.appendChild(el('option', { value: '', text: '— Select Handler —' }));
+    DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role) && u.id !== d.requestedBy).forEach(u => {
+      handlerSel.appendChild(el('option', { value: u.id, text: u.name + ' (' + u.role + ')' }));
+    });
+    handlerGroup.appendChild(handlerSel);
+    form.appendChild(handlerGroup);
+
+    const submitBtn = el('button', { type: 'submit', class: 'btn btn-success', text: 'Approve & Assign' });
+    form.appendChild(submitBtn);
+
+    const overlay = Workflow.showModal('Approve Expense & Assign Handler', form);
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!validateRequiredFields(form)) return;
+      const handlerId = handlerSel.value;
+      if (handlerId === d.requestedBy) {
+        Workflow.showMessage('Conflict', 'The requester cannot be assigned as their own release handler.', 'warning');
+        return;
+      }
+      DB.update('disbursements', d.id, {
+        status: 'Approved',
+        paymentHandledBy: handlerId,
+        approvedBy: Auth.user.id,
+        approvedAt: new Date().toISOString()
+      });
+      overlay.remove();
+      App.handleRoute();
+    });
+  },
+
   showReleaseDialog(id) {
     const d = DB.getById('disbursements', id);
     if (!d) return;
+    if (d.status !== 'Approved') {
+      Workflow.showMessage('Error', 'This disbursement is not approved for release.', 'danger');
+      return;
+    }
+    if (d.paymentHandledBy !== Auth.user.id) {
+      Workflow.showMessage('Unauthorized', 'You are not assigned to release this disbursement.', 'danger');
+      return;
+    }
 
     const form = el('form', { class: 'form-stacked' });
 
@@ -841,125 +888,317 @@ const Disbursement = {
   },
 
   // ============================================================
-  // Print Voucher
+  // Expense PDF & Voucher Generation (adopts billing.js format)
   // ============================================================
-  openPrintVoucher(d) {
+  _numberToWords(num) {
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    const convert = (n) => {
+      if (n < 20) return ones[n];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+      if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' and ' + convert(n % 100) : '');
+      if (n < 1000000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + convert(n % 1000) : '');
+      if (n < 1000000000) return convert(Math.floor(n / 1000000)) + ' Million' + (n % 1000000 ? ' ' + convert(n % 1000000) : '');
+      return '';
+    };
+    const whole = Math.floor(num);
+    const dec = Math.round((num - whole) * 100);
+    let result = convert(whole) || 'Zero';
+    if (dec > 0) result += ' and ' + convert(dec) + ' Centavos';
+    return result.toUpperCase();
+  },
+
+  generateExpensePDF(d) {
     const emp = DB.getById('users', this.getEmployeeId(d));
     const requester = DB.getById('users', d.requestedBy);
-    const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
-    const win = window.open('', '_blank');
-    if (!win) return;
+    const approver = d.approvedBy ? DB.getById('users', d.approvedBy) : null;
+    const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
+    const client = wr ? DB.getById('clients', wr.clientId) : null;
+    const entity = d.entity || 'ATA';
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const doc = w.document;
 
-    const doc = win.document;
-    const meta = doc.createElement('meta');
-    meta.setAttribute('charset', 'UTF-8');
-    doc.head.appendChild(meta);
     const title = doc.createElement('title');
-    title.textContent = 'Payment Voucher';
+    title.textContent = 'Expense Report ' + d.id;
     doc.head.appendChild(title);
 
     const style = doc.createElement('style');
     style.textContent = `
-      body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-      .voucher-header { text-align: center; margin-bottom: 24px; }
-      .voucher-header h1 { margin: 0; font-size: 1.5rem; text-transform: uppercase; letter-spacing: 1px; }
-      .voucher-header p { margin: 4px 0 0; font-size: 0.875rem; color: #666; }
-      table.voucher-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-      table.voucher-table td { padding: 10px 0; border-bottom: 1px solid #ddd; vertical-align: top; }
-      table.voucher-table td.label { width: 35%; color: #555; font-size: 0.875rem; }
-      table.voucher-table td.value { font-weight: 600; }
-      table.voucher-table td.total { font-size: 1.125rem; font-weight: 700; color: #000; }
-      .signatures { display: flex; justify-content: space-between; margin-top: 48px; }
-      .signature-block { width: 45%; text-align: center; }
-      .signature-line { border-top: 1px solid #333; padding-top: 8px; margin-top: 48px; }
-      .signature-label { font-size: 0.875rem; color: #555; }
-      .signature-name { font-weight: 600; }
+      @page { size: A4; margin: 15mm 20mm; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; max-width: 210mm; margin: 0 auto; padding: 0; }
+      .doc-title { text-align: center; font-size: 16pt; font-weight: 700; letter-spacing: 4px; margin: 0 0 16px; text-transform: uppercase; }
+      .two-col { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+      .col { flex: 1; }
+      .col h3 { font-size: 10pt; text-transform: uppercase; color: #64748b; margin: 0 0 4px; letter-spacing: 0.5px; }
+      .col p { margin: 2px 0; font-size: 10pt; }
+      .details-bar { display: flex; gap: 32px; margin-bottom: 20px; font-size: 10pt; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 4px; }
+      .details-bar span { flex: 1; }
+      .details-bar strong { color: #334155; }
+      table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
+      th { background: #f8fafc; border-bottom: 2px solid #1e293b; padding: 8px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 9pt; letter-spacing: 0.5px; }
+      td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+      .num { text-align: right; }
+      .totals { margin-top: 16px; border-top: 2px solid #1e293b; padding-top: 12px; }
+      .totals-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 10pt; }
+      .totals-row.grand { font-weight: 700; font-size: 12pt; border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 4px; }
+      .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+      .status-badge.pending { background: #fef3c7; color: #92400e; }
+      .status-badge.approved { background: #dbeafe; color: #1e40af; }
+      .status-badge.released { background: #dcfce7; color: #166534; }
+      .status-badge.rejected { background: #fee2e2; color: #991b1b; }
+      .signature-row { display: flex; justify-content: space-between; margin-top: 48px; gap: 40px; }
+      .signature-box { flex: 1; text-align: center; }
+      .signature-box .line { border-top: 1px solid #1e293b; margin-top: 40px; padding-top: 4px; font-size: 9pt; }
+      .footer { margin-top: 24px; font-size: 8pt; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 8px; }
     `;
     doc.head.appendChild(style);
 
-    const body = doc.body;
+    const statusClass = (['Draft','Submitted','Under Review','Pending'].includes(d.status)) ? 'pending'
+      : d.status === 'Approved' ? 'approved'
+      : d.status === 'Released' ? 'released'
+      : 'rejected';
+    const statusText = (['Draft','Submitted','Under Review'].includes(d.status)) ? 'PENDING' : d.status.toUpperCase();
 
-    const header = doc.createElement('div');
-    header.className = 'voucher-header';
-    const h1 = doc.createElement('h1');
-    h1.textContent = 'Payment Voucher';
-    header.appendChild(h1);
-    const sub = doc.createElement('p');
-    sub.textContent = 'Disbursement #' + d.id;
-    header.appendChild(sub);
-    body.appendChild(header);
+    doc.body.innerHTML = `
+      <div style="text-align:center; margin-bottom:4px;">
+        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${entity} Accounting Services Firm</div>
+      </div>
+      <div style="border-bottom:2px solid #1e293b; margin-bottom:16px;"></div>
 
-    const table = doc.createElement('table');
-    table.className = 'voucher-table';
+      <div class="doc-title">Expense Report</div>
 
-    const rows = [
-      { label: 'Voucher No', value: d.id },
-      { label: 'Date of Request', value: formatDate(d.submittedAt) },
-      { label: 'Date of Disbursement', value: (d.releasedAt ? formatDate(d.releasedAt) : (d.paymentDetails?.date ? formatDate(d.paymentDetails.date) : '—')) },
-      { label: 'Payee', value: emp?.name || '—' },
-      { label: 'Category', value: d.category },
-      { label: 'Description', value: d.description },
-      { label: 'Fund Source', value: this.getFundSource(d) },
-      { label: 'Amount', value: formatPHP(d.amount), isTotal: true }
-    ];
+      <div class="details-bar">
+        <span><strong>Ref No.:</strong> ${d.id}</span>
+        <span><strong>Date Submitted:</strong> ${formatDate(d.submittedAt)}</span>
+        <span><strong>Status:</strong> <span class="status-badge ${statusClass}">${statusText}</span></span>
+      </div>
 
-    if (d.paymentDetails && d.paymentDetails.method) {
-      rows.push({ label: 'Payment Method', value: d.paymentDetails.method });
-      rows.push({ label: 'Reference / Check No.', value: d.paymentDetails.reference || '—' });
-      rows.push({ label: 'Bank', value: d.paymentDetails.bank || '—' });
+      <div class="two-col">
+        <div class="col">
+          <h3>Employee / Requester</h3>
+          <p><strong>${emp?.name || '—'}</strong></p>
+          <p>${requester?.email || '—'}</p>
+        </div>
+        <div class="col">
+          <h3>Linked Project</h3>
+          <p><strong>${wr?.title || '—'}</strong></p>
+          <p>Client: ${client?.name || '—'}</p>
+          <p>${client?.tin ? 'TIN: ' + client.tin : ''}</p>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>Category</th><th>Description</th><th>Fund Source</th><th class="num">Amount</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>${d.category}</td><td>${d.description}</td><td>${this.getFundSource(d)}</td><td class="num">${formatPHP(d.amount)}</td></tr>
+        </tbody>
+      </table>
+
+      <div class="totals">
+        <div class="totals-row"><span>Amount in Words</span><span>${this._numberToWords(d.amount)} PESOS ONLY</span></div>
+        <div class="totals-row grand"><span>Total Amount</span><span>${formatPHP(d.amount)}</span></div>
+      </div>
+
+      <div class="signature-row">
+        <div class="signature-box">
+          <div class="line">Prepared By<br><span style="font-size:8pt;color:#64748b;">${emp?.name || '—'} / Date</span></div>
+        </div>
+        <div class="signature-box">
+          <div class="line">Approved By<br><span style="font-size:8pt;color:#64748b;">${approver?.name || '—'} / Date</span></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        This Expense Report is issued for internal audit and reimbursement tracking purposes.<br>
+        For questions, contact ${entity} Accounting Services Firm.<br>
+        Original copy retained for BIR audit trail.
+      </div>
+    `;
+
+    setTimeout(() => w.print(), 300);
+  },
+
+  generateVoucher(d) {
+    const emp = DB.getById('users', this.getEmployeeId(d));
+    const requester = DB.getById('users', d.requestedBy);
+    const approver = d.approvedBy ? DB.getById('users', d.approvedBy) : null;
+    const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
+    const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
+    const client = wr ? DB.getById('clients', wr.clientId) : null;
+    const entity = d.entity || 'ATA';
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const doc = w.document;
+
+    const title = doc.createElement('title');
+    title.textContent = 'Payment Voucher ' + d.id;
+    doc.head.appendChild(title);
+
+    const style = doc.createElement('style');
+    style.textContent = `
+      @page { size: A4; margin: 15mm 20mm; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; max-width: 210mm; margin: 0 auto; padding: 0; }
+      .doc-title { text-align: center; font-size: 16pt; font-weight: 700; letter-spacing: 4px; margin: 0 0 16px; text-transform: uppercase; }
+      .page-break { page-break-before: always; }
+      .section { margin-bottom: 20px; }
+      .section h3 { font-size: 10pt; text-transform: uppercase; color: #64748b; margin: 0 0 8px; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+      .section p { margin: 4px 0; font-size: 10pt; }
+      .section strong { color: #334155; }
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+      .box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 12px; }
+      table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
+      th { background: #f8fafc; border-bottom: 2px solid #1e293b; padding: 8px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 9pt; }
+      td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+      .num { text-align: right; }
+      .amount-words { font-style: italic; font-size: 10pt; color: #475569; margin-top: 4px; }
+      .approval-row { display: flex; justify-content: space-between; margin-top: 48px; gap: 24px; }
+      .approval-box { flex: 1; text-align: center; }
+      .approval-box .line { border-top: 1px solid #1e293b; margin-top: 40px; padding-top: 4px; font-size: 9pt; }
+      .footer { margin-top: 24px; font-size: 8pt; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+      .pay-status { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+      .pay-status.paid { background: #dcfce7; color: #166534; }
+      .pay-status.unpaid { background: #fee2e2; color: #991b1b; }
+    `;
+    doc.head.appendChild(style);
+
+    const amountWords = this._numberToWords(d.amount) + ' PESOS ONLY';
+    const isReleased = d.status === 'Released';
+    const pd = d.paymentDetails || {};
+
+    // Build dynamic payment details section
+    let paymentDetailsHtml = '';
+    if (isReleased && pd.method) {
+      const methodCfg = PaymentIcons;
+      const def = methodCfg['Other Digital'];
+      const cfg = methodCfg[pd.method] || def;
+
+      let detailRows = '';
+      const addRow = (label, value) => {
+        if (!value) return '';
+        return `<div style="display:flex; justify-content:space-between; align-items:baseline; font-size:0.8125rem; padding:3px 0;">
+          <span style="color:#94a3b8; font-weight:500;">${label}</span>
+          <span style="color:#334155; font-weight:600; text-align:right;">${value}</span>
+        </div>`;
+      };
+
+      if (pd.reference) detailRows += addRow('Reference / Check No.', pd.reference);
+      if (pd.bank) detailRows += addRow('Bank', pd.bank);
+      detailRows += addRow('Processed By', handler ? handler.name : '—');
+      detailRows += addRow('Date of Release', formatDate(pd.date || d.releasedAt));
+
+      paymentDetailsHtml = `
+        <div class="section">
+          <h3>Payment Record</h3>
+          <div class="box" style="margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <div>
+                <div style="font-weight:700; font-size:1.25rem; color:#1e293b; line-height:1.2;">${formatPHP(d.amount)}</div>
+                <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">${formatDate(pd.date || d.releasedAt)}</div>
+              </div>
+              <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:700; color:${cfg.color}; background:${cfg.bg}; letter-spacing:0.3px;">
+                ${cfg.svg} ${cfg.label}
+              </span>
+            </div>
+            <div style="height:1px; background:#e2e8f0; margin:0 0 12px;"></div>
+            <div style="display:flex; flex-direction:column; gap:6px;">${detailRows}</div>
+          </div>
+          <div class="box" style="background:#dcfce7; border-color:#10b981;">
+            <p><strong>Status: FUNDS RELEASED</strong></p>
+            <p style="font-size:9pt;">Payment has been authorized and released by ${handler?.name || 'assigned handler'}.</p>
+          </div>
+        </div>`;
+    } else {
+      paymentDetailsHtml = `
+        <div class="section">
+          <h3>Payment Details</h3>
+          <div class="grid-2">
+            <div class="box">
+              <p><strong>Amount in Figures:</strong> ${formatPHP(d.amount)}</p>
+              <p class="amount-words"><strong>Amount in Words:</strong> ${amountWords}</p>
+            </div>
+            <div class="box">
+              <p><strong>Payment Mode:</strong> ___________________</p>
+              <p><strong>Check / Ref No.:</strong> ___________________</p>
+              <p><strong>Bank / Platform:</strong> ___________________</p>
+              <p><strong>Date:</strong> ___________________</p>
+            </div>
+          </div>
+        </div>`;
     }
 
-    rows.forEach(r => {
-      const tr = doc.createElement('tr');
-      const tdLabel = doc.createElement('td');
-      tdLabel.className = 'label';
-      tdLabel.textContent = r.label;
-      const tdValue = doc.createElement('td');
-      tdValue.className = r.isTotal ? 'value total' : 'value';
-      tdValue.textContent = r.value;
-      tr.appendChild(tdLabel);
-      tr.appendChild(tdValue);
-      table.appendChild(tr);
-    });
-    body.appendChild(table);
+    doc.body.innerHTML = `
+      <div style="text-align:center; margin-bottom:4px;">
+        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${entity} Accounting Services Firm</div>
+      </div>
+      <div style="border-bottom:2px solid #1e293b; margin-bottom:16px;"></div>
 
-    const sigWrap = doc.createElement('div');
-    sigWrap.className = 'signatures';
+      <div class="doc-title">Payment Voucher</div>
 
-    const prepBlock = doc.createElement('div');
-    prepBlock.className = 'signature-block';
-    const prepLine = doc.createElement('div');
-    prepLine.className = 'signature-line';
-    const prepName = doc.createElement('div');
-    prepName.className = 'signature-name';
-    prepName.textContent = requester?.name || emp?.name || '—';
-    const prepLabel = doc.createElement('div');
-    prepLabel.className = 'signature-label';
-    prepLabel.textContent = 'Prepared By';
-    prepBlock.appendChild(prepLine);
-    prepBlock.appendChild(prepName);
-    prepBlock.appendChild(prepLabel);
-    sigWrap.appendChild(prepBlock);
+      <div class="grid-2">
+        <div class="box">
+          <h3>Voucher Details</h3>
+          <p><strong>Voucher No.:</strong> PV-${d.id}</p>
+          <p><strong>Date:</strong> ${formatDate(new Date().toISOString().slice(0, 10))}</p>
+          <p><strong>Reference Expense:</strong> ${d.id}</p>
+          <p><strong>Category:</strong> ${d.category}</p>
+        </div>
+        <div class="box">
+          <h3>Payee Information</h3>
+          <p><strong>${emp?.name || '—'}</strong></p>
+          <p>${requester?.email || '—'}</p>
+          <p>Fund Source: ${this.getFundSource(d)}</p>
+        </div>
+      </div>
 
-    const appBlock = doc.createElement('div');
-    appBlock.className = 'signature-block';
-    const appLine = doc.createElement('div');
-    appLine.className = 'signature-line';
-    const appName = doc.createElement('div');
-    appName.className = 'signature-name';
-    appName.textContent = handler?.name || '—';
-    const appLabel = doc.createElement('div');
-    appLabel.className = 'signature-label';
-    appLabel.textContent = 'Approved By';
-    appBlock.appendChild(appLine);
-    appBlock.appendChild(appName);
-    appBlock.appendChild(appLabel);
-    sigWrap.appendChild(appBlock);
+      ${paymentDetailsHtml}
 
-    body.appendChild(sigWrap);
+      <div class="section">
+        <h3>Account Distribution (PFRS Chart of Accounts)</h3>
+        <table>
+          <thead>
+            <tr><th>Account Code</th><th>Account Title</th><th class="num">Debit</th><th class="num">Credit</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>61010</td><td>${d.category} Expense</td><td class="num">${formatPHP(d.amount)}</td><td class="num">—</td></tr>
+            <tr><td>11010</td><td>Cash in Bank / Petty Cash</td><td class="num">—</td><td class="num">${formatPHP(d.amount)}</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-    win.focus();
-    setTimeout(() => win.print(), 300);
+      <div class="section page-break">
+        <h3>Supporting Documents</h3>
+        <p>☐ Expense Report Ref. ${d.id} dated ${formatDate(d.submittedAt)}</p>
+        <p>☐ Receipt / Proof of Payment: ${d.receiptFilename || '_________________'}</p>
+        <p>☐ Work Request: ${wr?.title || '—'}</p>
+        <p>☐ Release Document: ${d.releaseFilename || '_________________'}</p>
+      </div>
+
+      <div class="approval-row">
+        <div class="approval-box">
+          <div class="line">Prepared By<br><span style="font-size:8pt;color:#64748b;">${emp?.name || '—'} / Date</span></div>
+        </div>
+        <div class="approval-box">
+          <div class="line">Reviewed By<br><span style="font-size:8pt;color:#64748b;">Signature / Printed Name / Date</span></div>
+        </div>
+        <div class="approval-box">
+          <div class="line">Approved By<br><span style="font-size:8pt;color:#64748b;">${approver?.name || '—'} / Date</span></div>
+        </div>
+        <div class="approval-box">
+          <div class="line">Received By<br><span style="font-size:8pt;color:#64748b;">Payee Signature / Printed Name / Date</span></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        This Payment Voucher is prepared in accordance with PFRS, RR No. 9-2009, and RMO No. 29-2002.<br>
+        Retain for BIR audit trail. Original copy retained by ${entity} Accounting Services Firm.
+      </div>
+    `;
+
+    setTimeout(() => w.print(), 300);
   },
 
   // ============================================================
@@ -1138,7 +1377,7 @@ const Disbursement = {
       fromTemplate: template.id,
       employeeId: Auth.user.id,
       requestedBy: Auth.user.id,
-      status: 'Pending',
+      status: 'Submitted',
       submittedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       receiptFilename: null,

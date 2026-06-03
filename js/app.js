@@ -28,10 +28,8 @@ const App = {
     let count = 0;
 
     items.forEach(d => {
-      const isRequester = d.employeeId === Auth.user.id;
-      
-      // 1-Tier Admin Approval: Only Admins see notifications for pending submissions
-      if (isAdmin && (d.status === 'Submitted' || d.status === 'Under Review' || d.status === 'Approved') && !isRequester) {
+      // Admin sees count of submissions awaiting their approval
+      if (isAdmin && (d.status === 'Submitted' || d.status === 'Under Review')) {
         count++;
       }
     });
@@ -50,6 +48,24 @@ const App = {
         badge.remove();
       }
     }
+
+    // Also badge the Admin nav link for pending disbursement submissions
+    if (isAdmin) {
+      const adminNav = document.querySelector('nav a[href="#admin"]');
+      if (adminNav) {
+        let adminBadge = adminNav.querySelector('.nav-badge');
+        if (count > 0) {
+          if (!adminBadge) {
+            adminBadge = document.createElement('span');
+            adminBadge.className = 'nav-badge';
+            adminNav.appendChild(adminBadge);
+          }
+          adminBadge.textContent = count > 99 ? '99+' : count;
+        } else if (adminBadge) {
+          adminBadge.remove();
+        }
+      }
+    }
   },
 
   renderShell() {
@@ -66,6 +82,12 @@ const App = {
       }
     }
     this.renderEntitySwitcher();
+
+    // Hide Admin nav link for non-Admin users
+    const adminNav = document.querySelector('nav a[href="#admin"]');
+    if (adminNav) {
+      adminNav.parentElement.style.display = Auth.user.role === 'Admin' ? '' : 'none';
+    }
   },
 
   renderEntitySwitcher() {
