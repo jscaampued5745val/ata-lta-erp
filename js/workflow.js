@@ -1457,6 +1457,74 @@ const Workflow = {
     return container;
   },
 
+  showLinkFinancialModal(taskId) {
+    const task = DB.getById('tasks', taskId);
+    if (!task) return;
+    const wr = DB.getById('workRequests', task.workRequestId);
+
+    const form = el('form', { class: 'form-stacked' });
+    
+    // Type Select
+    const typeGroup = el('div', { class: 'form-group' });
+    typeGroup.appendChild(el('label', { text: 'Record Type *' }));
+    const typeSel = el('select', { required: true });
+    typeSel.appendChild(el('option', { value: '', text: '— Select Type —' }));
+    typeSel.appendChild(el('option', { value: 'invoice', text: 'Service Invoice (Billing)' }));
+    typeSel.appendChild(el('option', { value: 'disbursement', text: 'Expense / Disbursement' }));
+    typeGroup.appendChild(typeSel);
+    form.appendChild(typeGroup);
+
+    // Record Select
+    const recGroup = el('div', { class: 'form-group' });
+    recGroup.appendChild(el('label', { text: 'Select Record *' }));
+    const recSel = el('select', { required: true, disabled: true });
+    recGroup.appendChild(recSel);
+    form.appendChild(recGroup);
+
+    typeSel.addEventListener('change', () => {
+      recSel.innerHTML = '';
+      recSel.disabled = false;
+      if (typeSel.value === 'invoice') {
+        const invs = DB.getWhere('invoices', inv => inv.clientId === wr.clientId && !inv.linkedTaskId);
+        if (invs.length === 0) {
+          recSel.appendChild(el('option', { value: '', text: 'No available invoices for this client' }));
+          recSel.disabled = true;
+        } else {
+          invs.forEach(inv => recSel.appendChild(el('option', { value: inv.id, text: `${inv.invoiceNumber} (${formatPHP(inv.total)})` })));
+        }
+      } else if (typeSel.value === 'disbursement') {
+        // Disbursements might not be strictly tied to client, but let's just show those not linked to a task
+        const disbs = DB.getWhere('disbursements', d => !d.linkedTaskId);
+        if (disbs.length === 0) {
+          recSel.appendChild(el('option', { value: '', text: 'No available disbursements' }));
+          recSel.disabled = true;
+        } else {
+          disbs.forEach(d => recSel.appendChild(el('option', { value: d.id, text: `${d.category} - ${formatPHP(d.amount)}` })));
+        }
+      } else {
+        recSel.disabled = true;
+      }
+    });
+
+    const submitBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Link Record' });
+    form.appendChild(submitBtn);
+
+    const overlay = this.showModal('Link Financial Record', form, null);
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const recId = recSel.value;
+      if (!recId) return;
+
+      if (typeSel.value === 'invoice') {
+        DB.update('invoices', recId, { linkedTaskId: taskId, workRequestId: task.workRequestId });
+      } else if (typeSel.value === 'disbursement') {
+        DB.update('disbursements', recId, { linkedTaskId: taskId, linkedWorkRequestId: task.workRequestId });
+      }
+      overlay.remove();
+      App.handleRoute();
+    });
+  },
+
   showAddDocumentModal(taskId) {
     const task = DB.getById('tasks', taskId);
     if (!task) return;
@@ -2179,5 +2247,8 @@ const Workflow = {
     this.view = 'detail';
     this.detailWrId = workRequest.id;
     App.handleRoute();
+  }
+};
+App.handleRoute();
   }
 };
