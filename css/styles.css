@@ -2288,6 +2288,30 @@ tbody tr:hover {
   font-weight: 700;
   border-width: 2px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-route-dynamic:not(.btn-disabled) {
+  animation: pulse-route 2s infinite;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+}
+
+.btn-route-dynamic:not(.btn-disabled):hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 12px rgba(16, 185, 129, 0.25);
+  animation: none; /* Stop pulse on hover */
+}
+
+@keyframes pulse-route {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
 }
 
 .btn-route-dynamic.btn-disabled {

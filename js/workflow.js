@@ -89,12 +89,49 @@ const Workflow = {
     }
 
     this.showConfirm('Confirm Routing', `Are you sure you want to transition this Work Request to ${status.nextPhase}?`, () => {
-      DB.update('workRequests', wrId, { 
+      DB.update('workRequests', wrId, {
         status: status.nextPhase,
         updatedAt: new Date().toISOString()
       });
       App.handleRoute();
     }, 'success');
+  },
+
+  cancelWorkRequest(wrId) {
+    const wr = DB.getById('workRequests', wrId);
+    if (!wr) return;
+    if (wr.status === 'Completed' || wr.status === 'Cancelled') {
+      this.showMessage('Error', 'Work Request is already in a terminal state.', 'danger');
+      return;
+    }
+
+    this.showConfirm('Cancel Work Request',
+      `Are you sure you want to cancel "${wr.title}"? All non-completed tasks will also be cancelled.`,
+      () => {
+        const now = new Date().toISOString();
+        const tasks = DB.getWhere('tasks', t => t.workRequestId === wrId);
+        let cancelledCount = 0;
+
+        tasks.forEach(t => {
+          if (t.status !== 'Completed' && t.status !== 'Cancelled') {
+            DB.update('tasks', t.id, { status: 'Cancelled', updatedAt: now });
+            cancelledCount++;
+          }
+        });
+
+        DB.update('workRequests', wrId, {
+          status: 'Cancelled',
+          updatedAt: now
+        });
+
+        this.showMessage('Work Request Cancelled',
+          `Work Request moved to Cancelled. ${cancelledCount} task(s) were also cancelled.`,
+          'warning'
+        );
+        App.handleRoute();
+      },
+      'danger'
+    );
   },
 
   /**
@@ -139,28 +176,31 @@ const Workflow = {
     okBtn.addEventListener('click', () => overlay.remove());
   },
 
-  showConfirm(title, message, onConfirm, type = 'warning') {
+  showConfirm(title, message, onConfirm, type = 'warning', onCancel = null) {
     const wrapper = el('div', { class: `modal-message-wrapper type-${type}` });
-    
+
     const iconMap = { 'info': 'ℹ️', 'success': '✅', 'warning': '⚠️', 'danger': '!' };
     const icon = el('div', { class: 'modal-icon-v2', text: iconMap[type] || '?' });
     wrapper.appendChild(icon);
 
     wrapper.appendChild(el('p', { text: message, class: 'modal-text' }));
-    
+
     const footer = el('div', { class: 'modal-footer' });
     const cancelBtn = el('button', { class: 'modal-btn-cancel', text: 'No, cancel' });
-    const confirmBtn = el('button', { 
-        class: `btn modal-btn-sure ${type === 'danger' ? 'btn-danger' : 'btn-primary'}`, 
-        text: "Yes, I'm sure" 
+    const confirmBtn = el('button', {
+        class: `btn modal-btn-sure ${type === 'danger' ? 'btn-danger' : 'btn-primary'}`,
+        text: "Yes, I'm sure"
     });
-    
+
     footer.appendChild(confirmBtn);
     footer.appendChild(cancelBtn);
     wrapper.appendChild(footer);
 
     const overlay = this.showModal(title, wrapper);
-    cancelBtn.addEventListener('click', () => overlay.remove());
+    cancelBtn.addEventListener('click', () => {
+      overlay.remove();
+      if (onCancel) onCancel();
+    });
     confirmBtn.addEventListener('click', () => {
       overlay.remove();
       if (onConfirm) onConfirm();
@@ -933,20 +973,55 @@ const Workflow = {
       groupHeader.appendChild(el('span', { text: groupName }));
       groupHeader.appendChild(el('span', { class: 'task-group-count', text: ` — ${groupTasks.length} tasks` }));
 
-      // Moved Route Button here
+      // Action Buttons: Route + Cancel Work Request
       if (isManagerial && wr) {
         const ts = this.getPhaseTransitionStatus(wr.id);
-        if (ts && ts.nextPhase && ts.nextPhase !== 'Cancelled') {
-          const routeBtn = el('button', { 
-            class: `btn btn-sm btn-route-dynamic ${ts.canTransition ? 'btn-success' : 'btn-ghost btn-disabled'}`, 
-            text: `Route to ${ts.nextPhase}`,
-            style: 'margin-left: auto;' 
-          });
-          routeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.transitionWorkRequest(wr.id);
-          });
-          groupHeader.appendChild(routeBtn);
+        const hasRoute = ts && ts.nextPhase && ts.nextPhase !== 'Cancelled';
+        const canCancel = wr.status !== 'Completed' && wr.status !== 'Cancelled';
+        const phaseColors = {
+          'Draft': '#94a3b8',
+          'Pre-processing': '#3b82f6',
+          'Processing': '#f59e0b',
+          'Billing': '#a855f7',
+          'Disbursement': '#6366f1',
+          'Completed': '#10b981',
+          'Cancelled': '#ef4444'
+        };
+
+        if (hasRoute || canCancel) {
+          const actionsWrap = el('div', { style: 'display:flex; gap:8px; margin-left:auto; align-items:center;' });
+
+          if (canCancel) {
+            const cancelWrBtn = el('button', {
+              class: 'btn btn-sm',
+              text: 'Cancel Work Request',
+              style: 'background: transparent; border: none; color: var(--color-danger); font-weight: 600; padding: 4px 8px;'
+            });
+            cancelWrBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.cancelWorkRequest(wr.id);
+            });
+            actionsWrap.appendChild(cancelWrBtn);
+          }
+
+          if (hasRoute) {
+            const routeColor = phaseColors[ts.nextPhase] || '#94a3b8';
+            const isDisabled = !ts.canTransition;
+            const routeBtn = el('button', {
+              class: 'btn btn-sm',
+              text: `Route to ${ts.nextPhase}`,
+              style: `background: transparent; border: none; color: ${routeColor}; font-weight: 600; padding: 4px 8px; ${isDisabled ? 'opacity: 0.45; cursor: not-allowed;' : 'cursor: pointer;'}`
+            });
+            if (!isDisabled) {
+              routeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.transitionWorkRequest(wr.id);
+              });
+            }
+            actionsWrap.appendChild(routeBtn);
+          }
+
+          groupHeader.appendChild(actionsWrap);
         }
       }
 
@@ -1016,25 +1091,31 @@ const Workflow = {
 
         statusSel.addEventListener('change', () => {
           const newStatus = statusSel.value;
+          const originalStatus = t.status;
+          const resetDropdown = () => {
+            statusSel.value = originalStatus;
+            statusSel.style.color = sColors[originalStatus] || '#1e293b';
+          };
           if (newStatus === 'Completed' || newStatus === 'Cancelled') {
-            this.showConfirm('Confirm Status Change', 
-              `Are you sure you want to mark this task as "${newStatus}"? This may affect dependencies and routing.`, 
+            this.showConfirm('Confirm Status Change',
+              `Are you sure you want to mark this task as "${newStatus}"? This may affect dependencies and routing.`,
               () => {
                 const res = this.updateTaskStatus(t.id, newStatus);
                 if (res.error) {
                   this.showMessage('Error', res.error, 'danger');
-                  statusSel.value = t.status;
+                  resetDropdown();
                 } else {
                   App.handleRoute();
                 }
-              }, 
-              newStatus === 'Cancelled' ? 'danger' : 'warning'
+              },
+              newStatus === 'Cancelled' ? 'danger' : 'warning',
+              resetDropdown
             );
           } else {
             const res = this.updateTaskStatus(t.id, newStatus);
             if (res.error) {
               this.showMessage('Error', res.error, 'danger');
-              statusSel.value = t.status;
+              resetDropdown();
             } else {
               App.handleRoute();
             }
@@ -1511,32 +1592,54 @@ const Workflow = {
     const stages = ['Work Request', 'Pre-processing', 'Processing', 'Billing', 'Disbursement', 'Documentation'];
     const map = { 'Draft': 0, 'Pre-processing': 1, 'Processing': 2, 'Billing': 3, 'Disbursement': 4, 'Completed': 5, 'Cancelled': 5 };
     const current = map[status] ?? 0;
-    
+
+    const phaseColors = {
+      'Draft': '#94a3b8',
+      'Pre-processing': '#3b82f6',
+      'Processing': '#f59e0b',
+      'Billing': '#a855f7',
+      'Disbursement': '#6366f1',
+      'Completed': '#10b981',
+      'Cancelled': '#ef4444'
+    };
+    const activeColor = phaseColors[status] || '#94a3b8';
+
     const wrapper = el('div', { class: 'modern-progress-wrapper' });
     const track = el('div', { class: 'modern-progress-track' });
-    
+
     // Calculate fill width
     const fillPercent = (current / (stages.length - 1)) * 100;
-    const fill = el('div', { class: 'modern-progress-fill', style: `width: ${fillPercent}%` });
+    const fill = el('div', { class: 'modern-progress-fill', style: `width: ${fillPercent}%; background: ${activeColor};` });
     track.appendChild(fill);
-    
+
     stages.forEach((s, i) => {
       const step = el('div', { class: 'modern-progress-step' });
       const dot = el('div', { class: 'modern-progress-dot' });
-      if (i <= current) dot.classList.add('completed');
-      if (i === current) dot.classList.add('active');
-      
+      if (i <= current) {
+        dot.classList.add('completed');
+        dot.style.background = activeColor;
+        dot.style.borderColor = activeColor;
+      }
+      if (i === current) {
+        dot.classList.add('active');
+        dot.style.borderColor = activeColor;
+        dot.style.boxShadow = `0 0 0 4px ${activeColor}33`;
+      }
+
       const label = el('div', { class: 'modern-progress-label', text: s });
-      if (i === current) label.classList.add('active');
-      
+      if (i === current) {
+        label.classList.add('active');
+        label.style.color = activeColor;
+      }
+
       step.appendChild(dot);
       step.appendChild(label);
-      
+
       // Position the step evenly
       step.style.left = `${(i / (stages.length - 1)) * 100}%`;
       track.appendChild(step);
     });
-    
+
     wrapper.appendChild(track);
     return wrapper;
   },
@@ -1672,14 +1775,43 @@ const Workflow = {
     if ((newStatus === 'In Progress' || newStatus === 'Completed') && !this.canStart(taskId)) {
       return { error: 'Predecessor tasks must be completed first.' };
     }
+
+    const now = new Date().toISOString();
+    const cascaded = [];
+
     if (newStatus === 'Cancelled') {
-      const dependents = DB.getWhere('tasks', t =>
-        (t.predecessors || t.dependencies || []).includes(taskId)
-      );
-      dependents.forEach(d => DB.update('tasks', d.id, { status: 'Cancelled' }));
+      // Recursively cancel all downstream dependents (full dependency chain)
+      const toCancel = new Set();
+      const queue = [taskId];
+      const visited = new Set();
+
+      while (queue.length > 0) {
+        const currentId = queue.shift();
+        if (visited.has(currentId)) continue;
+        visited.add(currentId);
+
+        const dependents = DB.getWhere('tasks', t =>
+          (t.predecessors || t.dependencies || []).includes(currentId)
+        );
+
+        dependents.forEach(d => {
+          if (d.status !== 'Completed' && d.status !== 'Cancelled' && d.id !== taskId) {
+            toCancel.add(d.id);
+          }
+          if (!visited.has(d.id)) {
+            queue.push(d.id);
+          }
+        });
+      }
+
+      toCancel.forEach(id => {
+        DB.update('tasks', id, { status: 'Cancelled', updatedAt: now });
+        cascaded.push(id);
+      });
     }
-    DB.update('tasks', taskId, { status: newStatus, updatedAt: new Date().toISOString() });
-    return { success: true };
+
+    DB.update('tasks', taskId, { status: newStatus, updatedAt: now });
+    return { success: true, cascaded };
   },
 
   detectCycle(tasks) {
