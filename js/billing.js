@@ -21,7 +21,7 @@ const Billing = {
       h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
       h1.appendChild(document.createTextNode(inv?.invoiceNumber || 'Detail'));
       titleBar.appendChild(h1);
-      
+
       const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Invoices' });
       backBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
       titleBar.appendChild(backBtn);
@@ -35,7 +35,21 @@ const Billing = {
       h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
       h1.appendChild(document.createTextNode('Templates'));
       titleBar.appendChild(h1);
-      
+
+      const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Invoices' });
+      backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
+      titleBar.appendChild(backBtn);
+      container.appendChild(titleBar);
+    } else if (this.view === 'trash') {
+      const titleBar = el('div', { class: 'page-title-bar-v2' });
+      const h1 = el('h1', { class: 'breadcrumb-h1' });
+      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Billing' });
+      baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
+      h1.appendChild(baseLink);
+      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
+      h1.appendChild(document.createTextNode('Trash'));
+      titleBar.appendChild(h1);
+
       const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Invoices' });
       backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
       titleBar.appendChild(backBtn);
@@ -49,6 +63,7 @@ const Billing = {
     else if (this.view === 'detail') container.appendChild(this.renderDetail());
     else if (this.view === 'aging') container.appendChild(this.renderAging());
     else if (this.view === 'templates') container.appendChild(this.renderTemplates());
+    else if (this.view === 'trash') container.appendChild(this.renderTrash());
 
     return container;
   },
@@ -90,6 +105,9 @@ const Billing = {
     const agingBtn = el('button', { class: 'btn btn-ghost', text: 'Aging Report' });
     agingBtn.addEventListener('click', () => { this.view = 'aging'; App.handleRoute(); });
     topActions.appendChild(agingBtn);
+    const trashBtn = el('button', { class: 'btn btn-ghost', text: 'Trash' });
+    trashBtn.addEventListener('click', () => { this.view = 'trash'; App.handleRoute(); });
+    topActions.appendChild(trashBtn);
     headerBar.appendChild(topActions);
     wrapper.appendChild(headerBar);
 
@@ -191,7 +209,10 @@ const Billing = {
       const paid = this.getPaidAmount(inv);
       const balance = inv.total - paid;
       const tr = el('tr');
-      tr.appendChild(el('td', { text: inv.invoiceNumber }));
+      const tdInvoice = el('td');
+      tdInvoice.appendChild(el('span', { text: inv.invoiceNumber }));
+      if (inv.fromTemplate) tdInvoice.appendChild(this.recurringBadge(inv));
+      tr.appendChild(tdInvoice);
       tr.appendChild(el('td', { text: client?.name || '—' }));
       tr.appendChild(el('td', { text: formatDate(inv.issueDate) }));
       tr.appendChild(el('td', { text: formatPHP(inv.total) }));
@@ -199,9 +220,24 @@ const Billing = {
       tr.appendChild(el('td', { text: formatPHP(balance) }));
       tr.appendChild(el('td')).appendChild(this.statusBadge(inv.status));
       const tdAct = el('td');
-      const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
-      viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailId = inv.id; App.handleRoute(); });
-      tdAct.appendChild(viewBtn);
+      if (inv.status === 'Draft') {
+        const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.view = 'form'; this.detailId = inv.id; App.handleRoute();
+        });
+        tdAct.appendChild(editBtn);
+        const trashBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Trash', style: 'margin-left:4px;' });
+        trashBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.trashInvoice(inv.id);
+        });
+        tdAct.appendChild(trashBtn);
+      } else {
+        const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
+        viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailId = inv.id; App.handleRoute(); });
+        tdAct.appendChild(viewBtn);
+      }
       tr.appendChild(tdAct);
       tbody.appendChild(tr);
     });
@@ -250,6 +286,7 @@ const Billing = {
         // Top: Info path and Issue Date
         const topRow = el('div', { class: 'card-v2-top' });
         topRow.appendChild(el('span', { class: 'card-v2-category', text: `${inv.status} >` }));
+        if (inv.fromTemplate) topRow.appendChild(this.recurringBadge(inv));
         topRow.appendChild(el('span', { class: 'card-v2-date', text: formatDate(inv.issueDate) }));
         card.appendChild(topRow);
 
@@ -274,6 +311,24 @@ const Billing = {
         metaRow.appendChild(el('div', { class: 'card-v2-meta-text', text: formatPHP(inv.total), style: 'font-weight:700;color:#1e293b;' }));
         card.appendChild(metaRow);
 
+        // Card actions for Draft invoices
+        if (inv.status === 'Draft') {
+          const cardActions = el('div', { style: 'display:flex; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid #e2e8f0;' });
+          const editBtn = el('button', { class: 'btn btn-ghost btn-xs', text: 'Edit' });
+          editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.view = 'form'; this.detailId = inv.id; App.handleRoute();
+          });
+          cardActions.appendChild(editBtn);
+          const trashBtn = el('button', { class: 'btn btn-danger btn-xs', text: 'Trash' });
+          trashBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.trashInvoice(inv.id);
+          });
+          cardActions.appendChild(trashBtn);
+          card.appendChild(cardActions);
+        }
+
         cardContainer.appendChild(card);
       });
       col.appendChild(cardContainer);
@@ -297,7 +352,29 @@ const Billing = {
         el('div', { class: 'list-item-title', text: inv.invoiceNumber + ' — ' + (client?.name || '—') }),
         el('div', { class: 'list-item-meta', text: formatDate(inv.issueDate) + ' | ' + formatPHP(inv.total) + ' | Paid: ' + formatPHP(paid) + ' | Bal: ' + formatPHP(balance) })
       ]));
-      row.appendChild(this.statusBadge(inv.status));
+      const badgeWrap = el('div', { style: 'display:flex; gap:4px; align-items:center;' });
+      badgeWrap.appendChild(this.statusBadge(inv.status));
+      if (inv.fromTemplate) badgeWrap.appendChild(this.recurringBadge(inv));
+      row.appendChild(badgeWrap);
+
+      // List actions for Draft invoices
+      if (inv.status === 'Draft') {
+        const actions = el('div', { style: 'display:flex; gap:6px; align-items:center;' });
+        const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.view = 'form'; this.detailId = inv.id; App.handleRoute();
+        });
+        actions.appendChild(editBtn);
+        const trashBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Trash' });
+        trashBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.trashInvoice(inv.id);
+        });
+        actions.appendChild(trashBtn);
+        row.appendChild(actions);
+      }
+
       row.addEventListener('click', () => { this.view = 'detail'; this.detailId = inv.id; App.handleRoute(); });
       list.appendChild(row);
     });
@@ -314,6 +391,11 @@ const Billing = {
       'Cancelled': 'badge-danger'
     };
     return el('span', { class: 'badge ' + (map[status] || ''), text: status });
+  },
+
+  recurringBadge(inv) {
+    if (!inv.fromTemplate) return el('span');
+    return el('span', { class: 'badge badge-recurring', text: 'Recurring' });
   },
 
   // ============================================================
@@ -593,7 +675,10 @@ const Billing = {
     topActions.appendChild(topRight);
     container.appendChild(topActions);
 
-    container.appendChild(this.statusBadge(inv.status));
+    const statusWrap = el('div', { style: 'display:flex; gap:6px; align-items:center; margin-bottom: var(--spacing-md);' });
+    statusWrap.appendChild(this.statusBadge(inv.status));
+    if (inv.fromTemplate) statusWrap.appendChild(this.recurringBadge(inv));
+    container.appendChild(statusWrap);
 
     const meta = el('div', { class: 'invoice-meta' });
     meta.appendChild(el('p', { text: 'Client: ' + (client?.name || '—') }));
@@ -977,6 +1062,7 @@ const Billing = {
       total: t.pfAmount || 0,
       paidAmount: 0,
       payments: [],
+      fromTemplate: t.id,
       createdBy: Auth.user.id,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
@@ -985,6 +1071,75 @@ const Billing = {
     Workflow.showMessage('Invoice Success', 'Generated invoice ' + inv.invoiceNumber, 'success');
     this.view = 'list';
     App.handleRoute();
+  },
+
+  trashInvoice(id) {
+    const inv = DB.getById('invoices', id);
+    if (!inv || inv.status !== 'Draft') return;
+    Workflow.showConfirm('Move to Trash',
+      `Are you sure you want to move invoice "${inv.invoiceNumber}" to trash? Only Draft invoices can be trashed.`,
+      () => {
+        DB.update('invoices', id, { status: 'Cancelled', updatedAt: new Date().toISOString() });
+        App.handleRoute();
+      },
+      'danger'
+    );
+  },
+
+  restoreInvoice(id) {
+    const inv = DB.getById('invoices', id);
+    if (!inv || inv.status !== 'Cancelled') return;
+    DB.update('invoices', id, { status: 'Draft', updatedAt: new Date().toISOString() });
+    App.handleRoute();
+  },
+
+  renderTrash() {
+    const entity = Auth.activeEntity;
+    const trashed = DB.getWhere('invoices', inv => inv.entity === entity && inv.status === 'Cancelled');
+
+    const container = el('div');
+    const topActions = el('div', { class: 'form-header-bar', style: 'margin-bottom: var(--spacing-lg);' });
+    topActions.appendChild(el('h2', { text: 'Trashed Invoices' }));
+    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Invoices' });
+    backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
+    topActions.appendChild(backBtn);
+    container.appendChild(topActions);
+
+    if (trashed.length === 0) {
+      container.appendChild(el('p', { text: 'Trash is empty.', class: 'empty-state' }));
+      return container;
+    }
+
+    const table = el('table', { class: 'data-table' });
+    const thead = el('thead');
+    const thr = el('tr');
+    ['Invoice #', 'Client', 'Issue Date', 'Total', 'Trashed At', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
+    thead.appendChild(thr);
+    table.appendChild(thead);
+
+    const tbody = el('tbody');
+    trashed.forEach(inv => {
+      const client = DB.getById('clients', inv.clientId);
+      const tr = el('tr');
+      tr.appendChild(el('td', { text: inv.invoiceNumber }));
+      tr.appendChild(el('td', { text: client?.name || '—' }));
+      tr.appendChild(el('td', { text: formatDate(inv.issueDate) }));
+      tr.appendChild(el('td', { text: formatPHP(inv.total) }));
+      tr.appendChild(el('td', { text: formatDate(inv.updatedAt) }));
+      const tdAct = el('td');
+      const restoreBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Restore' });
+      restoreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.restoreInvoice(inv.id);
+      });
+      tdAct.appendChild(restoreBtn);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
+
+    return container;
   },
 
   // ============================================================

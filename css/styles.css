@@ -585,6 +585,7 @@ tbody tr:hover {
 .badge-info { background: #f4f6fb; color: var(--color-primary); }
 .badge-ata { background: #f4f6fb; color: var(--color-primary); }
 .badge-lta { background: #fff7ed; color: var(--color-lta); }
+.badge-recurring { background: #f3e8ff; color: #6b21a8; }
 
 /* Modals */
 .modal-overlay {
