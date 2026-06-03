@@ -974,10 +974,10 @@ const Workflow = {
       groupHeader.appendChild(el('span', { class: 'task-group-count', text: ` — ${groupTasks.length} tasks` }));
 
       // Action Buttons: Route + Cancel Work Request
-      if (isManagerial && wr) {
+      if (wr) {
         const ts = this.getPhaseTransitionStatus(wr.id);
         const hasRoute = ts && ts.nextPhase && ts.nextPhase !== 'Cancelled';
-        const canCancel = wr.status !== 'Completed' && wr.status !== 'Cancelled';
+        const canCancel = isManagerial && wr.status !== 'Completed' && wr.status !== 'Cancelled';
         const phaseColors = {
           'Draft': '#94a3b8',
           'Pre-processing': '#3b82f6',
@@ -995,7 +995,7 @@ const Workflow = {
             const cancelWrBtn = el('button', {
               class: 'btn btn-sm',
               text: 'Cancel Work Request',
-              style: 'background: transparent; border: none; color: var(--color-danger); font-weight: 600; padding: 4px 8px;'
+              style: 'background: transparent; border: none; color: var(--color-danger); font-weight: 600; padding: 4px 8px; cursor: pointer;'
             });
             cancelWrBtn.addEventListener('click', (e) => {
               e.stopPropagation();
@@ -1006,18 +1006,15 @@ const Workflow = {
 
           if (hasRoute) {
             const routeColor = phaseColors[ts.nextPhase] || '#94a3b8';
-            const isDisabled = !ts.canTransition;
             const routeBtn = el('button', {
               class: 'btn btn-sm',
               text: `Route to ${ts.nextPhase}`,
-              style: `background: transparent; border: none; color: ${routeColor}; font-weight: 600; padding: 4px 8px; ${isDisabled ? 'opacity: 0.45; cursor: not-allowed;' : 'cursor: pointer;'}`
+              style: `background: transparent; border: none; color: ${routeColor}; font-weight: 600; padding: 4px 8px; cursor: pointer;`
             });
-            if (!isDisabled) {
-              routeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.transitionWorkRequest(wr.id);
-              });
-            }
+            routeBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.transitionWorkRequest(wr.id);
+            });
             actionsWrap.appendChild(routeBtn);
           }
 
@@ -1076,12 +1073,13 @@ const Workflow = {
         const statusSel = el('select', { class: 'form-select status-dropdown-v2' });
         statusSel.addEventListener('click', (e) => e.stopPropagation()); // Prevent accordion toggle
 
+        const validStatuses = this.getValidNextStatuses(t);
         const flow = ['Draft', 'Assigned', 'In Progress', 'For Review', 'Completed', 'Cancelled'];
         flow.forEach(s => {
           const opt = el('option', { value: s, text: s });
           if (s === t.status) opt.selected = true;
-          if (s === 'Completed' && t.status !== 'For Review' && t.status !== 'Completed') {
-              opt.disabled = true;
+          if (!validStatuses.includes(s)) {
+            opt.disabled = true;
           }
           statusSel.appendChild(opt);
         });
