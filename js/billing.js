@@ -982,7 +982,7 @@ const Billing = {
       updatedAt: now.toISOString()
     };
     DB.insert('invoices', inv);
-    alert('Generated invoice ' + inv.invoiceNumber);
+    Workflow.showMessage('Invoice Success', 'Generated invoice ' + inv.invoiceNumber, 'success');
     this.view = 'list';
     App.handleRoute();
   },

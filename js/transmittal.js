@@ -467,7 +467,7 @@ const Transmittal = {
     });
 
     if (items.length === 0) {
-      alert('Please add at least one item.');
+      Workflow.showMessage('Item Error', 'Please add at least one item.', 'danger');
       return;
     }
 
@@ -574,14 +574,14 @@ const Transmittal = {
     if (t.status === 'Draft') {
       const sendBtn = el('button', { class: 'btn btn-primary', text: 'Mark as Sent' });
       sendBtn.addEventListener('click', () => {
-        if (confirm('Mark this transmittal as sent?')) {
+        Workflow.showConfirm('Confirm Sent', 'Are you sure you want to mark this transmittal as sent?', () => {
           DB.update('transmittals', t.id, {
             status: 'Sent',
             sentAt: new Date().toISOString(),
             sentBy: Auth.user.id
           });
           App.handleRoute();
-        }
+        }, 'success');
       });
       actions.appendChild(sendBtn);
     } else if (t.status === 'Sent') {

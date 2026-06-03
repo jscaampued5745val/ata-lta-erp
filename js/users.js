@@ -527,10 +527,10 @@ const Users = {
         if (pc.status === 'pending') {
           const withdrawBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Withdraw' });
           withdrawBtn.addEventListener('click', () => {
-            if (confirm('Withdraw this pending submission?')) {
+            Workflow.showConfirm('Confirm Withdrawal', 'Are you sure you want to withdraw this pending submission?', () => {
               PendingChanges.delete(pc.id);
               App.handleRoute();
-            }
+            }, 'danger');
           });
           tdAct.appendChild(withdrawBtn);
         }
@@ -562,10 +562,10 @@ const Users = {
         const tdAct = el('td');
         const resubmitBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Resubmit' });
         resubmitBtn.addEventListener('click', () => {
-          if (confirm('Resubmit this rejected submission?')) {
+          Workflow.showConfirm('Confirm Resubmit', 'Are you sure you want to resubmit this rejected submission?', () => {
             PendingChanges.resubmit(pc.id);
             App.handleRoute();
-          }
+          }, 'warning');
         });
         tdAct.appendChild(resubmitBtn);
         tr.appendChild(tdAct);
@@ -619,13 +619,13 @@ const Users = {
     const actions = el('div', { class: 'form-actions-top' });
 
     if (canApprove) {
-      const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve' });
+      const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve Change' });
       approveBtn.addEventListener('click', () => {
-        if (confirm('Approve this change?')) {
+        Workflow.showConfirm('Confirm Approval', 'Are you sure you want to approve this change?', () => {
           PendingChanges.approve(pc.id);
           this.pendingDetailId = null;
           App.handleRoute();
-        }
+        }, 'success');
       });
       actions.appendChild(approveBtn);
 
@@ -640,13 +640,13 @@ const Users = {
       });
       actions.appendChild(rejectBtn);
     } else if (isSubmitter && pc.status === 'pending') {
-      const withdrawBtn = el('button', { class: 'btn btn-danger', text: 'Withdraw' });
+      const withdrawBtn = el('button', { class: 'btn btn-ghost', text: 'Withdraw Submission' });
       withdrawBtn.addEventListener('click', () => {
-        if (confirm('Withdraw this submission?')) {
+        Workflow.showConfirm('Confirm Withdrawal', 'Are you sure you want to withdraw this submission?', () => {
           PendingChanges.delete(pc.id);
           this.pendingDetailId = null;
           App.handleRoute();
-        }
+        }, 'danger');
       });
       actions.appendChild(withdrawBtn);
     }

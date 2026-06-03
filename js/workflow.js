@@ -123,10 +123,15 @@ const Workflow = {
 
   showMessage(title, message, type = 'info') {
     const wrapper = el('div', { class: `modal-message-wrapper type-${type}` });
+    
+    const iconMap = { 'info': 'ℹ️', 'success': '✅', 'warning': '⚠️', 'danger': '!' };
+    const icon = el('div', { class: 'modal-icon-v2', text: iconMap[type] || 'i' });
+    wrapper.appendChild(icon);
+
     wrapper.appendChild(el('p', { text: message, class: 'modal-text' }));
     
-    const footer = el('div', { class: 'modal-footer', style: 'margin-top: var(--spacing-lg);' });
-    const okBtn = el('button', { class: 'btn btn-primary', text: 'OK' });
+    const footer = el('div', { class: 'modal-footer' });
+    const okBtn = el('button', { class: 'btn btn-primary modal-btn-sure', text: 'OK' });
     footer.appendChild(okBtn);
     wrapper.appendChild(footer);
 
@@ -136,14 +141,22 @@ const Workflow = {
 
   showConfirm(title, message, onConfirm, type = 'warning') {
     const wrapper = el('div', { class: `modal-message-wrapper type-${type}` });
+    
+    const iconMap = { 'info': 'ℹ️', 'success': '✅', 'warning': '⚠️', 'danger': '!' };
+    const icon = el('div', { class: 'modal-icon-v2', text: iconMap[type] || '?' });
+    wrapper.appendChild(icon);
+
     wrapper.appendChild(el('p', { text: message, class: 'modal-text' }));
     
-    const footer = el('div', { class: 'modal-footer', style: 'margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-sm); justify-content: flex-end;' });
-    const cancelBtn = el('button', { class: 'btn btn-ghost', text: 'Cancel' });
-    const confirmBtn = el('button', { class: `btn ${type === 'danger' ? 'btn-danger' : 'btn-primary'}`, text: 'Confirm' });
+    const footer = el('div', { class: 'modal-footer' });
+    const cancelBtn = el('button', { class: 'modal-btn-cancel', text: 'No, cancel' });
+    const confirmBtn = el('button', { 
+        class: `btn modal-btn-sure ${type === 'danger' ? 'btn-danger' : 'btn-primary'}`, 
+        text: "Yes, I'm sure" 
+    });
     
-    footer.appendChild(cancelBtn);
     footer.appendChild(confirmBtn);
+    footer.appendChild(cancelBtn);
     wrapper.appendChild(footer);
 
     const overlay = this.showModal(title, wrapper);
@@ -1123,7 +1136,7 @@ const Workflow = {
               delBtn.title = 'Remove Attachment';
               delBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (confirm(`Remove "${fName}" from this task?`)) {
+                this.showConfirm('Confirm Removal', `Are you sure you want to remove "${fName}" from this task?`, () => {
                   const updatedTaskDocs = t.taskDocuments.filter((_, i) => i !== dIdx);
                   DB.update('tasks', t.id, { taskDocuments: updatedTaskDocs });
                   const dmsMatch = DB.getWhere('documents', doc => 
@@ -1131,7 +1144,7 @@ const Workflow = {
                   )[0];
                   if (dmsMatch) DB.delete('documents', dmsMatch.id);
                   App.handleRoute();
-                }
+                }, 'danger');
               });
               item.appendChild(delBtn);
             }
@@ -1212,12 +1225,12 @@ const Workflow = {
                     const delBtn = el('button', { class: 'btn btn-link btn-xs', text: 'Delete', style: 'padding:0; font-size:0.7rem; color:var(--color-danger);' });
                     delBtn.addEventListener('click', (e) => {
                       e.stopPropagation();
-                      if (confirm('Delete this comment?')) {
+                      this.showConfirm('Delete Comment', 'Are you sure you want to delete this comment?', () => {
                         d.comments.splice(cIdx, 1);
                         DB.update('tasks', t.id, { taskDocuments: t.taskDocuments });
                         renderComments();
                         commentToggle.textContent = '💬 Comments' + (d.comments?.length ? ` (${d.comments.length})` : '');
-                      }
+                      }, 'danger');
                     });
                     
                     cActions.appendChild(editBtn);
@@ -1808,12 +1821,12 @@ const Workflow = {
     if (template) {
       const delBtn = el('button', { type: 'button', class: 'btn btn-danger', text: 'Delete', style: 'margin-left: 8px;' });
       delBtn.addEventListener('click', () => {
-        if(confirm('Are you sure you want to delete this template?')) {
+        this.showConfirm('Delete Template', 'Are you sure you want to delete this template?', () => {
           DB.delete('retainerTemplates', template.id);
           this.view = 'templates'; 
           this.templateEditingId = null; 
           App.handleRoute();
-        }
+        }, 'danger');
       });
       topActions.appendChild(delBtn);
     }

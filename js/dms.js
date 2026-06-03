@@ -396,7 +396,7 @@ const DMS = {
     const fileInput = form.querySelector('input[name="file"]');
     const file = fileInput.files[0];
     if (!file) {
-      alert('Please select a file.');
+      Workflow.showMessage('Selection Error', 'Please select a file.', 'danger');
       return;
     }
 
@@ -406,7 +406,7 @@ const DMS = {
       this.saveDocument(form, file.name, dataUrl);
     };
     reader.onerror = () => {
-      alert('Failed to read file.');
+      Workflow.showMessage('Read Error', 'Failed to read file.', 'danger');
     };
     reader.readAsDataURL(file);
   },

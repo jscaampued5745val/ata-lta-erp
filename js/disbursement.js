@@ -1012,7 +1012,7 @@ const Disbursement = {
       }
     }
 
-    alert('Disbursement generated from template: ' + template.name);
+    Workflow.showMessage('Template Success', 'Disbursement generated from template: ' + template.name, 'success');
     this.view = 'list';
     App.handleRoute();
   },
