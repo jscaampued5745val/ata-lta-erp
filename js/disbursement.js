@@ -22,9 +22,16 @@ const Disbursement = {
       h1.appendChild(document.createTextNode(d?.description || 'Detail'));
       titleBar.appendChild(h1);
       
+      const actions = el('div', { class: 'title-bar-actions' });
+      if (d) {
+        const genBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Generate Voucher', style: 'margin-right:8px;' });
+        genBtn.addEventListener('click', () => this.openPrintVoucher(d));
+        actions.appendChild(genBtn);
+      }
       const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
-      titleBar.appendChild(backBtn);
+      actions.appendChild(backBtn);
+      titleBar.appendChild(actions);
       container.appendChild(titleBar);
     } else if (this.view === 'templates') {
       const titleBar = el('div', { class: 'page-title-bar-v2' });
@@ -63,6 +70,47 @@ const Disbursement = {
 
   getEmployeeId(item) {
     return item.employeeId || item.requestedBy;
+  },
+
+  recurringBadge(item) {
+    if (!item.fromTemplate) return el('span');
+    return el('span', { class: 'badge badge-recurring', text: 'Recurring' });
+  },
+
+  statusBadge(status) {
+    const map = {
+      'Submitted': 'badge-info',
+      'Under Review': 'badge-warning',
+      'Approved': 'badge-success',
+      'Released': 'badge-success',
+      'Rejected': 'badge-danger',
+      'Cancelled': 'badge-danger'
+    };
+    return el('span', { class: 'badge ' + (map[status] || ''), text: status });
+  },
+
+  methodIcon(method) {
+    const icons = {
+      'GCash': { color: '#1E40AF', bg: '#EFF6FF', label: 'GCash', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#1E40AF"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="bold" font-family="Arial">G</text></svg>' },
+      'Maya': { color: '#7C3AED', bg: '#F3E8FF', label: 'Maya', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#7C3AED"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="bold" font-family="Arial">M</text></svg>' },
+      'PayPal': { color: '#1E40AF', bg: '#EFF6FF', label: 'PayPal', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#1E40AF"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold" font-family="Arial">P</text></svg>' },
+      'Credit Card': { color: '#1E293B', bg: '#F8FAFC', label: 'Credit', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>' },
+      'Debit Card': { color: '#1E293B', bg: '#F8FAFC', label: 'Debit', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E293B" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>' },
+      'Bank Transfer': { color: '#0369A1', bg: '#E0F2FE', label: 'Bank', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0369A1" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><path d="M3 21h18M4 18h16M5 18v-6M9 18v-6M15 18v-6M19 18v-6M2 12l10-8 10 8"/></svg>' },
+      'Check': { color: '#B45309', bg: '#FEF3C7', label: 'Check', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12l3 3 5-5"/></svg>' },
+      'Cash': { color: '#15803D', bg: '#DCFCE7', label: 'Cash', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8"/><text x="12" y="16" text-anchor="middle" fill="#15803D" font-size="10" font-weight="bold" font-family="Arial">₱</text></svg>' },
+      'Other Digital': { color: '#64748B', bg: '#F1F5F9', label: 'Digital', svg: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 17h.01"/></svg>' }
+    };
+    const def = icons['Other Digital'];
+    const cfg = icons[method] || def;
+    const wrap = el('span', {
+      style: `display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:700; color:${cfg.color}; background:${cfg.bg}; letter-spacing:0.3px;`
+    });
+    const svgWrap = document.createElement('span');
+    svgWrap.innerHTML = cfg.svg;
+    wrap.appendChild(svgWrap.firstChild);
+    wrap.appendChild(document.createTextNode(cfg.label));
+    return wrap;
   },
 
   // ============================================================
@@ -212,7 +260,13 @@ const Disbursement = {
       const emp = DB.getById('users', this.getEmployeeId(d));
       const tr = el('tr');
       tr.appendChild(el('td', { text: emp?.name || '—' }));
-      tr.appendChild(el('td', { text: d.category }));
+      const tdCat = el('td');
+      tdCat.appendChild(el('span', { text: d.category }));
+      if (d.fromTemplate) {
+        tdCat.appendChild(document.createTextNode(' '));
+        tdCat.appendChild(this.recurringBadge(d));
+      }
+      tr.appendChild(tdCat);
       tr.appendChild(el('td', { text: formatPHP(d.amount) }));
       const source = this.getFundSource(d);
       const fundBadge = el('span', { class: 'badge ' + (source === 'Firm Fund' ? 'badge-info' : 'badge-warning'), text: source });
@@ -271,6 +325,7 @@ const Disbursement = {
         // Top: Status path and Date
         const topRow = el('div', { class: 'card-v2-top' });
         topRow.appendChild(el('span', { class: 'card-v2-category', text: `${d.status} >` }));
+        if (d.fromTemplate) topRow.appendChild(this.recurringBadge(d));
         topRow.appendChild(el('span', { class: 'card-v2-date', text: formatDate(d.submittedAt) }));
         card.appendChild(topRow);
 
@@ -302,7 +357,13 @@ const Disbursement = {
       const emp = DB.getById('users', this.getEmployeeId(d));
       const item = el('div', { class: 'list-item' });
       const left = el('div');
-      left.appendChild(el('div', { class: 'list-item-title', text: d.category + ' — ' + formatPHP(d.amount) }));
+      const titleRow = el('div', { class: 'list-item-title' });
+      titleRow.appendChild(document.createTextNode(d.category + ' — ' + formatPHP(d.amount)));
+      if (d.fromTemplate) {
+        titleRow.appendChild(document.createTextNode(' '));
+        titleRow.appendChild(this.recurringBadge(d));
+      }
+      left.appendChild(titleRow);
       left.appendChild(el('div', { class: 'list-item-meta', text: (emp?.name || '—') + ' • ' + this.getFundSource(d) + ' • ' + formatDate(d.submittedAt) }));
       item.appendChild(left);
       const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
@@ -491,106 +552,123 @@ const Disbursement = {
     const d = DB.getById('disbursements', this.detailId);
     if (!d) { this.view = 'list'; App.handleRoute(); return el('div'); }
     const emp = DB.getById('users', this.getEmployeeId(d));
+    const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
+    const client = wr ? DB.getById('clients', wr.clientId) : null;
+
     const container = el('div', { class: 'invoice-detail' });
 
-    // Top actions bar
-    const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });
-    const topBackBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
-    topBackBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
-    topActions.appendChild(topBackBtn);
+    // Breadcrumb handled by render()
+    
+    // Status and badges
+    const statusWrap = el('div', { style: 'display:flex; gap:8px; align-items:center; margin-bottom: var(--spacing-lg);' });
+    statusWrap.appendChild(this.statusBadge(d.status));
+    if (d.fromTemplate) statusWrap.appendChild(this.recurringBadge(d));
+    container.appendChild(statusWrap);
 
-    // Print button
-    const printBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Print Voucher' });
-    printBtn.addEventListener('click', () => this.openPrintVoucher(d));
-    topActions.appendChild(printBtn);
-
-    container.appendChild(topActions);
-
-    const header = el('div', { class: 'invoice-header' });
-    header.appendChild(el('h2', { text: d.category }));
-
-    const map = {
-      'Submitted': 'badge-info',
-      'Under Review': 'badge-warning',
-      'Approved': 'badge-success',
-      'Released': 'badge-success',
-      'Rejected': 'badge-danger',
-      'Cancelled': 'badge-danger'
-    };
-    header.appendChild(el('span', { class: 'badge ' + (map[d.status] || ''), text: d.status }));
-    container.appendChild(header);
-
+    // Meta Info
     const meta = el('div', { class: 'invoice-meta' });
-    const requester = DB.getById('users', d.requestedBy);
-    const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
-    meta.appendChild(el('p', { text: 'Requested By: ' + (requester?.name || emp?.name || '—') }));
-    if (handler) {
-      meta.appendChild(el('p', { text: 'Payment Handled By: ' + handler.name }));
-    }
+    meta.appendChild(el('p', { text: 'Client: ' + (client?.name || '—') }));
     meta.appendChild(el('p', { text: 'Date Submitted: ' + formatDate(d.submittedAt) }));
     meta.appendChild(el('p', { text: 'Fund Source: ' + this.getFundSource(d) }));
-    if (d.linkedWorkRequestId) {
-      const wr = DB.getById('workRequests', d.linkedWorkRequestId);
-      if (wr) meta.appendChild(el('p', { text: 'Work Request: ' + wr.title }));
-    }
+    if (wr) meta.appendChild(el('p', { text: 'Work Request: ' + wr.title }));
     container.appendChild(meta);
 
-    const infoSection = el('div', { class: 'form-section', style: 'margin-bottom: var(--spacing-lg);' });
-    infoSection.appendChild(el('h3', { text: 'Expense Details' }));
-    const infoBox = el('div', { class: 'invoice-info-box' });
-    infoBox.appendChild(el('p', { text: 'Description: ' + d.description }));
-    if (d.receiptFilename) infoBox.appendChild(el('p', { text: 'Receipt: ' + d.receiptFilename }));
-    infoSection.appendChild(infoBox);
-    container.appendChild(infoSection);
+    // Items table (Single row for disbursement)
+    const table = el('table', { class: 'data-table' });
+    table.appendChild(el('thead', {}, [
+      el('tr', {}, [
+        el('th', { text: 'Category' }),
+        el('th', { text: 'Description' }),
+        el('th', { text: 'Amount' })
+      ])
+    ]));
+    const tbody = el('tbody');
+    tbody.appendChild(el('tr', {}, [
+      el('td', { text: d.category }),
+      el('td', { text: d.description }),
+      el('td', { text: formatPHP(d.amount) })
+    ]));
+    table.appendChild(tbody);
+    container.appendChild(table);
 
+    // Totals / Summary Box
     const totals = el('div', { class: 'invoice-totals' });
-    totals.appendChild(el('div', { class: 'total-row total-grand' }, [el('span', { text: 'Total Amount:' }), el('span', { text: formatPHP(d.amount) })]));
+    totals.appendChild(el('div', { class: 'total-row total-grand' }, [
+      el('span', { text: 'Total Amount:' }), 
+      el('span', { text: formatPHP(d.amount) })
+    ]));
+    
+    if (d.status === 'Released') {
+      totals.appendChild(el('div', { class: 'total-row' }, [el('span', { text: 'Released:' }), el('span', { text: formatPHP(d.amount) })]));
+      totals.appendChild(el('div', { class: 'total-row' }, [el('span', { text: 'Balance:' }), el('span', { text: formatPHP(0) })]));
+    } else {
+      totals.appendChild(el('div', { class: 'total-row' }, [el('span', { text: 'Status:' }), el('span', { text: 'Pending Release', style: 'color: #94a3b8;' })]));
+    }
     container.appendChild(totals);
 
     // Payment details (shown if released)
     if (d.status === 'Released' && d.paymentDetails) {
-      const paySection = el('div', { class: 'form-section', style: 'margin-bottom: var(--spacing-lg);' });
-      paySection.appendChild(el('h3', { text: 'Payment Details' }));
-      const payBox = el('div', { class: 'invoice-info-box' });
+      const payHist = el('div', { class: 'form-section' });
+      payHist.appendChild(el('h3', { text: 'Payment Details' }));
+      
       const pd = d.paymentDetails;
-      const handler = DB.getById('users', d.paymentHandledBy);
-      payBox.appendChild(el('p', { text: 'Method: ' + (pd.method || '—') }));
-      payBox.appendChild(el('p', { text: 'Reference: ' + (pd.reference || '—') }));
-      payBox.appendChild(el('p', { text: 'Bank: ' + (pd.bank || '—') }));
-      payBox.appendChild(el('p', { text: 'Date: ' + (pd.date ? formatDate(pd.date) : '—') }));
-      payBox.appendChild(el('p', { text: 'Handled By: ' + (handler?.name || '—') }));
-      paySection.appendChild(payBox);
-      container.appendChild(paySection);
+      const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
+      
+      const pCard = el('div', { class: 'card', style: 'margin-bottom:12px; padding:16px; border:1px solid #e2e8f0; border-radius:8px;' });
+
+      // Header row
+      const header = el('div', { style: 'display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;' });
+      const amtBlock = el('div');
+      amtBlock.appendChild(el('span', { text: formatPHP(d.amount), style: 'display:block; font-weight:700; font-size:1.25rem; color:#1e293b; line-height:1.2;' }));
+      amtBlock.appendChild(el('span', { text: formatDate(pd.date || d.releasedAt), style: 'display:block; font-size:0.75rem; color:#94a3b8; margin-top:2px;' }));
+      header.appendChild(amtBlock);
+      header.appendChild(this.methodIcon(pd.method));
+      pCard.appendChild(header);
+
+      pCard.appendChild(el('div', { style: 'height:1px; background:#e2e8f0; margin:0 0 12px;' }));
+
+      const rows = el('div', { style: 'display:flex; flex-direction:column; gap:6px;' });
+      const addRow = (label, value) => {
+        if (!value) return;
+        const row = el('div', { style: 'display:flex; justify-content:space-between; align-items:baseline; font-size:0.8125rem;' });
+        row.appendChild(el('span', { text: label, style: 'color:#94a3b8; font-weight:500;' }));
+        row.appendChild(el('span', { text: value, style: 'color:#334155; font-weight:600; text-align:right;' }));
+        rows.appendChild(row);
+      };
+
+      if (pd.reference) addRow('Reference', pd.reference);
+      if (pd.bank) addRow('Bank', pd.bank);
+      addRow('Requested By', emp ? emp.name : '—');
+      addRow('Released By', handler ? handler.name : '—');
+
+      pCard.appendChild(rows);
+      payHist.appendChild(pCard);
+      container.appendChild(payHist);
     }
 
-    const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border); padding-top: var(--spacing-lg);' });
-
-    const isRequester = Auth.isSelfApprover(this.getEmployeeId(d));
+    // Approval Actions
     const isAdmin = Auth.user.role === 'Admin';
-
-    // 1-Tier Admin Approval Chain
-    if (d.status === 'Submitted' || d.status === 'Under Review' || d.status === 'Approved') {
-      if (isAdmin) {
-        if (isRequester) {
-          container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve/release your own expense submission. Please wait for another Admin to process it.' }));
-        } else {
-          const releaseBtn = el('button', { class: 'btn btn-success', text: 'Approve & Release' });
-          releaseBtn.addEventListener('click', () => { this.showReleaseDialog(d.id); });
-          actions.appendChild(releaseBtn);
-
-          const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Reject' });
-          rejectBtn.addEventListener('click', () => {
-            const reason = prompt('Enter rejection reason:');
-            if (reason) { this.reject(this.detailId, reason); App.handleRoute(); }
-          });
-          actions.appendChild(rejectBtn);
-        }
+    if ((d.status === 'Submitted' || d.status === 'Under Review' || d.status === 'Approved') && isAdmin) {
+      const isRequester = Auth.isSelfApprover(this.getEmployeeId(d));
+      if (isRequester) {
+        container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve your own expense. Wait for another Admin.' }));
       } else {
-        container.appendChild(el('p', { class: 'empty-state', text: 'Waiting for Admin review and release.' }));
+        const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-xl); border-top: 1px solid #e2e8f0; padding-top: var(--spacing-lg);' });
+        const releaseBtn = el('button', { class: 'btn btn-success', text: 'Approve & Release' });
+        releaseBtn.addEventListener('click', () => { this.showReleaseDialog(d.id); });
+        actions.appendChild(releaseBtn);
+
+        const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Reject', style: 'margin-left: 8px;' });
+        rejectBtn.addEventListener('click', () => {
+          Workflow.showConfirm('Reject Expense', 'Enter rejection reason:', () => {
+            const reason = prompt('Enter rejection reason:');
+            if (reason) { this.reject(d.id, reason); App.handleRoute(); }
+          }, 'danger');
+        });
+        actions.appendChild(rejectBtn);
+        container.appendChild(actions);
       }
     }
-
-    container.appendChild(actions);
 
     return container;
   },
@@ -990,6 +1068,7 @@ const Disbursement = {
       linkedInvoiceId: template.linkedInvoiceId || null,
       linkedWorkRequestId: template.linkedWorkRequestId || null,
       entity: template.entity,
+      fromTemplate: template.id,
       employeeId: Auth.user.id,
       requestedBy: Auth.user.id,
       status: 'Submitted',
