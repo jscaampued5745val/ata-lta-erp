@@ -2405,3 +2405,377 @@ tbody tr:hover {
   background: #f8fafc;
   color: #1e293b;
 }
+
+/* ==========================================================================
+   Material Date Picker
+   ========================================================================== */
+
+/* --- Wrapper / Trigger --- */
+.mdp-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  min-width: 140px;
+  position: relative;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.mdp-wrapper:hover {
+  border-color: var(--color-primary);
+}
+
+.mdp-wrapper:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.mdp-display {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mdp-display.mdp-placeholder {
+  color: var(--color-text-muted);
+}
+
+.mdp-icon {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.mdp-wrapper:hover .mdp-icon {
+  color: var(--color-primary);
+}
+
+/* --- Overlay & Dialog --- */
+.mdp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.2s ease;
+  padding: 16px;
+}
+
+.mdp-overlay.mdp-visible {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.mdp-dialog {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  width: 328px;
+  max-width: 100%;
+  transform: scale(0.9) translateY(20px);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+}
+
+.mdp-visible .mdp-dialog {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* --- Header --- */
+.mdp-header {
+  background: var(--color-primary);
+  color: #ffffff;
+  padding: 20px 24px 16px;
+}
+
+.mdp-header-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+
+.mdp-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mdp-header-date {
+  font-size: 1.55rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.mdp-edit-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mdp-edit-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* --- Body --- */
+.mdp-body {
+  padding: 8px 16px 0;
+}
+
+/* --- Navigation --- */
+.mdp-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 8px;
+}
+
+.mdp-month-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: background 0.15s ease;
+}
+
+.mdp-month-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.mdp-nav-arrows {
+  display: flex;
+  gap: 4px;
+}
+
+.mdp-nav-arrow {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  transition: background 0.15s ease;
+}
+
+.mdp-nav-arrow:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* --- Calendar Grid --- */
+.mdp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+  padding-bottom: 8px;
+}
+
+.mdp-day-header {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 8px 0;
+  user-select: none;
+}
+
+.mdp-day {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+}
+
+.mdp-day:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.mdp-day.mdp-today {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted);
+}
+
+.mdp-day.mdp-selected {
+  background: var(--color-primary);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.mdp-day.mdp-selected:hover {
+  background: var(--color-primary-dark);
+}
+
+/* --- Year Panel --- */
+.mdp-year-panel {
+  max-height: 280px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 8px 0 12px;
+  scrollbar-width: thin;
+}
+
+.mdp-year-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.mdp-year-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mdp-year-panel::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+.mdp-year-btn {
+  padding: 8px 4px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mdp-year-btn:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.mdp-year-btn.mdp-year-active {
+  background: var(--color-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* --- Manual Input --- */
+.mdp-manual-area {
+  padding: 16px 0 12px;
+}
+
+.mdp-manual-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  outline: none;
+  text-align: center;
+  letter-spacing: 2px;
+  transition: border-color 0.2s ease;
+}
+
+.mdp-manual-input:focus {
+  border-color: var(--color-primary-dark);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.mdp-manual-input::placeholder {
+  color: var(--color-text-muted);
+  letter-spacing: 1px;
+}
+
+/* --- Footer --- */
+.mdp-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 16px 12px;
+}
+
+.mdp-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.mdp-btn:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.mdp-btn.mdp-btn-ok {
+  color: var(--color-primary);
+}
+
+/* --- Hidden utility --- */
+.mdp-overlay .hidden,
+.mdp-body .hidden {
+  display: none !important;
+}
+
+/* --- Responsive --- */
+@media (max-width: 400px) {
+  .mdp-dialog {
+    width: 100%;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+  }
+
+  .mdp-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .mdp-visible .mdp-dialog {
+    transform: translateY(0);
+  }
+
+  .mdp-dialog {
+    transform: translateY(100%);
+  }
+}
