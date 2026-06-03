@@ -53,9 +53,27 @@ const Workflow = {
       case 'Processing':
         // Rule 3: All tasks must be completed
         if (tasks.length === 0) { canTransition = false; missing.push('No tasks defined'); }
-        else if (!tasks.every(t => t.status === 'Completed')) {
-          canTransition = false;
-          missing.push('All processing tasks must be marked as Completed');
+        else {
+            if (!tasks.every(t => t.status === 'Completed')) {
+                canTransition = false;
+                missing.push('All processing tasks must be marked as Completed');
+            }
+            
+            // Task-level Linkage Gate:
+            tasks.forEach(t => {
+                const title = t.title.toLowerCase();
+                const hasInv = DB.getWhere('invoices', inv => inv.linkedTaskId === t.id).length > 0;
+                const hasDisb = DB.getWhere('disbursements', d => d.linkedTaskId === t.id).length > 0;
+                
+                if ((title.includes('invoice') || title.includes('bill')) && !hasInv) {
+                    canTransition = false;
+                    missing.push(`Task "${t.title}" requires a linked Service Invoice`);
+                }
+                if ((title.includes('expense') || title.includes('disburse')) && !hasDisb) {
+                    canTransition = false;
+                    missing.push(`Task "${t.title}" requires a linked Expense/Disbursement`);
+                }
+            });
         }
         break;
 
@@ -1027,7 +1045,7 @@ const Workflow = {
       const table = el('table', { class: 'task-table-v2' });
       const thead = el('thead');
       const thr = el('tr');
-      ['Task', 'Assigned To', 'Due Date', 'Progress Status', 'Priority', 'Est. Amount', 'Hours'].forEach(h => {
+      ['Task', 'Assigned To', 'Due Date', 'Progress Status', 'Linked Records', 'Priority', 'Est. Amount', 'Hours'].forEach(h => {
         thr.appendChild(el('th', { text: h }));
       });
       thead.appendChild(thr);
@@ -1124,6 +1142,30 @@ const Workflow = {
         tdStatus.appendChild(statusWrapper);
         tr.appendChild(tdStatus);
 
+        // Linked Records Column
+        const tdLinked = el('td');
+        const linkedWrap = el('div', { style: 'display:flex; flex-direction:column; gap:4px;' });
+        
+        const linkedInv = DB.getWhere('invoices', inv => inv.linkedTaskId === t.id)[0];
+        const linkedDisb = DB.getWhere('disbursements', d => d.linkedTaskId === t.id);
+        
+        if (linkedInv) {
+          const badge = el('span', { class: 'badge badge-info', text: '📄 ' + linkedInv.invoiceNumber, style: 'cursor:pointer; font-size:10px;' });
+          badge.addEventListener('click', (e) => { e.stopPropagation(); Billing.detailId = linkedInv.id; Billing.view = 'detail'; App.handleRoute(); });
+          linkedWrap.appendChild(badge);
+        }
+        linkedDisb.forEach(d => {
+          const badge = el('span', { class: 'badge badge-warning', text: '💸 ' + d.category, style: 'cursor:pointer; font-size:10px;' });
+          badge.addEventListener('click', (e) => { e.stopPropagation(); Disbursement.detailId = d.id; Disbursement.view = 'detail'; App.handleRoute(); });
+          linkedWrap.appendChild(badge);
+        });
+        
+        if (!linkedInv && linkedDisb.length === 0) {
+          linkedWrap.appendChild(el('span', { text: '—', style: 'color:var(--color-text-muted);' }));
+        }
+        tdLinked.appendChild(linkedWrap);
+        tr.appendChild(tdLinked);
+
         // Priority
         const tdPriority = el('td');
         const pColors = { 'Urgent': '#ef4444', 'Priority': '#f59e0b', 'Low Priority': '#10b981', 'Normal': '#94a3b8' };
@@ -1141,7 +1183,7 @@ const Workflow = {
 
         // Accordion Details Row
         const detailsTr = el('tr', { class: 'task-details-row hidden' });
-        const detailsTd = el('td', { colspan: 7 });
+        const detailsTd = el('td', { colspan: 8 });
         const detailsContainer = el('div', { class: 'task-details-container' });
         
         const detailsGrid = el('div', { class: 'task-details-grid' });

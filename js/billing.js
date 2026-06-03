@@ -460,6 +460,29 @@ const Billing = {
     wrGroup.appendChild(wrSel);
     form.appendChild(wrGroup);
 
+    // Task link (Dynamic based on WR)
+    const taskGroup = el('div', { class: 'form-group' });
+    taskGroup.appendChild(el('label', { text: 'Link to Specific Task' }));
+    const taskSel = el('select', { name: 'linkedTaskId' });
+    taskSel.appendChild(el('option', { value: '', text: '— Whole Project —' }));
+    taskGroup.appendChild(taskSel);
+    form.appendChild(taskGroup);
+
+    const updateTasks = () => {
+      while (taskSel.firstChild) taskSel.removeChild(taskSel.firstChild);
+      taskSel.appendChild(el('option', { value: '', text: '— Whole Project —' }));
+      const wrId = wrSel.value;
+      if (wrId) {
+        DB.getWhere('tasks', t => t.workRequestId === wrId).forEach(t => {
+          const opt = el('option', { value: t.id, text: t.title });
+          if (inv && inv.linkedTaskId === t.id) opt.selected = true;
+          taskSel.appendChild(opt);
+        });
+      }
+    };
+    wrSel.addEventListener('change', updateTasks);
+    updateTasks(); // Initial load
+
     // Dates
     const dateGroup = el('div', { class: 'form-group' });
     dateGroup.appendChild(el('label', { text: 'Issue Date *' }));
@@ -614,6 +637,7 @@ const Billing = {
       invoiceNumber: data.invoiceNumber,
       clientId: data.clientId,
       workRequestId: data.workRequestId || null,
+      linkedTaskId: data.linkedTaskId || null,
       entity: entity,
       issueDate: data.issueDate,
       dueDate: data.dueDate,

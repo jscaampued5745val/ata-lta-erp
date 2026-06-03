@@ -487,6 +487,29 @@ const Disbursement = {
     wrGroup.appendChild(wrSel);
     form.appendChild(wrGroup);
 
+    // Task link (Dynamic based on WR)
+    const taskGroup = el('div', { class: 'form-group' });
+    taskGroup.appendChild(el('label', { text: 'Link to Specific Task' }));
+    const taskSel = el('select', { name: 'linkedTaskId', class: 'form-select' });
+    taskSel.appendChild(el('option', { value: '', text: '— Whole Project —' }));
+    taskGroup.appendChild(taskSel);
+    form.appendChild(taskGroup);
+
+    const updateTasks = () => {
+      while (taskSel.firstChild) taskSel.removeChild(taskSel.firstChild);
+      taskSel.appendChild(el('option', { value: '', text: '— Whole Project —' }));
+      const wrId = wrSel.value;
+      if (wrId) {
+        DB.getWhere('tasks', t => t.workRequestId === wrId).forEach(t => {
+          const opt = el('option', { value: t.id, text: t.title });
+          if (existing && existing.linkedTaskId === t.id) opt.selected = true;
+          taskSel.appendChild(opt);
+        });
+      }
+    };
+    wrSel.addEventListener('change', updateTasks);
+    updateTasks(); // Initial load
+
     // Fund Source
     const fundGroup = el('div', { class: 'form-group' });
     fundGroup.appendChild(el('label', { text: 'Fund Source *' }));
@@ -548,6 +571,7 @@ const Disbursement = {
       fundSource: data.fundSource,
       linkedInvoiceId: data.linkedInvoiceId || null,
       linkedWorkRequestId: data.linkedWorkRequestId || null,
+      linkedTaskId: data.linkedTaskId || null,
       entity: entity,
       employeeId: Auth.user.id,
       requestedBy: Auth.user.id,
