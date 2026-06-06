@@ -445,7 +445,7 @@ const Dashboard = {
         }
       } else {
         const d = new Date(this.selectedDay);
-        d.setDate(d.getDate() - (this.calView === 'week' ? 7 : 1));
+        d.setDate(d.getDate() - 1);
         this.selectedDay = d.toISOString().slice(0, 10);
         this.calMonth = d.getMonth();
         this.calYear = d.getFullYear();
@@ -464,7 +464,7 @@ const Dashboard = {
         }
       } else {
         const d = new Date(this.selectedDay);
-        d.setDate(d.getDate() + (this.calView === 'week' ? 7 : 1));
+        d.setDate(d.getDate() + 1);
         this.selectedDay = d.toISOString().slice(0, 10);
         this.calMonth = d.getMonth();
         this.calYear = d.getFullYear();
@@ -544,40 +544,38 @@ const Dashboard = {
   },
 
   renderWeekGrid(grid, events) {
-    const now = new Date(this.calYear, this.calMonth, parseInt(this.selectedDay ? this.selectedDay.split('-')[2] : new Date().getDate()));
-    const dayOfWeek = now.getDay();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - dayOfWeek);
+    const baseDate = new Date(this.calYear, this.calMonth, parseInt(this.selectedDay ? this.selectedDay.split('-')[2] : new Date().getDate()));
+    const startOfWeek = new Date(baseDate);
 
     // Header Row
-    grid.appendChild(el('div', { class: 'week-time-label empty' })); 
-    
+    grid.appendChild(el('div', { class: 'week-time-label empty' }));
+
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const weekDates = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
       weekDates.push(d);
-      
+
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const isToday = dateStr === new Date().toISOString().slice(0, 10);
-      
+
       const dayHeader = el('div', { class: `week-day-header ${isToday ? 'today' : ''}` });
-      dayHeader.innerHTML = `<span class="day-name">${days[i]}</span><span class="day-num">${String(d.getDate()).padStart(2, '0')}</span>`;
-      
+      dayHeader.innerHTML = `<span class="day-name">${days[d.getDay()]}</span><span class="day-num">${String(d.getDate()).padStart(2, '0')}</span>`;
+
       if (isToday) {
           const now = new Date();
           const nowHour = now.getHours();
           const nowMin = now.getMinutes();
           const percent = ((nowHour * 60 + nowMin) / (24 * 60)) * 100;
-          
-          const timeBubble = el('div', { 
-            class: 'week-vertical-time-bubble', 
+
+          const timeBubble = el('div', {
+            class: 'week-vertical-time-bubble',
             text: `${String(nowHour).padStart(2, '0')}:${String(nowMin).padStart(2, '0')}`,
             style: `left: ${percent}%;`
           });
           dayHeader.appendChild(timeBubble);
-          
+
           const lineWrap = el('div', { class: 'week-vertical-time-line-wrap', style: `left: ${percent}%;` });
           const line = el('div', { class: 'week-vertical-time-line' });
           lineWrap.appendChild(line);
@@ -588,105 +586,22 @@ const Dashboard = {
 
     // Time Rows
     const timeSlots = ['All Day', '09 AM', '10 AM', '11 AM', '12 PM', '01 PM', '02 PM', '03 PM', '04 PM', '05 PM'];
-    
+
     timeSlots.forEach((time, slotIndex) => {
       const nowHour = new Date().getHours();
       const isCurrentHour = (slotIndex > 0 && (slotIndex + 8 === nowHour));
       const rowClass = isCurrentHour ? 'week-time-label current-hour' : 'week-time-label';
-      
+
       grid.appendChild(el('div', { class: rowClass, text: time }));
-      
+
       for (let i = 0; i < 7; i++) {
         const d = weekDates[i];
         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        const dayEvents = events[dateStr] || [];
-        
+
         const isToday = dateStr === new Date().toISOString().slice(0, 10);
         const cellClass = `week-cell ${isCurrentHour && isToday ? 'current-hour-cell' : ''}`;
         const cell = el('div', { class: cellClass, 'data-date': dateStr });
-        
-        const slotEvents = dayEvents.filter(ev => {
-           let hash = 0;
-           for(let k=0; k<ev.data.id.length; k++) hash += ev.data.id.charCodeAt(k);
-           let evSlot = (hash % 9) + 1; // 1 to 9
-           if (slotIndex === 0 && dayEvents.length > 5) return true; // dump in All day if many
-           if (slotIndex === 0 && dayEvents.length <= 5 && evSlot > 9) return true; // fallback
-           return evSlot === slotIndex;
-        });
 
-        if (slotEvents.length > 0) {
-            slotEvents.forEach(ev => {
-                const isCompleted = ev.type === 'wr' ? ev.data.status === 'Completed' : ['Released', 'Paid'].includes(ev.data.status);
-
-                let colorClass = 'bg-cyan-500';
-                let avatarName = 'U';
-
-                if (isCompleted) {
-                    colorClass = 'bg-green-500';
-                }
-
-                if (ev.type === 'wr') {
-                    if (!isCompleted) {
-                        const wrTasks = DB.getWhere('tasks', t => t.workRequestId === ev.data.id);
-                        const total = wrTasks.length;
-                        if (total === 0) {
-                           colorClass = 'bg-purple-500';
-                        } else {
-                           const comp = wrTasks.filter(t => t.status === 'Completed').length;
-                           const pct = comp / total;
-                           if (pct === 1) colorClass = 'bg-green-500';
-                           else if (pct >= 0.5) colorClass = 'bg-blue-500';
-                           else if (pct > 0) colorClass = 'bg-yellow-500';
-                           else colorClass = 'bg-orange-500';
-                        }
-                        if (ev.data.status === 'Cancelled') colorClass = 'bg-orange-500';
-                    }
-
-                    if (ev.data.assignedTo) {
-                        const u = DB.getById('users', ev.data.assignedTo);
-                        if (u) avatarName = u.name;
-                    }
-                } else {
-                    if (!isCompleted) {
-                        const s = ev.data.status;
-                        if (s === 'Approved') colorClass = 'bg-blue-500';
-                        else if (s === 'Under Review') colorClass = 'bg-yellow-500';
-                        else colorClass = 'bg-purple-500';
-                    }
-
-                    if (ev.data.requestedBy) {
-                        const u = DB.getById('users', ev.data.requestedBy);
-                        if (u) avatarName = u.name;
-                    }
-                }
-
-                const badge = el('div', { 
-                  class: `week-event-pill ${colorClass} ${isCompleted ? 'completed' : ''}`,
-                  title: ev.type === 'wr' ? `Work Request: ${ev.data.title}` : `Disbursement: ${ev.data.description}`
-                });
-                
-                const avatarWrap = el('div', { class: 'week-event-avatars' });
-                // We'll just show the single assignee/requester avatar for simplicity, or we could generate random based on hash if needed, but actual assignee is better.
-                const img = el('img', { class: 'week-event-avatar', src: `https://ui-avatars.com/api/?name=${encodeURIComponent(avatarName)}&background=random` });
-                avatarWrap.appendChild(img);
-                badge.appendChild(avatarWrap);
-                
-                const titleText = ev.type === 'wr' ? ev.data.title : ev.data.description;
-                const entityPrefix = ev.data.entity ? `[${ev.data.entity.toUpperCase()}] ` : '';
-                badge.appendChild(el('span', { class: 'week-event-title', text: entityPrefix + titleText }));
-                badge.appendChild(el('span', { class: 'week-event-arrow', text: '›' }));
-
-                badge.onclick = (e) => {
-                  e.stopPropagation();
-                  this.selectedDay = dateStr;
-                  this.expandedItemId = ev.data.id;
-                  this.refreshCalendarCard();
-                };
-                
-                cell.appendChild(badge);
-            });
-        }
-        
         cell.onclick = (e) => {
             e.stopPropagation();
             this.selectedDay = this.selectedDay === dateStr ? null : dateStr;
@@ -696,6 +611,81 @@ const Dashboard = {
 
         grid.appendChild(cell);
       }
+    });
+
+    // --- Event Overlay Layer (Spanning Bars) ---
+    const overlayContainer = el('div', { class: 'week-events-overlay' });
+    grid.appendChild(overlayContainer);
+
+    const getEventSlot = (ev, totalDayEvents) => {
+      let hash = 0;
+      for(let k=0; k<ev.data.id.length; k++) hash += ev.data.id.charCodeAt(k);
+      let evSlot = (hash % 9) + 1;
+      if (totalDayEvents > 5) evSlot = 0;
+      else if (totalDayEvents <= 5 && evSlot > 9) evSlot = 0;
+      return evSlot;
+    };
+
+    const slotMap = {};
+    const placedEvents = new Set();
+
+    weekDates.forEach((d, dayIdx) => {
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dayEvents = events[dateStr] || [];
+
+      dayEvents.forEach(ev => {
+        const key = `${ev.type}-${ev.data.id}`;
+        if (placedEvents.has(key)) return;
+
+        const evSlot = getEventSlot(ev, dayEvents.length);
+        if (!slotMap[evSlot]) slotMap[evSlot] = [];
+
+        let spanDays = 1;
+        let next = new Date(d);
+        while (spanDays < 7 - dayIdx) {
+          next.setDate(next.getDate() + 1);
+          const nextStr = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+          if ((events[nextStr] || []).some(e => e.type === ev.type && e.data.id === ev.data.id)) {
+            spanDays++;
+          } else {
+            break;
+          }
+        }
+
+        slotMap[evSlot].push({ ev, dayIdx, spanDays, dateStr });
+        placedEvents.add(key);
+      });
+    });
+
+    const PILL_HEIGHT = 26;
+    const PILL_GAP = 4;
+
+    Object.keys(slotMap).forEach(slotIdx => {
+      const eventsInSlot = slotMap[slotIdx];
+      if (eventsInSlot.length === 0) return;
+
+      eventsInSlot.sort((a, b) => a.dayIdx - b.dayIdx);
+
+      const dayOccupancy = [0, 0, 0, 0, 0, 0, 0];
+
+      eventsInSlot.forEach(({ ev, dayIdx, spanDays, dateStr }) => {
+        let maxOcc = 0;
+        for (let i = 0; i < spanDays; i++) {
+          if (dayIdx + i < 7) {
+            maxOcc = Math.max(maxOcc, dayOccupancy[dayIdx + i]);
+          }
+        }
+
+        for (let i = 0; i < spanDays; i++) {
+          if (dayIdx + i < 7) {
+            dayOccupancy[dayIdx + i] = maxOcc + 1;
+          }
+        }
+
+        const topOffset = maxOcc * (PILL_HEIGHT + PILL_GAP);
+        const overlay = this.createWeekEventOverlay(ev, dayIdx, spanDays, parseInt(slotIdx), topOffset, dateStr);
+        overlayContainer.appendChild(overlay);
+      });
     });
   },
 
@@ -733,98 +723,60 @@ const Dashboard = {
 
     // Time Rows
     const timeSlots = ['All Day', '09 AM', '10 AM', '11 AM', '12 PM', '01 PM', '02 PM', '03 PM', '04 PM', '05 PM'];
-    
+
     timeSlots.forEach((time, slotIndex) => {
       const nowHour = new Date().getHours();
       const isCurrentHour = (slotIndex > 0 && (slotIndex + 8 === nowHour));
       const rowClass = isCurrentHour ? 'week-time-label current-hour' : 'week-time-label';
-      
+
       grid.appendChild(el('div', { class: rowClass, text: time }));
-      
-      const dayEvents = events[dateStr] || [];
+
       const cellClass = `week-cell ${isCurrentHour && isToday ? 'current-hour-cell' : ''}`;
       const cell = el('div', { class: cellClass, 'data-date': dateStr });
-      
-      const slotEvents = dayEvents.filter(ev => {
-         let hash = 0;
-         for(let k=0; k<ev.data.id.length; k++) hash += ev.data.id.charCodeAt(k);
-         let evSlot = (hash % 9) + 1;
-         if (slotIndex === 0 && dayEvents.length > 5) return true;
-         if (slotIndex === 0 && dayEvents.length <= 5 && evSlot > 9) return true;
-         return evSlot === slotIndex;
-      });
 
-      if (slotEvents.length > 0) {
-          slotEvents.forEach(ev => {
-              const isCompleted = ev.type === 'wr' ? ev.data.status === 'Completed' : ['Released', 'Paid'].includes(ev.data.status);
-              
-              let colorClass = 'bg-cyan-500';
-              let avatarName = 'U';
-              
-              if (isCompleted) {
-                  colorClass = 'bg-green-500';
-              }
-              
-              if (ev.type === 'wr') {
-                  if (!isCompleted) {
-                      const wrTasks = DB.getWhere('tasks', t => t.workRequestId === ev.data.id);
-                      const total = wrTasks.length;
-                      if (total === 0) {
-                         colorClass = 'bg-purple-500';
-                      } else {
-                         const comp = wrTasks.filter(t => t.status === 'Completed').length;
-                         const pct = comp / total;
-                         if (pct === 1) colorClass = 'bg-green-500';
-                         else if (pct >= 0.5) colorClass = 'bg-blue-500';
-                         else if (pct > 0) colorClass = 'bg-yellow-500';
-                         else colorClass = 'bg-orange-500';
-                      }
-                      if (ev.data.status === 'Cancelled') colorClass = 'bg-orange-500';
-                  }
-                  
-                  if (ev.data.assignedTo) {
-                      const u = DB.getById('users', ev.data.assignedTo);
-                      if (u) avatarName = u.name;
-                  }
-              } else {
-                  if (!isCompleted) {
-                      const s = ev.data.status;
-                      if (s === 'Approved') colorClass = 'bg-blue-500';
-                      else if (s === 'Under Review') colorClass = 'bg-yellow-500';
-                      else colorClass = 'bg-purple-500';
-                  }
-                  
-                  if (ev.data.requestedBy) {
-                      const u = DB.getById('users', ev.data.requestedBy);
-                      if (u) avatarName = u.name;
-                  }
-              }
+      cell.onclick = (e) => {
+        e.stopPropagation();
+        this.selectedDay = this.selectedDay === dateStr ? null : dateStr;
+        this.expandedItemId = null;
+        this.refreshCalendarCard();
+      };
 
-              const badge = el('div', { 
-                class: `week-event-pill ${colorClass} ${isCompleted ? 'completed' : ''}`,
-                title: ev.type === 'wr' ? `Work Request: ${ev.data.title}` : `Disbursement: ${ev.data.description}`
-              });
-              
-              const avatarWrap = el('div', { class: 'week-event-avatars' });
-              const img = el('img', { class: 'week-event-avatar', src: `https://ui-avatars.com/api/?name=${encodeURIComponent(avatarName)}&background=random` });
-              avatarWrap.appendChild(img);
-              badge.appendChild(avatarWrap);
-              
-              const titleText = ev.type === 'wr' ? ev.data.title : ev.data.description;
-              const entityPrefix = ev.data.entity ? `[${ev.data.entity.toUpperCase()}] ` : '';
-              badge.appendChild(el('span', { class: 'week-event-title', text: entityPrefix + titleText }));
-              badge.appendChild(el('span', { class: 'week-event-arrow', text: '›' }));
-
-              badge.onclick = (e) => {
-                e.stopPropagation();
-                this.expandedItemId = ev.data.id;
-                this.refreshCalendarCard();
-              };
-              
-              cell.appendChild(badge);
-          });
-      }
       grid.appendChild(cell);
+    });
+
+    // --- Event Overlay Layer ---
+    const overlayContainer = el('div', { class: 'week-events-overlay' });
+    grid.appendChild(overlayContainer);
+
+    const dayEvents = events[dateStr] || [];
+    const getEventSlot = (ev, totalDayEvents) => {
+      let hash = 0;
+      for(let k=0; k<ev.data.id.length; k++) hash += ev.data.id.charCodeAt(k);
+      let evSlot = (hash % 9) + 1;
+      if (totalDayEvents > 5) evSlot = 0;
+      else if (totalDayEvents <= 5 && evSlot > 9) evSlot = 0;
+      return evSlot;
+    };
+
+    const slotMap = {};
+    dayEvents.forEach(ev => {
+      const evSlot = getEventSlot(ev, dayEvents.length);
+      if (!slotMap[evSlot]) slotMap[evSlot] = [];
+      slotMap[evSlot].push({ ev, dayIdx: 0, spanDays: 1, dateStr });
+    });
+
+    const PILL_HEIGHT = 26;
+    const PILL_GAP = 4;
+
+    Object.keys(slotMap).forEach(slotIdx => {
+      const eventsInSlot = slotMap[slotIdx];
+      if (eventsInSlot.length === 0) return;
+
+      eventsInSlot.forEach(({ ev, dayIdx, spanDays, dateStr }, index) => {
+        const topOffset = index * (PILL_HEIGHT + PILL_GAP);
+        const overlay = this.createWeekEventOverlay(ev, dayIdx, spanDays, parseInt(slotIdx), topOffset, dateStr);
+        overlayContainer.appendChild(overlay);
+      });
     });
   },
 
@@ -848,13 +800,13 @@ const Dashboard = {
       const m = this.calMonth === 0 ? 11 : this.calMonth - 1;
       const y = this.calMonth === 0 ? this.calYear - 1 : this.calYear;
       const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      grid.appendChild(this.renderDayCell(day, dateStr, true, events[dateStr], todayStr));
+      grid.appendChild(this.renderDayCell(day, dateStr, true, events[dateStr], todayStr, events));
     }
 
     // Current month cells
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      grid.appendChild(this.renderDayCell(i, dateStr, false, events[dateStr], todayStr));
+      grid.appendChild(this.renderDayCell(i, dateStr, false, events[dateStr], todayStr, events));
     }
 
     // Next month padding cells
@@ -864,11 +816,94 @@ const Dashboard = {
       const m = this.calMonth === 11 ? 0 : this.calMonth + 1;
       const y = this.calMonth === 11 ? this.calYear + 1 : this.calYear;
       const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      grid.appendChild(this.renderDayCell(i, dateStr, true, events[dateStr], todayStr));
+      grid.appendChild(this.renderDayCell(i, dateStr, true, events[dateStr], todayStr, events));
+    }
+
+    // --- Month View Event Overlay Layer (Spanning Bars) ---
+    const overlayContainer = el('div', { class: 'month-events-overlay' });
+    grid.appendChild(overlayContainer);
+
+    const placedEvents = new Set();
+    const rowOccupancy = {};
+
+    for (let cellIdx = 0; cellIdx < 42; cellIdx++) {
+      let dateStr;
+      if (cellIdx < firstDayIndex) {
+        const day = prevMonthDays - (firstDayIndex - 1 - cellIdx);
+        const m = this.calMonth === 0 ? 11 : this.calMonth - 1;
+        const y = this.calMonth === 0 ? this.calYear - 1 : this.calYear;
+        dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      } else if (cellIdx < firstDayIndex + daysInMonth) {
+        const day = cellIdx - firstDayIndex + 1;
+        dateStr = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      } else {
+        const day = cellIdx - (firstDayIndex + daysInMonth) + 1;
+        const m = this.calMonth === 11 ? 0 : this.calMonth + 1;
+        const y = this.calMonth === 11 ? this.calYear + 1 : this.calYear;
+        dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+
+      const dayEvents = events[dateStr] || [];
+      const rowIdx = Math.floor(cellIdx / 7);
+      const dayIdx = cellIdx % 7;
+
+      dayEvents.forEach(ev => {
+        const key = `${ev.type}-${ev.data.id}`;
+        if (placedEvents.has(key)) return;
+
+        let spanDays = 1;
+        let nextCellIdx = cellIdx + 1;
+        while (spanDays < 7 - dayIdx && nextCellIdx < 42) {
+          let nextDateStr;
+          if (nextCellIdx < firstDayIndex) {
+            const day = prevMonthDays - (firstDayIndex - 1 - nextCellIdx);
+            const m = this.calMonth === 0 ? 11 : this.calMonth - 1;
+            const y = this.calMonth === 0 ? this.calYear - 1 : this.calYear;
+            nextDateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          } else if (nextCellIdx < firstDayIndex + daysInMonth) {
+            const day = nextCellIdx - firstDayIndex + 1;
+            nextDateStr = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          } else {
+            const day = nextCellIdx - (firstDayIndex + daysInMonth) + 1;
+            const m = this.calMonth === 11 ? 0 : this.calMonth + 1;
+            const y = this.calMonth === 11 ? this.calYear + 1 : this.calYear;
+            nextDateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          }
+
+          if ((events[nextDateStr] || []).some(e => e.type === ev.type && e.data.id === ev.data.id)) {
+            spanDays++;
+            nextCellIdx++;
+          } else {
+            break;
+          }
+        }
+
+        if (spanDays > 1) {
+          if (!rowOccupancy[rowIdx]) rowOccupancy[rowIdx] = [0, 0, 0, 0, 0, 0, 0];
+          const occ = rowOccupancy[rowIdx];
+
+          let maxOcc = 0;
+          for (let i = 0; i < spanDays; i++) {
+            if (dayIdx + i < 7) {
+              maxOcc = Math.max(maxOcc, occ[dayIdx + i]);
+            }
+          }
+
+          for (let i = 0; i < spanDays; i++) {
+            if (dayIdx + i < 7) {
+              occ[dayIdx + i] = maxOcc + 1;
+            }
+          }
+
+          const overlay = this.createMonthEventOverlay(ev, dayIdx, spanDays, rowIdx, maxOcc, dateStr);
+          overlayContainer.appendChild(overlay);
+          placedEvents.add(key);
+        }
+      });
     }
   },
 
-  renderDayCell(dayNum, dateStr, isOtherMonth, dayEvents, todayStr) {
+  renderDayCell(dayNum, dateStr, isOtherMonth, dayEvents, todayStr, events) {
     const classes = ['calendar-cell'];
     if (isOtherMonth) classes.push('other-month');
     if (dateStr === todayStr) classes.push('today');
@@ -882,9 +917,14 @@ const Dashboard = {
 
     const eventsContainer = el('div', { class: 'calendar-cell-events' });
     if (dayEvents && dayEvents.length > 0) {
-      // Group by type for visual separation
-      const wrs = dayEvents.filter(e => e.type === 'wr');
-      const dbs = dayEvents.filter(e => e.type === 'db');
+      // Only show single-day events as cell badges; multi-day events get overlay bars
+      const isSingleDay = (ev) => {
+        const span = this.getEventSpanClasses(ev, dateStr, events);
+        return !span.includes('span-left') && !span.includes('span-right');
+      };
+
+      const wrs = dayEvents.filter(e => e.type === 'wr' && isSingleDay(e));
+      const dbs = dayEvents.filter(e => e.type === 'db' && isSingleDay(e));
 
       const renderBadge = (ev) => {
         const isCompleted = ev.type === 'wr' ? ev.data.status === 'Completed' : ['Released', 'Paid'].includes(ev.data.status);
@@ -971,10 +1011,10 @@ const Dashboard = {
   getCalendarEvents() {
     const userEntities = Auth.user.entities.map(e => e.toUpperCase());
     const active = (Auth.activeEntity || '').toUpperCase();
-    
+
     let wrs = DB.getAll('workRequests');
     let disbursements = DB.getAll('disbursements');
-    
+
     // Filter by Entity Access
     if (active === 'ALL') {
       wrs = wrs.filter(wr => userEntities.includes(wr.entity.toUpperCase()));
@@ -989,12 +1029,37 @@ const Dashboard = {
       if (!dateStr) return;
       const key = dateStr.slice(0, 10);
       if (!eventsByDate[key]) eventsByDate[key] = [];
-      eventsByDate[key].push({ type, data: item });
+      // Prevent duplicate entries for the same item on the same day
+      if (!eventsByDate[key].some(e => e.type === type && e.data.id === item.id)) {
+        eventsByDate[key].push({ type, data: item });
+      }
+    };
+
+    // Build date range helper: emit every YYYY-MM-DD from start -> end inclusive
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const getDatesInRange = (startStr, endStr) => {
+      const dates = [];
+      const start = new Date(startStr + 'T00:00:00');
+      const end = new Date(endStr + 'T00:00:00');
+      const curr = new Date(start);
+      while (curr <= end) {
+        dates.push(`${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, '0')}-${String(curr.getDate()).padStart(2, '0')}`);
+        curr.setDate(curr.getDate() + 1);
+      }
+      return dates;
     };
 
     wrs.forEach(wr => {
       if (wr.dueDate && wr.status !== 'Cancelled') {
-        addToEvents(wr.dueDate, 'wr', wr);
+        const due = wr.dueDate.slice(0, 10);
+        if (due >= todayStr) {
+          // Span from today through deadline so the bar visually covers the active duration
+          getDatesInRange(todayStr, due).forEach(date => addToEvents(date, 'wr', wr));
+        } else {
+          addToEvents(wr.dueDate, 'wr', wr);
+        }
       }
     });
 
@@ -1005,11 +1070,170 @@ const Dashboard = {
           const wr = DB.getById('workRequests', d.linkedWorkRequestId);
           if (wr && wr.dueDate) dDate = wr.dueDate;
         }
-        if (dDate) addToEvents(dDate, 'db', d);
+        if (dDate) {
+          const due = dDate.slice(0, 10);
+          if (due >= todayStr) {
+            getDatesInRange(todayStr, due).forEach(date => addToEvents(date, 'db', d));
+          } else {
+            addToEvents(dDate, 'db', d);
+          }
+        }
       }
     });
 
     return eventsByDate;
+  },
+
+  getEventSpanClasses(ev, dateStr, events) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const prev = new Date(d);
+    prev.setDate(prev.getDate() - 1);
+    const prevStr = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(prev.getDate()).padStart(2, '0')}`;
+    const next = new Date(d);
+    next.setDate(next.getDate() + 1);
+    const nextStr = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+
+    const isOnPrev = (events[prevStr] || []).some(e => e.type === ev.type && e.data.id === ev.data.id);
+    const isOnNext = (events[nextStr] || []).some(e => e.type === ev.type && e.data.id === ev.data.id);
+
+    const classes = [];
+    if (isOnPrev) classes.push('span-left');
+    if (isOnNext) classes.push('span-right');
+    return classes.join(' ');
+  },
+
+  createWeekEventOverlay(ev, dayIdx, spanDays, slotIdx, topOffset, dateStr) {
+    const isCompleted = ev.type === 'wr' ? ev.data.status === 'Completed' : ['Released', 'Paid'].includes(ev.data.status);
+
+    let colorClass = 'bg-cyan-500';
+    let avatarName = 'U';
+
+    if (isCompleted) {
+      colorClass = 'bg-green-500';
+    }
+
+    if (ev.type === 'wr') {
+      if (!isCompleted) {
+        const wrTasks = DB.getWhere('tasks', t => t.workRequestId === ev.data.id);
+        const total = wrTasks.length;
+        if (total === 0) {
+          colorClass = 'bg-purple-500';
+        } else {
+          const comp = wrTasks.filter(t => t.status === 'Completed').length;
+          const pct = comp / total;
+          if (pct === 1) colorClass = 'bg-green-500';
+          else if (pct >= 0.5) colorClass = 'bg-blue-500';
+          else if (pct > 0) colorClass = 'bg-yellow-500';
+          else colorClass = 'bg-orange-500';
+        }
+        if (ev.data.status === 'Cancelled') colorClass = 'bg-orange-500';
+      }
+
+      if (ev.data.assignedTo) {
+        const u = DB.getById('users', ev.data.assignedTo);
+        if (u) avatarName = u.name;
+      }
+    } else {
+      if (!isCompleted) {
+        const s = ev.data.status;
+        if (s === 'Approved') colorClass = 'bg-blue-500';
+        else if (s === 'Under Review') colorClass = 'bg-yellow-500';
+        else colorClass = 'bg-purple-500';
+      }
+
+      if (ev.data.requestedBy) {
+        const u = DB.getById('users', ev.data.requestedBy);
+        if (u) avatarName = u.name;
+      }
+    }
+
+    const overlay = el('div', {
+      class: `week-event-overlay ${colorClass} ${isCompleted ? 'completed' : ''}`,
+      title: ev.type === 'wr' ? `Work Request: ${ev.data.title}` : `Disbursement: ${ev.data.description}`
+    });
+
+    const left = `calc(var(--time-width) + ${dayIdx} * var(--day-width) + 4px)`;
+    const width = `calc(${spanDays} * var(--day-width) - 8px)`;
+    const top = `calc(var(--header-height) + ${slotIdx} * var(--row-height) + ${topOffset}px + 4px)`;
+
+    overlay.style.left = left;
+    overlay.style.width = width;
+    overlay.style.top = top;
+
+    const avatarWrap = el('div', { class: 'week-event-avatars' });
+    const img = el('img', { class: 'week-event-avatar', src: `https://ui-avatars.com/api/?name=${encodeURIComponent(avatarName)}&background=random` });
+    avatarWrap.appendChild(img);
+    overlay.appendChild(avatarWrap);
+
+    const titleText = ev.type === 'wr' ? ev.data.title : ev.data.description;
+    const entityPrefix = ev.data.entity ? `[${ev.data.entity.toUpperCase()}] ` : '';
+    overlay.appendChild(el('span', { class: 'week-event-title', text: entityPrefix + titleText }));
+    overlay.appendChild(el('span', { class: 'week-event-arrow', text: '›' }));
+
+    overlay.onclick = (e) => {
+      e.stopPropagation();
+      this.selectedDay = dateStr;
+      this.expandedItemId = ev.data.id;
+      this.refreshCalendarCard();
+    };
+
+    return overlay;
+  },
+
+  createMonthEventOverlay(ev, dayIdx, spanDays, rowIdx, offset, dateStr) {
+    const isCompleted = ev.type === 'wr' ? ev.data.status === 'Completed' : ['Released', 'Paid'].includes(ev.data.status);
+
+    let colorClass = 'bg-cyan-500';
+
+    if (isCompleted) {
+      colorClass = 'bg-green-500';
+    } else if (ev.type === 'wr') {
+      const wrTasks = DB.getWhere('tasks', t => t.workRequestId === ev.data.id);
+      const total = wrTasks.length;
+      if (total === 0) {
+        colorClass = 'bg-purple-500';
+      } else {
+        const comp = wrTasks.filter(t => t.status === 'Completed').length;
+        const pct = comp / total;
+        if (pct === 1) colorClass = 'bg-green-500';
+        else if (pct >= 0.5) colorClass = 'bg-blue-500';
+        else if (pct > 0) colorClass = 'bg-yellow-500';
+        else colorClass = 'bg-orange-500';
+      }
+      if (ev.data.status === 'Cancelled') colorClass = 'bg-orange-500';
+    } else {
+      const s = ev.data.status;
+      if (s === 'Paid' || s === 'Released') colorClass = 'bg-green-500';
+      else if (s === 'Approved') colorClass = 'bg-blue-500';
+      else if (s === 'Under Review') colorClass = 'bg-yellow-500';
+      else colorClass = 'bg-purple-500';
+    }
+
+    const overlay = el('div', {
+      class: `month-event-overlay ${colorClass} ${isCompleted ? 'completed' : ''}`,
+      title: ev.type === 'wr' ? `Work Request: ${ev.data.title}` : `Disbursement: ${ev.data.description}`
+    });
+
+    const left = `calc(${dayIdx} * (100% - 24px) / 7 + ${dayIdx} * 4px + 2px)`;
+    const width = `calc(${spanDays} * (100% - 24px) / 7 + ${spanDays - 1} * 4px - 4px)`;
+    const top = `calc(40px + ${rowIdx} * 4px + ${rowIdx} * (100% - 60px) / 6 + ${offset * 16}px + 2px)`;
+
+    overlay.style.left = left;
+    overlay.style.width = width;
+    overlay.style.top = top;
+
+    const titleText = ev.type === 'wr' ? ev.data.title : ev.data.description;
+    const entityPrefix = ev.data.entity ? `[${ev.data.entity.toUpperCase()}] ` : '';
+    overlay.appendChild(el('span', { class: 'week-event-title', text: entityPrefix + titleText }));
+
+    overlay.onclick = (e) => {
+      e.stopPropagation();
+      this.selectedDay = dateStr;
+      this.expandedItemId = ev.data.id;
+      this.refreshCalendarCard();
+    };
+
+    return overlay;
   },
 
   refreshCalendarCard() {

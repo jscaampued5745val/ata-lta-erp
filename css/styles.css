@@ -50,6 +50,12 @@ html, body {
   height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-sans);
   font-size: 14px;
@@ -342,6 +348,20 @@ a:hover {
   padding-top: var(--spacing-md);
   box-shadow: 2px 0 10px rgba(0,0,0,0.01);
   z-index: 5;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
 
 .nav-list {
@@ -380,6 +400,20 @@ a:hover {
   overflow-y: auto;
   padding: var(--spacing-lg);
   background: var(--color-bg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.content::-webkit-scrollbar {
+  width: 8px;
+}
+.content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.content::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
 }
 
 /* Typography */
@@ -444,6 +478,8 @@ select:focus {
 }
 
 .form-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239494a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -592,6 +628,7 @@ tbody tr:hover {
   position: fixed;
   inset: 0;
   background: rgba(45, 45, 63, 0.4);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -865,6 +902,9 @@ tbody tr:hover {
   overflow-y: auto; /* Enable internal vertical scrolling */
   display: flex;
   flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Custom Scrollbar for Report Cards */
@@ -3299,6 +3339,7 @@ tbody tr:hover {
   gap: 4px;
   padding: 8px 0 12px;
   scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
 }
 
 .mdp-year-panel::-webkit-scrollbar {
@@ -3916,14 +3957,41 @@ tbody tr:hover {
   border-left: 1px solid var(--color-border);
   position: relative;
   background: var(--color-surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.calendar-week-grid::-webkit-scrollbar,
+.calendar-day-grid::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.calendar-week-grid::-webkit-scrollbar-track,
+.calendar-day-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.calendar-week-grid::-webkit-scrollbar-thumb,
+.calendar-day-grid::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
 
 .calendar-week-grid {
-  grid-template-columns: 70px repeat(7, 1fr);
+  --time-width: 70px;
+  --day-width: calc((100% - var(--time-width)) / 7);
+  --row-height: 72px;
+  --header-height: 56px;
+  grid-template-columns: var(--time-width) repeat(7, var(--day-width));
+  grid-template-rows: var(--header-height) repeat(10, var(--row-height));
 }
 
 .calendar-day-grid {
-  grid-template-columns: 70px 1fr;
+  grid-template-columns: var(--time-width) 1fr;
+  grid-template-rows: var(--header-height) repeat(10, var(--row-height));
+  --time-width: 70px;
+  --row-height: 72px;
+  --header-height: 56px;
 }
 
 .week-time-label {
@@ -3937,6 +4005,7 @@ tbody tr:hover {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
+  height: 100%;
 }
 
 .week-time-label.current-hour {
@@ -3959,7 +4028,7 @@ tbody tr:hover {
 .week-day-header {
   border-right: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
-  padding: 24px 8px 8px;
+  padding: 8px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -3970,6 +4039,8 @@ tbody tr:hover {
   z-index: 30;
   background: var(--color-surface);
   box-shadow: 0 1px 0 var(--color-border);
+  height: 100%;
+  justify-content: center;
 }
 
 .week-day-header .day-name {
@@ -3997,10 +4068,10 @@ tbody tr:hover {
   border-right: 1px dashed var(--color-border);
   border-bottom: 1px solid var(--color-border);
   padding: 8px 4px;
-  min-height: 70px;
   position: relative;
   transition: background 0.2s;
   cursor: pointer;
+  height: 100%;
 }
 
 .week-cell:hover {
@@ -4024,8 +4095,8 @@ tbody tr:hover {
 
 .week-vertical-time-line-wrap {
   position: absolute;
-  top: 24px;
-  height: 780px; /* Covers down to the 5 PM slot exactly without massive overflow */
+  top: var(--header-height);
+  height: calc(10 * var(--row-height));
   pointer-events: none;
   z-index: 1; /* Below events */
   width: 0;
@@ -4049,6 +4120,51 @@ tbody tr:hover {
   height: 7px;
   border-radius: 50%;
   background: #ef4444;
+}
+
+/* Week Event Overlays (Spanning Bars) */
+.week-events-overlay {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.week-event-overlay {
+  position: absolute;
+  height: 26px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  padding: 2px 8px;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  transition: transform 0.2s, filter 0.2s;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.week-event-overlay:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  z-index: 20;
+}
+
+.week-event-overlay.completed {
+  opacity: 0.6;
+  text-decoration: line-through;
+  box-shadow: none;
 }
 
 /* Event Pills */
@@ -4121,6 +4237,25 @@ tbody tr:hover {
   font-weight: bold;
   flex-shrink: 0;
   opacity: 0.9;
+}
+
+/* Multi-day spanning visuals: flatten side radii so adjacent pills look like one continuous strip */
+.week-event-pill.span-left {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -4px;
+  padding-left: 10px;
+}
+.week-event-pill.span-right {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  margin-right: -4px;
+  padding-right: 10px;
+}
+.week-event-pill.span-left.span-right {
+  border-radius: 0;
+  margin-left: -4px;
+  margin-right: -4px;
 }
 
 /* Distinct pill colors */
@@ -4218,6 +4353,20 @@ tbody tr:hover {
   flex-direction: column;
   overflow-y: auto;
   max-height: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.calendar-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.calendar-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.calendar-sidebar::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
 
 /* Header */
@@ -4343,11 +4492,57 @@ tbody tr:hover {
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: auto repeat(6, 1fr);
+  grid-template-rows: 36px repeat(6, 1fr);
   gap: 4px;
   flex: 1;
   overflow: hidden;
   height: 100%;
+  position: relative;
+}
+
+/* Month View Event Overlays (Spanning Bars) */
+.month-events-overlay {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.month-event-overlay {
+  position: absolute;
+  height: 18px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  padding: 1px 6px;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: transform 0.2s, filter 0.2s;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.month-event-overlay:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  z-index: 10;
+}
+
+.month-event-overlay.completed {
+  opacity: 0.6;
+  text-decoration: line-through;
+  box-shadow: none;
 }
 
 .calendar-day-name {
