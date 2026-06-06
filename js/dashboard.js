@@ -293,7 +293,7 @@ const Dashboard = {
       this.selectedDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     }
     
-    if (this.calView === undefined) this.calMonthView(); // Default to week view via init
+    if (this.calView === undefined) this.calView = 'week';
 
     const events = this.getCalendarEvents();
 

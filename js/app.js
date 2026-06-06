@@ -13,8 +13,14 @@ const App = {
     this.setupNavigation();
     this.setupResponsiveMenu();
     this.setupLogout();
-    const defaultRoute = Auth.user.role === 'Admin' || Auth.user.role === 'Manager' ? '#dashboard' : '#operations';
-    location.hash = defaultRoute;
+    
+    // Default route is dashboard for all users
+    const defaultRoute = '#dashboard';
+    
+    if (!location.hash || location.hash === '') {
+       location.hash = defaultRoute;
+    }
+    
     this.handleRoute();
     this.updateSidebarNotifications();
   },
