@@ -87,17 +87,12 @@ const Dashboard = {
     const myTasks = DB.getWhere('tasks', t => t.assigneeId === Auth.user.id && t.status !== 'Completed');
     if (myTasks.length === 0) return null;
 
-    // Check if user logged time today
+    // Check if user logged time today for these incomplete tasks
     const todayStr = now.toISOString().slice(0, 10);
-    let hasLoggedToday = false;
-    for (let t of myTasks) {
-      if (t.timeLogs && t.timeLogs.some(log => log.date === todayStr)) {
-        hasLoggedToday = true;
-        break;
-      }
-    }
+    const tasksNeedingLogs = myTasks.filter(t => !t.timeLogs || !t.timeLogs.some(log => log.date === todayStr));
 
-    if (hasLoggedToday) return null;
+    // If all incomplete tasks have a log today, no prompt needed.
+    if (tasksNeedingLogs.length === 0) return null;
 
     const banner = el('div', { 
       class: 'alert-banner', 
@@ -105,12 +100,12 @@ const Dashboard = {
     });
     
     const left = el('div', { style: 'display: flex; align-items: center; gap: 12px;' });
-    left.innerHTML = `<span style="font-size: 1.25rem;">⏰</span> <div><strong>End of Day Reminder:</strong> You have incomplete assigned tasks but haven't submitted your daily time log yet. Please log your time before finishing your day.</div>`;
+    left.innerHTML = `<span style="font-size: 1.25rem;">⏰</span> <div><strong>End of Day Reminder:</strong> You have ${tasksNeedingLogs.length} incomplete assigned task(s) but haven't submitted your daily time log for them yet. Please log your time before finishing your day.</div>`;
     banner.appendChild(left);
 
     const right = el('button', { class: 'btn btn-primary btn-sm', text: 'Go to Tasks' });
     right.onclick = () => {
-      location.hash = '#workflow';
+      location.hash = '#operations';
       App.handleRoute();
     };
     banner.appendChild(right);
@@ -128,12 +123,9 @@ const Dashboard = {
     wrapper.appendChild(el('div', { class: 'activity-bar-title', text: 'Firm Activity Breakdown' }));
     
     // Blended colors logic
-    // color1 -> 0% to p1 - 5%, blend to color2 at p1 + 5%
-    // To make it simple, we'll use linear gradient with smooth transitions.
-    // CSS Vars: ata = var(--color-primary), lta = var(--color-success), out = var(--color-warning)
-    const ataColor = '#2563eb'; // fallback to hex for gradient to ensure it parses easily
+    const ataColor = '#2563eb'; 
     const ltaColor = '#10b981';
-    const outColor = '#f59e0b';
+    const outColor = '#e34234'; // Vermillion
     
     // Calculate midpoints for blending
     const stop1 = Math.max(0, p1 - 5);
@@ -179,9 +171,9 @@ const Dashboard = {
     wrapper.appendChild(bar);
 
     const legend = el('div', { class: 'activity-legend' });
-    legend.appendChild(this.legendItem('ATA Revenue', 'var(--color-primary)'));
-    if (ltaRev > 0) legend.appendChild(this.legendItem('LTA Revenue', 'var(--color-success)'));
-    legend.appendChild(this.legendItem('Outstanding Invoices', 'var(--color-warning)'));
+    legend.appendChild(this.legendItem('ATA Revenue', ataColor));
+    if (ltaRev > 0) legend.appendChild(this.legendItem('LTA Revenue', ltaColor));
+    legend.appendChild(this.legendItem('Outstanding Invoices', outColor));
     wrapper.appendChild(legend);
 
     return wrapper;
@@ -1070,7 +1062,7 @@ const Dashboard = {
           Workflow.view = 'detail';
           Workflow.detailWrId = item.id;
           // Note: The detail view in workflow natively shows the tasks list.
-          location.hash = '#workflow';
+          location.hash = '#operations';
         } else {
           Disbursement.view = 'detail';
           Disbursement.detailId = item.id;
