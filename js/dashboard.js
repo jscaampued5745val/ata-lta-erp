@@ -39,6 +39,10 @@ const Dashboard = {
     bento.appendChild(this.kpiCard('Total Outstanding', ata.outstanding + lta.outstanding, null, '-5%'));
     bento.appendChild(this.kpiCard('Overdue Tasks', ata.overdue + lta.overdue, null, '+2%'));
     
+    // 4. Upcoming Widgets (Below KPI Cards)
+    bento.appendChild(this.renderUpcomingDisbursementsCard('ALL'));
+    bento.appendChild(this.renderWorkRequestsDueThisWeekCard('ALL'));
+    
     container.appendChild(bento);
 
     const tableSection = el('div', { class: 'bento-item bento-full', style: 'padding: 0; background: transparent; box-shadow: none;' });
@@ -73,8 +77,85 @@ const Dashboard = {
     bento.appendChild(this.kpiCard('Outstanding', metrics.outstanding, null, '-2%'));
     bento.appendChild(this.kpiCard('Overdue Tasks', metrics.overdue, null, '+1%'));
 
+    // 4. Upcoming Widgets (Below KPI Cards)
+    bento.appendChild(this.renderUpcomingDisbursementsCard(Auth.activeEntity));
+    bento.appendChild(this.renderWorkRequestsDueThisWeekCard(Auth.activeEntity));
+
     container.appendChild(bento);
     return container;
+  },
+
+  renderUpcomingDisbursementsCard(entity) {
+    const card = el('div', { class: 'bento-item bento-half', style: 'max-height: 350px; overflow-y: auto;' });
+    card.appendChild(el('h3', { text: 'Upcoming Disbursements', style: 'margin-bottom: var(--spacing-md); font-size: 1.125rem; font-weight: 600;' }));
+    
+    let disbursements = DB.getAll('disbursements').filter(d => 
+      ['Submitted', 'Under Review', 'Approved'].includes(d.status)
+    );
+    if (entity && entity !== 'ALL') {
+      disbursements = disbursements.filter(d => d.entity.toUpperCase() === entity.toUpperCase());
+    }
+    
+    if (disbursements.length === 0) {
+      card.appendChild(el('p', { class: 'empty-state', text: 'No upcoming disbursements.', style: 'margin: auto;' }));
+    } else {
+      const list = el('div', { style: 'display: flex; flex-direction: column; gap: var(--spacing-sm);' });
+      disbursements.forEach(d => {
+        const item = el('div', { class: 'detail-item-v2', style: 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; background: var(--color-bg);' });
+        const left = el('div', { style: 'display: flex; flex-direction: column; gap: 2px;' });
+        left.appendChild(el('span', { text: d.description || d.category, style: 'font-weight: 600; font-size: 0.875rem;' }));
+        left.appendChild(el('span', { text: `${d.entity} • ${formatDate(d.dueDate || d.submittedAt)}`, style: 'font-size: 0.75rem; color: var(--color-text-muted);' }));
+        item.appendChild(left);
+        item.appendChild(el('span', { text: formatPHP(d.amount), style: 'font-weight: 700; font-size: 0.875rem; color: var(--color-text);' }));
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+    }
+    return card;
+  },
+
+  renderWorkRequestsDueThisWeekCard(entity) {
+    const card = el('div', { class: 'bento-item bento-half', style: 'max-height: 350px; overflow-y: auto;' });
+    card.appendChild(el('h3', { text: 'Work Requests Due This Week', style: 'margin-bottom: var(--spacing-md); font-size: 1.125rem; font-weight: 600;' }));
+    
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekEndMidnight = todayMidnight + 7 * 86400000;
+    
+    let wrs = DB.getAll('workRequests').filter(wr => {
+      if (wr.status === 'Completed' || wr.status === 'Cancelled') return false;
+      if (!wr.dueDate) return false;
+      const t = new Date(wr.dueDate).getTime();
+      return t >= todayMidnight && t <= weekEndMidnight;
+    });
+    
+    if (entity && entity !== 'ALL') {
+      wrs = wrs.filter(wr => wr.entity.toUpperCase() === entity.toUpperCase());
+    }
+    
+    if (wrs.length === 0) {
+      card.appendChild(el('p', { class: 'empty-state', text: 'No work requests due this week.', style: 'margin: auto;' }));
+    } else {
+      const list = el('div', { style: 'display: flex; flex-direction: column; gap: var(--spacing-sm);' });
+      wrs.forEach(wr => {
+        const item = el('div', { class: 'detail-item-v2', style: 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; background: var(--color-bg); cursor: pointer;' });
+        item.addEventListener('click', () => {
+          location.hash = `#operations`;
+          // We can set the active work request detail
+          Workflow.detailWrId = wr.id;
+          Workflow.view = 'detail';
+          App.handleRoute();
+        });
+        const left = el('div', { style: 'display: flex; flex-direction: column; gap: 2px;' });
+        left.appendChild(el('span', { text: wr.title, style: 'font-weight: 600; font-size: 0.875rem;' }));
+        left.appendChild(el('span', { text: `${wr.entity} • Due ${formatDate(wr.dueDate)}`, style: 'font-size: 0.75rem; color: var(--color-text-muted);' }));
+        item.appendChild(left);
+        item.appendChild(el('span', { text: wr.status, class: 'badge badge-info', style: 'font-size: 10px;' }));
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+    }
+    return card;
   },
 
   renderTimeLogPrompt() {
@@ -1003,13 +1084,13 @@ const Dashboard = {
 
         if (wrs.length > 0) {
           const sec = el('div', { class: 'sidebar-section' });
-          sec.appendChild(el('h4', { text: 'Work Requests' }));
+          sec.appendChild(el('h4', { text: 'Work Requests Due This Week' }));
           wrs.forEach(ev => sec.appendChild(this.renderSidebarItemCard('wr', ev.data)));
           sidebar.appendChild(sec);
         }
         if (dbs.length > 0) {
           const sec = el('div', { class: 'sidebar-section' });
-          sec.appendChild(el('h4', { text: 'Disbursements' }));
+          sec.appendChild(el('h4', { text: 'Upcoming Disbursements' }));
           dbs.forEach(ev => sec.appendChild(this.renderSidebarItemCard('db', ev.data)));
           sidebar.appendChild(sec);
         }

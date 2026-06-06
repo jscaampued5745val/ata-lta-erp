@@ -9,6 +9,7 @@
 
 const now = new Date().toISOString();
 const today = new Date().toISOString().slice(0, 10);
+const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 const lastWeek = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 const lastMonth = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
@@ -543,7 +544,9 @@ const seedData = {
       assigneeId: makeId('u', 4),
       predecessors: [],
       dueDate: today,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '09:00', endTime: '11:30', date: today, hours: 2.5, userId: makeId('u', 4), note: 'Reviewed assessment documents for Manila Fresh Foods Inc.' }
+      ],
       taskDocuments: [],
       createdAt: today,
       updatedAt: today
@@ -557,7 +560,9 @@ const seedData = {
       assigneeId: makeId('u', 4),
       predecessors: [],
       dueDate: today,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '13:00', endTime: '15:15', date: today, hours: 2.25, userId: makeId('u', 4), note: 'Initial review of documentation completeness' }
+      ],
       taskDocuments: [],
       createdAt: today,
       updatedAt: today
@@ -571,7 +576,10 @@ const seedData = {
       assigneeId: makeId('u', 5),
       predecessors: [],
       dueDate: today,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '09:30', endTime: '12:00', date: today, hours: 2.5, userId: makeId('u', 5), note: 'Reviewed compliance documents' },
+        { startTime: '14:00', endTime: '16:00', date: yesterday, hours: 2.0, userId: makeId('u', 5), note: 'LTA compliance checklist review' }
+      ],
       taskDocuments: [],
       createdAt: today,
       updatedAt: today
@@ -600,7 +608,9 @@ const seedData = {
       assigneeId: makeId('u', 4),
       predecessors: [],
       dueDate: lastMonth,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '09:00', endTime: '12:30', date: lastWeek, hours: 3.5, userId: makeId('u', 4), note: 'Gathering and sorting client receipts' }
+      ],
       taskDocuments: [],
       createdAt: lastMonth,
       updatedAt: now
@@ -614,7 +624,9 @@ const seedData = {
       assigneeId: makeId('u', 4),
       predecessors: [makeId('t', 1)],
       dueDate: lastWeek,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '13:00', endTime: '16:15', date: lastWeek, hours: 3.25, userId: makeId('u', 4), note: 'Encoding trial balance' }
+      ],
       taskDocuments: [],
       createdAt: lastMonth,
       updatedAt: now
@@ -628,7 +640,9 @@ const seedData = {
       assigneeId: makeId('u', 4),
       predecessors: [makeId('t', 2)],
       dueDate: today,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '10:00', endTime: '12:30', date: today, hours: 2.5, userId: makeId('u', 4), note: 'Drafted annual tax schedules' }
+      ],
       taskDocuments: [],
       createdAt: lastMonth,
       updatedAt: now
@@ -643,7 +657,9 @@ const seedData = {
       assigneeId: makeId('u', 4),
       predecessors: [],
       dueDate: lastMonth,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '10:00', endTime: '12:00', date: lastWeek, hours: 2.0, userId: makeId('u', 4), note: 'Reconciled bank statements' }
+      ],
       taskDocuments: [],
       createdAt: lastMonth,
       updatedAt: now
@@ -657,7 +673,9 @@ const seedData = {
       assigneeId: makeId('u', 4),
       predecessors: [makeId('t', 4)],
       dueDate: lastWeek,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '13:30', endTime: '15:30', date: lastWeek, hours: 2.0, userId: makeId('u', 4), note: 'Generated financial reports' }
+      ],
       taskDocuments: [],
       createdAt: lastMonth,
       updatedAt: now
@@ -700,7 +718,9 @@ const seedData = {
       assigneeId: makeId('u', 4),
       predecessors: [makeId('t', 7)],
       dueDate: today,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '14:00', endTime: '16:45', date: today, hours: 2.75, userId: makeId('u', 4), note: 'Cross-checked ledger with eBIR form 2550Q' }
+      ],
       taskDocuments: [],
       createdAt: lastWeek,
       updatedAt: now
@@ -729,7 +749,9 @@ const seedData = {
       assigneeId: makeId('u', 5),
       predecessors: [],
       dueDate: lastWeek,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '09:00', endTime: '11:30', date: lastWeek, hours: 2.5, userId: makeId('u', 5), note: 'Sent out PBC list to client contacts' }
+      ],
       taskDocuments: [],
       createdAt: lastWeek,
       updatedAt: now
@@ -743,7 +765,10 @@ const seedData = {
       assigneeId: makeId('u', 5),
       predecessors: [makeId('t', 10)],
       dueDate: today,
-      timeLogs: [],
+      timeLogs: [
+        { startTime: '08:45', endTime: '11:45', date: today, hours: 3.0, userId: makeId('u', 5), note: 'Conducted analytical review on analytical assets' },
+        { startTime: '13:30', endTime: '17:00', date: yesterday, hours: 3.5, userId: makeId('u', 5), note: 'Completed analytical review of revenue accounts' }
+      ],
       taskDocuments: [],
       createdAt: lastWeek,
       updatedAt: now
@@ -1547,7 +1572,7 @@ const seedData = {
 // ============================================================
 
 const DB = {
-  SCHEMA_VERSION: 8,
+  SCHEMA_VERSION: 9,
 
   init() {
     const stored = localStorage.getItem('erp_schema_version');

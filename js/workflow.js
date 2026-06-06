@@ -1754,10 +1754,10 @@ const Workflow = {
         docsSection.appendChild(docsList);
         detailsGrid.appendChild(docsSection);
 
-        // Time Log Today Section
+        // Time Log Section
         const timeSection = el('div', { class: 'task-details-col' });
         const timeHeader = el('div', { class: 'details-section-title' });
-        timeHeader.appendChild(el('span', { text: 'Time Log Today' }));
+        timeHeader.appendChild(el('span', { text: 'Time Logs' }));
         const canLogTime = ((t.assigneeId || t.assignedTo) === Auth.user.id) && !isArchived;
         if (canLogTime) {
           const addTimeBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Add Log' });
@@ -1767,18 +1767,29 @@ const Workflow = {
         timeSection.appendChild(timeHeader);
 
         const timeList = el('div', { class: 'details-content-list' });
-        const today = new Date().toISOString().slice(0, 10);
-        const todayLogs = (t.timeLogs || []).filter(l => l.date === today);
-        if (todayLogs.length === 0) {
-          const emptyText = isArchived ? 'Archived — time logging disabled.' : 'No logs for today.';
+        const logs = t.timeLogs || [];
+        if (logs.length === 0) {
+          const emptyText = isArchived ? 'Archived — time logging disabled.' : 'No logs recorded.';
           timeList.appendChild(el('div', { class: 'empty-state', text: emptyText }));
         } else {
-          todayLogs.forEach(l => {
-            const logDate = new Date(l.date);
+          // Sort logs: latest date first, then latest start time first
+          const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
+          sortedLogs.forEach(l => {
+            const [y, m, d] = l.date.split('-').map(Number);
+            const logDate = new Date(y, m - 1, d);
             const dateStr = logDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', weekday: 'short' });
-            const item = el('div', { class: 'detail-item-v2' });
-            item.appendChild(el('span', { text: `${dateStr} • ${l.startTime} - ${l.endTime}` }));
-            item.appendChild(el('span', { class: 'kpi-label', text: `${l.hours}h` }));
+            
+            const item = el('div', { class: 'detail-item-v2', style: 'display:flex; flex-direction:column; gap:4px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #e2e8f0;' });
+            
+            const mainRow = el('div', { style: 'display:flex; justify-content:space-between; align-items:center; width:100%;' });
+            mainRow.appendChild(el('span', { text: `${dateStr} • ${l.startTime} - ${l.endTime}`, style: 'font-weight:600;' }));
+            mainRow.appendChild(el('span', { class: 'kpi-label', text: `${l.hours}h`, style: 'font-size:11px;' }));
+            
+            item.appendChild(mainRow);
+            
+            if (l.note) {
+              item.appendChild(el('span', { text: l.note, style: 'font-size:11px; color:var(--color-text-muted); font-style:italic;' }));
+            }
             timeList.appendChild(item);
           });
         }
@@ -2103,23 +2114,73 @@ const Workflow = {
 
   showAddTimeLogModal(taskId) {
     const form = el('form', { class: 'form-stacked' });
+    
+    // Date field
+    const dateInput = el('input', { type: 'date', name: 'date', required: true, value: new Date().toISOString().slice(0, 10) });
+    form.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { text: 'Date *' }),
+      dateInput
+    ]));
+
+    // Start Time field
+    const startInput = el('input', { type: 'time', name: 'start', required: true });
     form.appendChild(el('div', { class: 'form-group' }, [
       el('label', { text: 'Start Time *' }),
-      el('input', { type: 'time', name: 'start', required: true })
+      startInput
     ]));
+
+    // End Time field
+    const endInput = el('input', { type: 'time', name: 'end', required: true });
     form.appendChild(el('div', { class: 'form-group' }, [
       el('label', { text: 'End Time *' }),
-      el('input', { type: 'time', name: 'end', required: true })
+      endInput
     ]));
+
+    // Note / Activity field
+    const noteInput = el('input', { type: 'text', name: 'note', placeholder: 'What did you work on?', required: false });
+    form.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { text: 'Note / Activity' }),
+      noteInput
+    ]));
+
+    // Hours (read-only, auto-calculated)
+    const hoursInput = el('input', { type: 'text', name: 'hours', readOnly: true, value: '0.00', style: 'background: #f1f5f9; cursor: not-allowed;' });
+    form.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { text: 'Calculated Hours' }),
+      hoursInput
+    ]));
+
+    // Update hours calculation dynamically
+    function updateHours() {
+      const start = startInput.value;
+      const end = endInput.value;
+      if (start && end) {
+        const [sh, sm] = start.split(':').map(Number);
+        const [eh, em] = end.split(':').map(Number);
+        if (eh > sh || (eh === sh && em > sm)) {
+          const hours = Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 60 * 4) / 4;
+          hoursInput.value = hours.toFixed(2);
+        } else {
+          hoursInput.value = '0.00';
+        }
+      } else {
+        hoursInput.value = '0.00';
+      }
+    }
+    startInput.addEventListener('change', updateHours);
+    endInput.addEventListener('change', updateHours);
+
     const submitBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Log' });
     form.appendChild(submitBtn);
 
-    const overlay = this.showModal('Add Time Log Today', form, null);
+    const overlay = this.showModal('Add Time Log', form, null);
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const fd = new FormData(form);
-      const start = fd.get('start');
-      const end = fd.get('end');
+      const dateVal = dateInput.value;
+      const start = startInput.value;
+      const end = endInput.value;
+      const noteVal = noteInput.value;
+      
       const [sh, sm] = start.split(':').map(Number);
       const [eh, em] = end.split(':').map(Number);
       if (eh < sh || (eh === sh && em <= sm)) {
@@ -2131,15 +2192,16 @@ const Workflow = {
         userId: Auth.user.id,
         startTime: start,
         endTime: end,
-        date: new Date().toISOString().slice(0, 10),
+        date: dateVal,
+        note: noteVal,
         hours
       };
       const task = DB.getById('tasks', taskId);
       
-      // Guard: prevent double time log for the same day
+      // Guard: prevent double time log for the same day by the same user
       const alreadyLogged = (task.timeLogs || []).some(l => l.date === entry.date && l.userId === Auth.user.id);
       if (alreadyLogged) {
-        this.showMessage('Warning', 'You have already logged time for this task today.', 'warning');
+        this.showMessage('Warning', `You have already logged time for this task on ${dateVal}.`, 'warning');
         return;
       }
 

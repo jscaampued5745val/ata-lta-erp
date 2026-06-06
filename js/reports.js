@@ -27,10 +27,26 @@ const Reports = {
 
     const container = el('div', { class: 'page' });
 
-    const header = el('div', { class: 'form-header-bar' });
-    header.appendChild(el('h1', { text: 'Reports' }));
+    // Breadcrumb Title Bar
+    const titleBar = el('div', { class: 'page-title-bar-v2' });
+    const h1 = el('h1', { class: 'breadcrumb-h1' });
+    const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Reports' });
+    baseLink.addEventListener('click', () => { this.tab = 'analytics'; App.handleRoute(); });
+    
+    const tabLabels = {
+      'analytics': 'Analytics Overview',
+      'daily': 'Daily Task Report',
+      'weekly': 'Weekly Performance Summary',
+      'monthly': 'Monthly Pending Tasks'
+    };
+    
+    h1.appendChild(baseLink);
+    h1.appendChild(el('span', { class: 'breadcrumb-sep', text: '/' }));
+    h1.appendChild(el('span', { text: tabLabels[this.tab] || 'Overview' }));
+    titleBar.appendChild(h1);
+    container.appendChild(titleBar);
 
-    const tabs = el('div', { class: 'admin-tabs' });
+    const tabs = el('div', { class: 'admin-tabs', style: 'margin-bottom: var(--spacing-lg);' });
     const tabDefs = [
       { key: 'analytics', label: 'Analytics' },
       { key: 'daily', label: 'Daily Report' },
@@ -45,8 +61,7 @@ const Reports = {
       btn.addEventListener('click', () => { this.tab = t.key; App.handleRoute(); });
       tabs.appendChild(btn);
     });
-    header.appendChild(tabs);
-    container.appendChild(header);
+    container.appendChild(tabs);
 
     if (this.tab === 'analytics') {
       const entities = this.getAccessibleEntities();
@@ -123,12 +138,12 @@ const Reports = {
   // Common Components
   // ============================================================
   renderFilterBar(excludeDateRange) {
-    const bar = el('div', { class: 'filters-bar' });
+    const bar = el('div', { class: 'filters-bar', style: 'margin-bottom: var(--spacing-md);' });
     const entities = this.getAccessibleEntities();
 
     // Work Request
     const wrSel = el('select', { class: 'form-select' });
-    wrSel.appendChild(el('option', { value: '', text: 'All Work Requests' }));
+    wrSel.appendChild(el('option', { value: '', text: '— Work Request —' }));
     DB.getAll('workRequests').filter(wr => entities.includes(wr.entity?.toUpperCase?.())).forEach(wr => {
       wrSel.appendChild(el('option', { value: wr.id, text: wr.title }));
     });
@@ -138,7 +153,7 @@ const Reports = {
 
     // Client
     const clientSel = el('select', { class: 'form-select' });
-    clientSel.appendChild(el('option', { value: '', text: 'All Clients' }));
+    clientSel.appendChild(el('option', { value: '', text: '— Client —' }));
     DB.getAll('clients').filter(c => entities.includes(c.entity?.toUpperCase?.())).forEach(c => {
       clientSel.appendChild(el('option', { value: c.id, text: c.name }));
     });
@@ -148,7 +163,7 @@ const Reports = {
 
     // Employee
     const empSel = el('select', { class: 'form-select' });
-    empSel.appendChild(el('option', { value: '', text: 'All Employees' }));
+    empSel.appendChild(el('option', { value: '', text: '— Employee —' }));
     DB.getAll('users').forEach(u => {
       empSel.appendChild(el('option', { value: u.id, text: u.name }));
     });
@@ -158,14 +173,14 @@ const Reports = {
 
     // Due Date range
     if (!excludeDateRange) {
-      bar.appendChild(el('span', { text: 'From:', style: 'font-size:0.875rem; color:var(--color-text-muted);' }));
       const fromInput = el('input', { type: 'date', class: 'form-select', value: this.filters.dateFrom });
       fromInput.addEventListener('change', () => { this.filters.dateFrom = fromInput.value; App.handleRoute(); });
+      bar.appendChild(el('span', { text: 'From:', style: 'font-size:0.8125rem; font-weight:600; color:var(--color-text-muted);' }));
       bar.appendChild(fromInput);
 
-      bar.appendChild(el('span', { text: 'To:', style: 'font-size:0.875rem; color:var(--color-text-muted);' }));
       const toInput = el('input', { type: 'date', class: 'form-select', value: this.filters.dateTo });
       toInput.addEventListener('change', () => { this.filters.dateTo = toInput.value; App.handleRoute(); });
+      bar.appendChild(el('span', { text: 'To:', style: 'font-size:0.8125rem; font-weight:600; color:var(--color-text-muted);' }));
       bar.appendChild(toInput);
     }
 
@@ -174,11 +189,7 @@ const Reports = {
       html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
-      this.filters.workRequest = '';
-      this.filters.client = '';
-      this.filters.employee = '';
-      this.filters.dateFrom = '';
-      this.filters.dateTo = '';
+      this.filters = { workRequest: '', client: '', employee: '', dateFrom: '', dateTo: '' };
       App.handleRoute();
     });
     bar.appendChild(clearBtn);
@@ -187,8 +198,12 @@ const Reports = {
   },
 
   renderViewModeToggle() {
-    const toggle = el('div', { class: 'view-mode-toggle' });
-    const viewIcons = { 'table': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>', 'board': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>', 'list': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>' };
+    const toggle = el('div', { class: 'view-mode-toggle', style: 'margin-bottom: var(--spacing-lg);' });
+    const viewIcons = { 
+      'table': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>', 
+      'board': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>', 
+      'list': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>' 
+    };
     ['table', 'board', 'list'].forEach(mode => {
       const btn = el('button', { html: (viewIcons[mode] || '') + ' ' + mode.charAt(0).toUpperCase() + mode.slice(1) });
       if (this.viewMode === mode) btn.classList.add('active');
@@ -265,27 +280,47 @@ const Reports = {
   },
 
   renderTaskBoard(tasks) {
+    if (tasks.length === 0) return el('p', { class: 'empty-state', text: 'No tasks found.' });
+    
     const statuses = ['Draft', 'Assigned', 'In Progress', 'For Review', 'Completed', 'Cancelled'];
+    const statusColors = { 'Draft': '#94a3b8', 'Assigned': '#3b82f6', 'In Progress': '#f59e0b', 'For Review': '#a855f7', 'Completed': '#10b981', 'Cancelled': '#ef4444' };
     const wrs = DB.getAll('workRequests');
     const clients = DB.getAll('clients');
 
-    const board = el('div', { class: 'board-view' });
+    const board = el('div', { class: 'board-v2' });
     statuses.forEach(status => {
       const statusTasks = tasks.filter(t => t.status === status);
-      const col = el('div', { class: 'board-column' });
-      col.appendChild(el('div', { class: 'board-column-header', text: status + ' (' + statusTasks.length + ')' }));
+      const col = el('div', { class: 'board-column-v2' });
+      col.style.borderTop = `4px solid ${statusColors[status] || '#cbd5e1'}`;
 
+      const header = el('div', { class: 'board-column-header-v2' });
+      header.appendChild(el('div', { class: 'board-column-title', text: status }));
+      header.appendChild(el('div', { class: 'board-column-count', text: String(statusTasks.length) }));
+      col.appendChild(header);
+
+      const cardContainer = el('div', { class: 'board-cards-scroll' });
       statusTasks.forEach(t => {
         const wr = wrs.find(w => w.id === t.workRequestId);
         const client = wr ? clients.find(c => c.id === wr.clientId) : null;
         const assignee = DB.getById('users', t.assigneeId || t.assignedTo);
 
-        const card = el('div', { class: 'board-card' });
-        card.appendChild(el('div', { class: 'board-card-title', text: t.title }));
-        card.appendChild(el('div', { class: 'board-card-meta', text: (client?.name || '—') + ' • ' + (assignee?.name || '—') }));
-        col.appendChild(card);
+        const card = el('div', { class: 'board-card-v2' });
+        card.appendChild(el('div', { class: 'board-card-title-v2', text: t.title }));
+        if (client) card.appendChild(el('div', { class: 'board-card-client-v2', text: client.name }));
+        
+        const meta = el('div', { class: 'board-card-meta-v2' });
+        if (assignee) {
+          meta.appendChild(el('div', { class: 'assignee-badge-v2' }, [
+            el('img', { src: `https://ui-avatars.com/api/?name=${encodeURIComponent(assignee.name)}&background=random` }),
+            el('span', { text: assignee.name })
+          ]));
+        }
+        if (t.dueDate) meta.appendChild(el('div', { class: 'due-date-v2', text: formatDate(t.dueDate) }));
+        card.appendChild(meta);
+        
+        cardContainer.appendChild(card);
       });
-
+      col.appendChild(cardContainer);
       board.appendChild(col);
     });
     return board;
@@ -306,7 +341,15 @@ const Reports = {
       left.appendChild(el('div', { class: 'list-item-title', text: t.title }));
       left.appendChild(el('div', { class: 'list-item-meta', text: (client?.name || '—') + ' • ' + (assignee?.name || '—') + ' • Due ' + (t.dueDate ? formatDate(t.dueDate) : '—') }));
       item.appendChild(left);
-      item.appendChild(el('span', { class: 'badge badge-info', text: t.status }));
+      
+      const statusBadge = el('span', { class: 'badge', text: t.status });
+      const s = t.status.toLowerCase();
+      if (s === 'completed') statusBadge.classList.add('badge-success');
+      else if (s === 'cancelled') statusBadge.classList.add('badge-danger');
+      else if (['assigned', 'in progress', 'for review'].includes(s)) statusBadge.classList.add('badge-warning');
+      else statusBadge.classList.add('badge-info');
+      
+      item.appendChild(statusBadge);
       list.appendChild(item);
     });
     return list;
@@ -321,8 +364,8 @@ const Reports = {
     const filters = this.renderFilterBar(true);
     const dateInput = el('input', { type: 'date', class: 'form-select', value: this.dailyDate });
     dateInput.addEventListener('change', () => { this.dailyDate = dateInput.value; App.handleRoute(); });
-    filters.appendChild(el('span', { text: 'Date:', style: 'font-size:0.875rem; color:var(--color-text-muted);' }));
-    filters.appendChild(dateInput);
+    filters.insertBefore(el('span', { text: 'Date:', style: 'font-size:0.8125rem; font-weight:600; color:var(--color-text-muted);' }), filters.firstChild);
+    filters.insertBefore(dateInput, filters.firstChild.nextSibling);
     wrapper.appendChild(filters);
 
     wrapper.appendChild(this.renderViewModeToggle());
@@ -331,6 +374,22 @@ const Reports = {
       const logs = t.timeLogs || [];
       return logs.some(l => l.date === this.dailyDate);
     });
+
+    // Meaningful Stats for the day
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.status === 'Completed').length;
+    const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const totalHours = tasks.reduce((sum, t) => {
+        const logs = (t.timeLogs || []).filter(l => l.date === this.dailyDate);
+        return sum + logs.reduce((s, l) => s + (l.hours || 0), 0);
+    }, 0);
+
+    const statsGrid = el('div', { class: 'report-stats-grid', style: 'display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);' });
+    statsGrid.appendChild(this.renderMiniStat('Total Tasks Logged', totalTasks, 'blue'));
+    statsGrid.appendChild(this.renderMiniStat('Completed Today', completedTasks, 'green'));
+    statsGrid.appendChild(this.renderMiniStat('Daily Completion Rate', completionRate + '%', 'orange'));
+    statsGrid.appendChild(this.renderMiniStat('Total Man-Hours', totalHours.toFixed(1), 'purple'));
+    wrapper.appendChild(statsGrid);
 
     if (tasks.length === 0) {
       wrapper.appendChild(el('p', { class: 'empty-state', text: 'No tasks with time logs for ' + formatDate(this.dailyDate) + '.' }));
@@ -346,6 +405,13 @@ const Reports = {
     }
 
     return wrapper;
+  },
+
+  renderMiniStat(label, value, color) {
+    const card = el('div', { class: 'report-mini-stat', style: `padding: var(--spacing-md); background: var(--color-surface); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); border-left: 4px solid var(--color-${color});` });
+    card.appendChild(el('div', { text: label, style: 'font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;' }));
+    card.appendChild(el('div', { text: String(value), style: 'font-size: 1.5rem; font-weight: 700; color: var(--color-text); margin-top: 4px;' }));
+    return card;
   },
 
   renderDailyTable(tasks) {
@@ -375,11 +441,11 @@ const Reports = {
         const user = DB.getById('users', log.userId || t.assigneeId || t.assignedTo);
         tbody.appendChild(el('tr', {}, [
           el('td', { text: user?.name || '—' }),
-          el('td', { text: t.title }),
+          el('td', { text: t.title, style: 'font-weight:600;' }),
           el('td', { text: client?.name || '—' }),
           el('td', { text: log.startTime || '—' }),
           el('td', { text: log.endTime || '—' }),
-          el('td', { text: String(log.hours || 0) }),
+          el('td', { text: String(log.hours || 0), class: 'num' }),
           el('td', { text: t.status })
         ]));
       });
@@ -398,8 +464,8 @@ const Reports = {
     const filters = this.renderFilterBar(true);
     const weekInput = el('input', { type: 'date', class: 'form-select', value: this.weeklyDate });
     weekInput.addEventListener('change', () => { this.weeklyDate = weekInput.value; App.handleRoute(); });
-    filters.appendChild(el('span', { text: 'Week of:', style: 'font-size:0.875rem; color:var(--color-text-muted);' }));
-    filters.appendChild(weekInput);
+    filters.insertBefore(el('span', { text: 'Week of:', style: 'font-size:0.8125rem; font-weight:600; color:var(--color-text-muted);' }), filters.firstChild);
+    filters.insertBefore(weekInput, filters.firstChild.nextSibling);
     wrapper.appendChild(filters);
 
     const { start, end } = this.getWeekRange(this.weeklyDate);
@@ -411,16 +477,20 @@ const Reports = {
     // Summary by employee
     const summary = {};
     DB.getAll('users').forEach(u => {
-      summary[u.id] = { name: u.name, completed: 0, pending: 0, overdue: 0 };
+      summary[u.id] = { name: u.name, completed: 0, pending: 0, overdue: 0, hours: 0 };
     });
-    summary['unassigned'] = { name: 'Unassigned', completed: 0, pending: 0, overdue: 0 };
+    summary['unassigned'] = { name: 'Unassigned', completed: 0, pending: 0, overdue: 0, hours: 0 };
 
     const today = this.today();
     tasks.forEach(t => {
       const empId = t.assigneeId || t.assignedTo || 'unassigned';
       if (!summary[empId]) {
-        summary[empId] = { name: 'Unknown', completed: 0, pending: 0, overdue: 0 };
+        summary[empId] = { name: 'Unknown', completed: 0, pending: 0, overdue: 0, hours: 0 };
       }
+      
+      const logs = (t.timeLogs || []).filter(l => l.date >= start && l.date <= end);
+      summary[empId].hours += logs.reduce((s, l) => s + (l.hours || 0), 0);
+
       if (t.status === 'Completed') {
         summary[empId].completed++;
       } else if (t.status !== 'Cancelled') {
@@ -431,8 +501,18 @@ const Reports = {
       }
     });
 
-    const summaryRows = Object.values(summary).filter(s => s.completed > 0 || s.pending > 0);
+    const summaryRows = Object.values(summary).filter(s => s.completed > 0 || s.pending > 0 || s.hours > 0);
     const periodLabel = formatDate(start) + ' – ' + formatDate(end);
+
+    // Weekly Stats Header
+    const statsGrid = el('div', { class: 'report-stats-grid', style: 'display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);' });
+    const totalHrs = summaryRows.reduce((s, r) => s + r.hours, 0);
+    const totalComp = summaryRows.reduce((s, r) => s + r.completed, 0);
+    const totalPend = summaryRows.reduce((s, r) => s + r.pending, 0);
+    statsGrid.appendChild(this.renderMiniStat('Total Weekly Hours', totalHrs.toFixed(1), 'blue'));
+    statsGrid.appendChild(this.renderMiniStat('Total Tasks Completed', totalComp, 'green'));
+    statsGrid.appendChild(this.renderMiniStat('Total Pending Tasks', totalPend, 'orange'));
+    wrapper.appendChild(statsGrid);
 
     if (summaryRows.length === 0) {
       wrapper.appendChild(el('p', { class: 'empty-state', text: 'No tasks for the week of ' + periodLabel + '.' }));
@@ -441,6 +521,7 @@ const Reports = {
       table.appendChild(el('thead', {}, [
         el('tr', {}, [
           el('th', { text: 'Employee' }),
+          el('th', { text: 'Total Hours' }),
           el('th', { text: 'Completed' }),
           el('th', { text: 'Pending' }),
           el('th', { text: 'Overdue' })
@@ -449,17 +530,18 @@ const Reports = {
       const tbody = el('tbody');
       summaryRows.forEach(s => {
         tbody.appendChild(el('tr', {}, [
-          el('td', { text: s.name }),
-          el('td', { text: String(s.completed) }),
-          el('td', { text: String(s.pending) }),
-          el('td', { text: String(s.overdue), style: s.overdue > 0 ? 'color:var(--color-danger); font-weight:600;' : '' })
+          el('td', { text: s.name, style: 'font-weight:600;' }),
+          el('td', { text: s.hours.toFixed(1), class: 'num' }),
+          el('td', { text: String(s.completed), class: 'num' }),
+          el('td', { text: String(s.pending), class: 'num' }),
+          el('td', { text: String(s.overdue), class: 'num', style: s.overdue > 0 ? 'color:var(--color-danger); font-weight:600;' : '' })
         ]));
       });
       table.appendChild(tbody);
       wrapper.appendChild(table);
     }
 
-    wrapper.appendChild(el('h3', { text: 'Tasks', style: 'margin-top:var(--spacing-lg);' }));
+    wrapper.appendChild(el('h3', { text: 'Task Board', style: 'margin-top:var(--spacing-xl); margin-bottom: var(--spacing-md);' }));
     wrapper.appendChild(this.renderViewModeToggle());
 
     if (tasks.length === 0) {
@@ -484,9 +566,8 @@ const Reports = {
     const filters = this.renderFilterBar(true);
     const monthInput = el('input', { type: 'month', class: 'form-select', value: this.monthlyMonth });
     monthInput.addEventListener('change', () => { this.monthlyMonth = monthInput.value; App.handleRoute(); });
-    monthInput.addEventListener('input', () => { this.monthlyMonth = monthInput.value; App.handleRoute(); });
-    filters.appendChild(el('span', { text: 'Month:', style: 'font-size:0.875rem; color:var(--color-text-muted);' }));
-    filters.appendChild(monthInput);
+    filters.insertBefore(el('span', { text: 'Month:', style: 'font-size:0.8125rem; font-weight:600; color:var(--color-text-muted);' }), filters.firstChild);
+    filters.insertBefore(monthInput, filters.firstChild.nextSibling);
     wrapper.appendChild(filters);
 
     wrapper.appendChild(this.renderViewModeToggle());
@@ -497,6 +578,14 @@ const Reports = {
       if (!t.dueDate) return false;
       return t.dueDate >= start && t.dueDate <= end;
     });
+
+    // Monthly Stats
+    const totalPending = tasks.length;
+    const overdueCount = tasks.filter(t => t.dueDate < this.today()).length;
+    const statsGrid = el('div', { class: 'report-stats-grid', style: 'display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);' });
+    statsGrid.appendChild(this.renderMiniStat('Monthly Pending Tasks', totalPending, 'blue'));
+    statsGrid.appendChild(this.renderMiniStat('Overdue Items', overdueCount, 'danger'));
+    wrapper.appendChild(statsGrid);
 
     if (tasks.length === 0) {
       wrapper.appendChild(el('p', { class: 'empty-state', text: 'No pending tasks for ' + this.monthlyMonth + '.' }));
@@ -519,7 +608,7 @@ const Reports = {
     });
 
     const retainerSection = el('div', { style: 'margin-top:var(--spacing-xl);' });
-    retainerSection.appendChild(el('h3', { text: 'Recurring Retainer Tasks Due This Month' }));
+    retainerSection.appendChild(el('h3', { text: 'Recurring Retainer Tasks Due This Month', style: 'margin-bottom: var(--spacing-md);' }));
 
     if (retainerTemplates.length === 0) {
       retainerSection.appendChild(el('p', { class: 'empty-state', text: 'No retainer templates due this month.' }));
@@ -530,7 +619,7 @@ const Reports = {
           el('th', { text: 'Template' }),
           el('th', { text: 'Client' }),
           el('th', { text: 'Schedule' }),
-          el('th', { text: 'Professional Fee Amount' }),
+          el('th', { text: 'PF Amount' }),
           el('th', { text: 'Tasks' })
         ])
       ]));
@@ -539,11 +628,11 @@ const Reports = {
       retainerTemplates.forEach(rt => {
         const client = clients.find(c => c.id === rt.clientId);
         rtBody.appendChild(el('tr', {}, [
-          el('td', { text: rt.name }),
+          el('td', { text: rt.name, style: 'font-weight:600;' }),
           el('td', { text: client?.name || '—' }),
           el('td', { text: rt.schedule }),
           el('td', { class: 'num', text: formatPHP(rt.pfAmount || 0) }),
-          el('td', { text: String((rt.tasks || []).length) })
+          el('td', { text: String((rt.tasks || []).length), class: 'num' })
         ]));
       });
       rtTable.appendChild(rtBody);
@@ -570,7 +659,7 @@ const Reports = {
       const emp = DB.getById('users', empId);
       container.appendChild(el('h4', {
         text: (emp?.name || 'Unassigned') + ' (' + empTasks.length + ')',
-        style: 'margin:var(--spacing-md) 0 var(--spacing-sm); font-size:1rem; font-weight:600;'
+        style: 'margin:var(--spacing-md) 0 var(--spacing-sm); font-size:1rem; font-weight:600; color: var(--color-primary); border-bottom: 1px solid var(--color-border); padding-bottom: 4px;'
       }));
 
       const table = el('table', { class: 'report-table' });
@@ -587,7 +676,7 @@ const Reports = {
         const wr = wrs.find(w => w.id === t.workRequestId);
         const client = wr ? clients.find(c => c.id === wr.clientId) : null;
         tbody.appendChild(el('tr', {}, [
-          el('td', { text: t.title }),
+          el('td', { text: t.title, style: 'font-weight: 600;' }),
           el('td', { text: client?.name || '—' }),
           el('td', { text: formatDate(t.dueDate) }),
           el('td', { text: t.status })
