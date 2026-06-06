@@ -537,36 +537,43 @@ const Dashboard = {
         if (slotEvents.length > 0) {
             slotEvents.forEach(ev => {
                 const isCompleted = ev.type === 'wr' ? ev.data.status === 'Completed' : ['Released', 'Paid'].includes(ev.data.status);
-                
+
                 let colorClass = 'bg-cyan-500';
                 let avatarName = 'U';
-                
+
+                if (isCompleted) {
+                    colorClass = 'bg-green-500';
+                }
+
                 if (ev.type === 'wr') {
-                    const wrTasks = DB.getWhere('tasks', t => t.workRequestId === ev.data.id);
-                    const total = wrTasks.length;
-                    if (total === 0) {
-                       colorClass = 'bg-purple-500';
-                    } else {
-                       const comp = wrTasks.filter(t => t.status === 'Completed').length;
-                       const pct = comp / total;
-                       if (pct === 1) colorClass = 'bg-green-500';
-                       else if (pct >= 0.5) colorClass = 'bg-blue-500';
-                       else if (pct > 0) colorClass = 'bg-yellow-500';
-                       else colorClass = 'bg-orange-500';
+                    if (!isCompleted) {
+                        const wrTasks = DB.getWhere('tasks', t => t.workRequestId === ev.data.id);
+                        const total = wrTasks.length;
+                        if (total === 0) {
+                           colorClass = 'bg-purple-500';
+                        } else {
+                           const comp = wrTasks.filter(t => t.status === 'Completed').length;
+                           const pct = comp / total;
+                           if (pct === 1) colorClass = 'bg-green-500';
+                           else if (pct >= 0.5) colorClass = 'bg-blue-500';
+                           else if (pct > 0) colorClass = 'bg-yellow-500';
+                           else colorClass = 'bg-orange-500';
+                        }
+                        if (ev.data.status === 'Cancelled') colorClass = 'bg-orange-500';
                     }
-                    if (ev.data.status === 'Cancelled') colorClass = 'bg-orange-500';
-                    
+
                     if (ev.data.assignedTo) {
                         const u = DB.getById('users', ev.data.assignedTo);
                         if (u) avatarName = u.name;
                     }
                 } else {
-                    const s = ev.data.status;
-                    if (s === 'Paid' || s === 'Released') colorClass = 'bg-green-500';
-                    else if (s === 'Approved') colorClass = 'bg-blue-500';
-                    else if (s === 'Under Review') colorClass = 'bg-yellow-500';
-                    else colorClass = 'bg-purple-500';
-                    
+                    if (!isCompleted) {
+                        const s = ev.data.status;
+                        if (s === 'Approved') colorClass = 'bg-blue-500';
+                        else if (s === 'Under Review') colorClass = 'bg-yellow-500';
+                        else colorClass = 'bg-purple-500';
+                    }
+
                     if (ev.data.requestedBy) {
                         const u = DB.getById('users', ev.data.requestedBy);
                         if (u) avatarName = u.name;
@@ -673,31 +680,38 @@ const Dashboard = {
               let colorClass = 'bg-cyan-500';
               let avatarName = 'U';
               
+              if (isCompleted) {
+                  colorClass = 'bg-green-500';
+              }
+              
               if (ev.type === 'wr') {
-                  const wrTasks = DB.getWhere('tasks', t => t.workRequestId === ev.data.id);
-                  const total = wrTasks.length;
-                  if (total === 0) {
-                     colorClass = 'bg-purple-500';
-                  } else {
-                     const comp = wrTasks.filter(t => t.status === 'Completed').length;
-                     const pct = comp / total;
-                     if (pct === 1) colorClass = 'bg-green-500';
-                     else if (pct >= 0.5) colorClass = 'bg-blue-500';
-                     else if (pct > 0) colorClass = 'bg-yellow-500';
-                     else colorClass = 'bg-orange-500';
+                  if (!isCompleted) {
+                      const wrTasks = DB.getWhere('tasks', t => t.workRequestId === ev.data.id);
+                      const total = wrTasks.length;
+                      if (total === 0) {
+                         colorClass = 'bg-purple-500';
+                      } else {
+                         const comp = wrTasks.filter(t => t.status === 'Completed').length;
+                         const pct = comp / total;
+                         if (pct === 1) colorClass = 'bg-green-500';
+                         else if (pct >= 0.5) colorClass = 'bg-blue-500';
+                         else if (pct > 0) colorClass = 'bg-yellow-500';
+                         else colorClass = 'bg-orange-500';
+                      }
+                      if (ev.data.status === 'Cancelled') colorClass = 'bg-orange-500';
                   }
-                  if (ev.data.status === 'Cancelled') colorClass = 'bg-orange-500';
                   
                   if (ev.data.assignedTo) {
                       const u = DB.getById('users', ev.data.assignedTo);
                       if (u) avatarName = u.name;
                   }
               } else {
-                  const s = ev.data.status;
-                  if (s === 'Paid' || s === 'Released') colorClass = 'bg-green-500';
-                  else if (s === 'Approved') colorClass = 'bg-blue-500';
-                  else if (s === 'Under Review') colorClass = 'bg-yellow-500';
-                  else colorClass = 'bg-purple-500';
+                  if (!isCompleted) {
+                      const s = ev.data.status;
+                      if (s === 'Approved') colorClass = 'bg-blue-500';
+                      else if (s === 'Under Review') colorClass = 'bg-yellow-500';
+                      else colorClass = 'bg-purple-500';
+                  }
                   
                   if (ev.data.requestedBy) {
                       const u = DB.getById('users', ev.data.requestedBy);

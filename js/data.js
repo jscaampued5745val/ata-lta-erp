@@ -334,6 +334,22 @@ const seedData = {
 
   workRequests: [
     {
+      id: makeId('wr', 102),
+      title: 'Completed Assessment - Mock',
+      description: 'Mock completed item due today to demonstrate green styling.',
+      clientId: makeId('c', 2),
+      entity: 'ATA',
+      status: 'Completed',
+      requestedBy: makeId('u', 1),
+      assignedTo: makeId('u', 4),
+      linkedInvoiceId: null,
+      linkedDisbursementIds: [],
+      linkedTransmittalIds: [],
+      createdAt: today,
+      updatedAt: today,
+      dueDate: today
+    },
+    {
       id: makeId('wr', 101),
       title: 'Urgent Processing - All Staff (Mock)',
       description: 'Mock item due today to demonstrate daily task views.',
@@ -534,6 +550,20 @@ const seedData = {
   ],
 
   tasks: [
+    {
+      id: makeId('t', 994),
+      workRequestId: makeId('wr', 102),
+      title: 'Complete assessment review',
+      description: 'Review is done.',
+      status: 'Completed',
+      assigneeId: makeId('u', 4),
+      predecessors: [],
+      dueDate: today,
+      timeLogs: [],
+      taskDocuments: [],
+      createdAt: today,
+      updatedAt: today
+    },
     {
       id: makeId('t', 991),
       workRequestId: makeId('wr', 101),
@@ -968,6 +998,25 @@ const seedData = {
   ],
 
   disbursements: [
+    {
+      id: makeId('d', 100),
+      category: 'Representation',
+      description: 'Completed representation expense (Mock)',
+      amount: 4500.00,
+      fundSource: 'Company Fund',
+      linkedInvoiceId: null,
+      linkedWorkRequestId: makeId('wr', 102),
+      entity: 'ATA',
+      employeeId: makeId('u', 4),
+      requestedBy: makeId('u', 4),
+      status: 'Released',
+      submittedAt: today,
+      dueDate: today,
+      accountingApprovedBy: makeId('u', 1),
+      paymentHandledBy: makeId('u', 1),
+      paymentDetails: { method: 'Cash', reference: 'VOU-001', bank: '', date: today, processedBy: makeId('u', 1) },
+      updatedAt: today
+    },
     {
       id: makeId('d', 99),
       category: 'Travel',
@@ -1514,7 +1563,7 @@ const seedData = {
 // ============================================================
 
 const DB = {
-  SCHEMA_VERSION: 6,
+  SCHEMA_VERSION: 7,
 
   init() {
     const stored = localStorage.getItem('erp_schema_version');
