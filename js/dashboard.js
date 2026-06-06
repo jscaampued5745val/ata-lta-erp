@@ -125,7 +125,7 @@ const Dashboard = {
     // Blended colors logic
     const ataColor = '#2563eb'; 
     const ltaColor = '#10b981';
-    const outColor = '#e34234'; // Vermillion
+    const outColor = '#ea580c'; // Deep Orange
     
     // Calculate midpoints for blending
     const stop1 = Math.max(0, p1 - 5);
