@@ -901,6 +901,9 @@ const Dashboard = {
         }
       });
     }
+
+    // Auto-scroll cells with overflowing event badges
+    setTimeout(() => this.setupAutoScroll(grid), 50);
   },
 
   renderDayCell(dayNum, dateStr, isOtherMonth, dayEvents, todayStr, events) {
@@ -1216,7 +1219,7 @@ const Dashboard = {
 
     const left = `calc(${dayIdx} * (100% - 24px) / 7 + ${dayIdx} * 4px + 2px)`;
     const width = `calc(${spanDays} * (100% - 24px) / 7 + ${spanDays - 1} * 4px - 4px)`;
-    const top = `calc(40px + ${rowIdx} * 4px + ${rowIdx} * (100% - 60px) / 6 + ${offset * 16}px + 2px)`;
+    const top = `calc(40px + ${rowIdx} * 4px + ${rowIdx} * (100% - 60px) / 6 + 24px + ${offset * 16}px + 2px)`;
 
     overlay.style.left = left;
     overlay.style.width = width;
@@ -1234,6 +1237,56 @@ const Dashboard = {
     };
 
     return overlay;
+  },
+
+  setupAutoScroll(grid) {
+    if (!grid) return;
+    const cells = grid.querySelectorAll('.calendar-cell');
+    cells.forEach(cell => {
+      const eventsContainer = cell.querySelector('.calendar-cell-events');
+      if (!eventsContainer) return;
+
+      const badges = eventsContainer.querySelectorAll('.calendar-event-badge');
+      if (badges.length <= 2) return;
+
+      // Enable scrollability
+      eventsContainer.classList.add('auto-scroll');
+
+      let scrollPos = 0;
+      let direction = 1; // 1 = down, -1 = up
+      const speed = 0.5; // px per tick
+      const pauseTicks = 60; // frames to pause at each end
+      let pauseCounter = 0;
+
+      const tick = () => {
+        if (!eventsContainer.isConnected) return;
+
+        const maxScroll = eventsContainer.scrollHeight - eventsContainer.clientHeight;
+        if (maxScroll <= 0) return;
+
+        if (pauseCounter > 0) {
+          pauseCounter--;
+          requestAnimationFrame(tick);
+          return;
+        }
+
+        scrollPos += direction * speed;
+        if (scrollPos >= maxScroll) {
+          scrollPos = maxScroll;
+          direction = -1;
+          pauseCounter = pauseTicks;
+        } else if (scrollPos <= 0) {
+          scrollPos = 0;
+          direction = 1;
+          pauseCounter = pauseTicks;
+        }
+
+        eventsContainer.scrollTop = scrollPos;
+        requestAnimationFrame(tick);
+      };
+
+      requestAnimationFrame(tick);
+    });
   },
 
   refreshCalendarCard() {

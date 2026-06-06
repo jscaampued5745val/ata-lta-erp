@@ -4545,6 +4545,17 @@ tbody tr:hover {
   box-shadow: none;
 }
 
+/* Auto-scroll for month cells with > 2 badges */
+.calendar-cell-events.auto-scroll {
+  overflow-y: auto;
+  max-height: 44px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.calendar-cell-events.auto-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .calendar-day-name {
   text-align: center;
   font-weight: 600;
