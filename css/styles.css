@@ -1082,6 +1082,7 @@ tbody tr:hover {
   border-bottom: 2px solid var(--color-border);
 }
 
+.report-table th.num,
 .report-table td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;

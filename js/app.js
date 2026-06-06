@@ -100,6 +100,13 @@ const App = {
     if (adminNav) {
       adminNav.parentElement.style.display = Auth.user.role === 'Admin' ? '' : 'none';
     }
+
+    // Hide Reports nav link for non-Managerial users
+    const reportsNav = document.querySelector('nav a[href="#reports"]');
+    if (reportsNav) {
+      const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+      reportsNav.parentElement.style.display = isManagerial ? '' : 'none';
+    }
   },
 
   renderEntitySwitcher() {
@@ -197,6 +204,17 @@ const App = {
       '#reports': Reports,
       '#admin': Users
     };
+
+    // RBAC: Restricted modules
+    if (hash === '#reports' && (Auth.user.role !== 'Admin' && Auth.user.role !== 'Manager')) {
+       location.hash = '#dashboard';
+       return;
+    }
+    if (hash === '#admin' && Auth.user.role !== 'Admin') {
+       location.hash = '#dashboard';
+       return;
+    }
+
     const module = moduleMap[hash];
     const content = document.getElementById('content');
 

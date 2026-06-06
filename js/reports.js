@@ -20,6 +20,13 @@ const Reports = {
   monthlyMonth: '',
 
   render() {
+    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    if (!isManagerial) {
+      return el('div', { class: 'page' }, [
+        el('div', { class: 'empty-state', text: 'You do not have permission to view reports.' })
+      ]);
+    }
+
     if (!this.viewMode) this.viewMode = App.getPreferredViewMode('reports');
     if (!this.dailyDate) this.dailyDate = new Date().toISOString().slice(0, 10);
     if (!this.weeklyDate) this.weeklyDate = new Date().toISOString().slice(0, 10);
@@ -308,14 +315,29 @@ const Reports = {
         card.appendChild(el('div', { class: 'board-card-title-v2', text: t.title }));
         if (client) card.appendChild(el('div', { class: 'board-card-client-v2', text: client.name }));
         
-        const meta = el('div', { class: 'board-card-meta-v2' });
+        const meta = el('div', { class: 'board-card-meta-v2', style: 'display: flex; flex-direction: column; gap: 8px;' });
         if (assignee) {
-          meta.appendChild(el('div', { class: 'assignee-badge-v2' }, [
-            el('img', { src: `https://ui-avatars.com/api/?name=${encodeURIComponent(assignee.name)}&background=random` }),
-            el('span', { text: assignee.name })
+          const avatarUrl = assignee.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(assignee.name)}&background=2563eb&color=fff`;
+          const avatarDiv = el('div', { 
+            class: 'assignee-badge-v2', 
+            style: 'display: flex; align-items: center; gap: 8px;' 
+          }, [
+            el('div', {
+              style: `width: 28px; height: 28px; border-radius: 50%; background-image: url('${avatarUrl}'); background-size: cover; background-position: center; border: 1.5px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-shrink: 0;`
+            }),
+            el('span', { text: assignee.name, style: 'font-size: 0.75rem; font-weight: 500; color: var(--color-text);' })
+          ]);
+          meta.appendChild(avatarDiv);
+        }
+        if (t.dueDate) {
+          meta.appendChild(el('div', { 
+            class: 'due-date-v2', 
+            style: 'font-size: 0.7rem; color: var(--color-text-muted); display: flex; align-items: center; gap: 4px;' 
+          }, [
+            el('span', { text: '📅' }),
+            el('span', { text: formatDate(t.dueDate) })
           ]));
         }
-        if (t.dueDate) meta.appendChild(el('div', { class: 'due-date-v2', text: formatDate(t.dueDate) }));
         card.appendChild(meta);
         
         cardContainer.appendChild(card);
@@ -521,10 +543,10 @@ const Reports = {
       table.appendChild(el('thead', {}, [
         el('tr', {}, [
           el('th', { text: 'Employee' }),
-          el('th', { text: 'Total Hours' }),
-          el('th', { text: 'Completed' }),
-          el('th', { text: 'Pending' }),
-          el('th', { text: 'Overdue' })
+          el('th', { text: 'Total Hours', class: 'num' }),
+          el('th', { text: 'Completed', class: 'num' }),
+          el('th', { text: 'Pending', class: 'num' }),
+          el('th', { text: 'Overdue', class: 'num' })
         ])
       ]));
       const tbody = el('tbody');
