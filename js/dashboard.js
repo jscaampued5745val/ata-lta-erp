@@ -269,13 +269,42 @@ const Dashboard = {
     const headerLeft = el('div', { class: 'calendar-header-left' });
     
     let headerText = `${months[this.calMonth]} ${this.calYear}`;
+    let isCurrentlyToday = true;
+    
     if (this.calView !== 'month' && this.selectedDay) {
       const d = new Date(this.selectedDay);
       headerText = `${months[d.getMonth()]} ${d.getFullYear()}`;
+      
+      const todayDate = new Date();
+      const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+      
+      if (this.calView === 'day') {
+        isCurrentlyToday = this.selectedDay === todayStr;
+      } else if (this.calView === 'week') {
+        const selectedDate = new Date(this.selectedDay);
+        const dayOfWeek = selectedDate.getDay();
+        const startOfWeek = new Date(selectedDate);
+        startOfWeek.setDate(selectedDate.getDate() - dayOfWeek);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        
+        const todayTime = todayDate.getTime();
+        isCurrentlyToday = todayTime >= startOfWeek.getTime() && todayTime <= endOfWeek.getTime() + 86400000;
+      }
+    } else if (this.calView === 'month') {
+        const todayDate = new Date();
+        isCurrentlyToday = this.calMonth === todayDate.getMonth() && this.calYear === todayDate.getFullYear();
     }
+    
     headerLeft.appendChild(el('h3', { class: 'calendar-month-year', text: headerText }));
     
-    const todayBtn = el('button', { class: 'calendar-today-btn', text: 'Today' });
+    let btnText = 'Today';
+    if (!isCurrentlyToday && this.selectedDay && this.calView !== 'month') {
+        const d = new Date(this.selectedDay);
+        btnText = `${months[d.getMonth()].substring(0, 3)} ${d.getDate()}`;
+    }
+    
+    const todayBtn = el('button', { class: 'calendar-today-btn', text: btnText });
     todayBtn.onclick = (e) => {
       e.stopPropagation();
       const now = new Date();
