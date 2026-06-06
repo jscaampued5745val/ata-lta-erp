@@ -4024,7 +4024,7 @@ tbody tr:hover {
 .week-vertical-time-line-wrap {
   position: absolute;
   top: 24px;
-  height: 1200px;
+  height: 780px; /* Covers down to the 5 PM slot exactly without massive overflow */
   pointer-events: none;
   z-index: 1; /* Below events */
   width: 0;

@@ -19,6 +19,9 @@ const Dashboard = {
     const container = el('div', { class: 'page' });
     const h1 = el('h1', {}, ['Firm Overview']);
     container.appendChild(h1);
+
+    const timeLogPrompt = this.renderTimeLogPrompt();
+    if (timeLogPrompt) container.appendChild(timeLogPrompt);
     
     // 1. Linear Activity Bar (Top)
     container.appendChild(this.renderLinearActivityBar(ata.revenue, lta.revenue, ata.outstanding + lta.outstanding));
@@ -51,6 +54,9 @@ const Dashboard = {
     const container = el('div', { class: 'page' });
     container.appendChild(el('h1', {}, [Auth.activeEntity + ' Dashboard']));
     
+    const timeLogPrompt = this.renderTimeLogPrompt();
+    if (timeLogPrompt) container.appendChild(timeLogPrompt);
+
     // 1. Linear Activity Bar (Top)
     container.appendChild(this.renderLinearActivityBar(metrics.revenue, 0, metrics.outstanding));
 
@@ -70,6 +76,46 @@ const Dashboard = {
 
     container.appendChild(bento);
     return container;
+  },
+
+  renderTimeLogPrompt() {
+    const now = new Date();
+    // Only prompt if it's 5 PM (17:00) or later
+    if (now.getHours() < 17) return null;
+
+    // Check if user has assigned tasks that are not completed
+    const myTasks = DB.getWhere('tasks', t => t.assigneeId === Auth.user.id && t.status !== 'Completed');
+    if (myTasks.length === 0) return null;
+
+    // Check if user logged time today
+    const todayStr = now.toISOString().slice(0, 10);
+    let hasLoggedToday = false;
+    for (let t of myTasks) {
+      if (t.timeLogs && t.timeLogs.some(log => log.date === todayStr)) {
+        hasLoggedToday = true;
+        break;
+      }
+    }
+
+    if (hasLoggedToday) return null;
+
+    const banner = el('div', { 
+      class: 'alert-banner', 
+      style: 'background: #fffbeb; border: 1px solid #f59e0b; color: #92400e; padding: 12px 16px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);' 
+    });
+    
+    const left = el('div', { style: 'display: flex; align-items: center; gap: 12px;' });
+    left.innerHTML = `<span style="font-size: 1.25rem;">⏰</span> <div><strong>End of Day Reminder:</strong> You have incomplete assigned tasks but haven't submitted your daily time log yet. Please log your time before finishing your day.</div>`;
+    banner.appendChild(left);
+
+    const right = el('button', { class: 'btn btn-primary btn-sm', text: 'Go to Tasks' });
+    right.onclick = () => {
+      location.hash = '#workflow';
+      App.handleRoute();
+    };
+    banner.appendChild(right);
+
+    return banner;
   },
 
   renderLinearActivityBar(ataRev, ltaRev, outstanding) {
