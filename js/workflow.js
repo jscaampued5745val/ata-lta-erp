@@ -802,6 +802,44 @@ const Workflow = {
     const headerBar = el('div', { class: 'form-header-bar' });
     headerBar.appendChild(el('h2', { text: wr ? 'Edit Work Request' : 'Add Work Request' }));
     const topActions = el('div', { class: 'form-actions-top' });
+
+    // Use Retainer Template button (only on creation, not edit)
+    const templates = DB.getWhere('retainerTemplates', t => t.entity === entity);
+    let selectedTemplateId = null;
+    let templateBtnRef = null;
+    if (!wr && templates.length > 0) {
+      const templateWrapper = el('div', { class: 'template-btn-wrapper' });
+      const templateBtn = el('button', { type: 'button', class: 'btn btn-outline', text: 'Use Retainer Template' });
+      templateBtnRef = templateBtn;
+      const templateDropdown = el('div', { class: 'template-dropdown hidden' });
+
+      // "None" option to clear template
+      const noneItem = el('div', { class: 'template-dropdown-item active', text: '— None —' });
+      noneItem.dataset.templateId = '';
+      templateDropdown.appendChild(noneItem);
+
+      templates.forEach(t => {
+        const item = el('div', { class: 'template-dropdown-item', text: t.name });
+        item.dataset.templateId = t.id;
+        templateDropdown.appendChild(item);
+      });
+
+      templateBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        templateDropdown.classList.toggle('hidden');
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', () => {
+        templateDropdown.classList.add('hidden');
+      });
+      templateDropdown.addEventListener('click', (e) => e.stopPropagation());
+
+      templateWrapper.appendChild(templateBtn);
+      templateWrapper.appendChild(templateDropdown);
+      topActions.appendChild(templateWrapper);
+    }
+
     const saveBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Work Request', form: 'wr-form' });
     const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
     cancelBtn.addEventListener('click', () => { this.view = 'list'; this.editingId = null; App.handleRoute(); });
@@ -860,16 +898,86 @@ const Workflow = {
     clientGroup.appendChild(clientSel);
     form.appendChild(clientGroup);
 
-    // Retainer Template selector
-    const templateGroup = el('div', { class: 'form-group' });
-    templateGroup.appendChild(el('label', { text: 'Use Retainer Template' }));
-    const templateSel = el('select', { name: 'templateId' });
-    templateSel.appendChild(el('option', { value: '', text: '— None —' }));
-    DB.getWhere('retainerTemplates', t => t.entity === entity).forEach(t => {
-      templateSel.appendChild(el('option', { value: t.id, text: t.name }));
-    });
-    templateGroup.appendChild(templateSel);
-    form.appendChild(templateGroup);
+    // Template dropdown item click handler (wired after form fields exist)
+    if (!wr && templates.length > 0) {
+      const templateDropdown = topActions.querySelector('.template-dropdown');
+      const dropdownItems = templateDropdown.querySelectorAll('.template-dropdown-item');
+      dropdownItems.forEach(item => {
+        item.addEventListener('click', () => {
+          const templateId = item.dataset.templateId;
+          selectedTemplateId = templateId;
+          const tasksList = document.getElementById('task-rows');
+          const template = templateId ? DB.getById('retainerTemplates', templateId) : null;
+
+          // Update active state on dropdown items
+          dropdownItems.forEach(di => di.classList.remove('active'));
+          item.classList.add('active');
+
+          // Update button text
+          if (templateBtnRef) {
+            templateBtnRef.textContent = template ? template.name : 'Use Retainer Template';
+          }
+
+          // Close dropdown
+          templateDropdown.classList.add('hidden');
+
+          if (tasksList) {
+            if (template) {
+              // Fill form fields from template
+              const titleInput = form.querySelector('input[name="title"]');
+              const descInput = form.querySelector('input[name="description"]');
+              const dueDateInput = form.querySelector('input[name="dueDate"]');
+              const now = new Date();
+              const titleSuffix = now.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+
+              if (titleInput) titleInput.value = `${template.name} (${titleSuffix})`;
+              if (descInput) descInput.value = template.description || '';
+
+              // Set due date: monthly = 1 month, quarterly = 3 months
+              if (dueDateInput) {
+                const dueDate = new Date(now);
+                if (template.schedule === 'quarterly') {
+                  dueDate.setMonth(dueDate.getMonth() + 3);
+                } else {
+                  dueDate.setMonth(dueDate.getMonth() + 1);
+                }
+                dueDateInput.value = dueDate.toISOString().slice(0, 10);
+              }
+
+              // Set client
+              if (clientSel && template.clientId) clientSel.value = template.clientId;
+
+              // Set priority to Normal for template-generated WRs
+              if (prioritySel) prioritySel.value = 'Normal';
+
+              // Load template tasks
+              this.loadTemplateTasks(templateId, tasksList);
+
+              // Lock fields
+              this.setTemplateFieldsLocked(form, tasksList, true);
+            } else {
+              // "None" selected — clear and unlock
+              const titleInput = form.querySelector('input[name="title"]');
+              const descInput = form.querySelector('input[name="description"]');
+              const dueDateInput = form.querySelector('input[name="dueDate"]');
+
+              if (titleInput) titleInput.value = '';
+              if (descInput) descInput.value = '';
+              if (dueDateInput) dueDateInput.value = '';
+              if (clientSel) clientSel.value = '';
+              if (prioritySel) prioritySel.value = 'Urgent';
+
+              while (tasksList.firstChild) tasksList.removeChild(tasksList.firstChild);
+              this.addTaskRow(tasksList);
+              this.addTaskRow(tasksList);
+              this.updatePredecessorOptions(tasksList);
+
+              this.setTemplateFieldsLocked(form, tasksList, false);
+            }
+          }
+        });
+      });
+    }
 
     // Retainer checkbox
     const retainerGroup = el('div', { class: 'form-group' });
@@ -903,11 +1011,10 @@ const Workflow = {
     const tasksList = el('div', { id: 'task-rows' });
     tasksSection.appendChild(tasksList);
 
-    const loadTemplateBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Load Template Tasks' });
-    loadTemplateBtn.addEventListener('click', () => this.loadTemplateTasks(templateSel.value, tasksList));
-    tasksSection.appendChild(loadTemplateBtn);
+
 
     const addTaskBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: '+ Add Task' });
+    addTaskBtn.setAttribute('data-role', 'add-task');
     addTaskBtn.addEventListener('click', () => this.addTaskRow(tasksList));
     tasksSection.appendChild(addTaskBtn);
     form.appendChild(tasksSection);
@@ -1060,9 +1167,54 @@ const Workflow = {
     this.updatePredecessorOptions(container);
   },
 
+  setTemplateFieldsLocked(form, tasksList, locked) {
+    // Lock/unlock form-level fields (title, description, dueDate, client, priority)
+    const fieldNames = ['title', 'description', 'dueDate', 'clientId', 'priority'];
+    fieldNames.forEach(name => {
+      const field = form.querySelector(`[name="${name}"]`);
+      if (field) {
+        const group = field.closest('.form-group');
+        if (locked) {
+          field.disabled = true;
+          if (field.tagName === 'INPUT') field.readOnly = true;
+          if (group) group.classList.add('template-locked');
+        } else {
+          field.disabled = false;
+          if (field.tagName === 'INPUT') field.readOnly = false;
+          if (group) group.classList.remove('template-locked');
+        }
+      }
+    });
+
+    // Lock/unlock task rows
+    const tasksSection = tasksList.closest('.form-section');
+    if (locked) {
+      tasksSection.classList.add('tasks-template-locked');
+      tasksList.querySelectorAll('.task-row').forEach(row => {
+        row.classList.add('template-locked');
+        const titleInput = row.querySelector('.task-title-input');
+        const predSel = row.querySelector('.task-pred');
+        if (titleInput) { titleInput.disabled = true; titleInput.readOnly = true; }
+        if (predSel) predSel.disabled = true;
+      });
+    } else {
+      tasksSection.classList.remove('tasks-template-locked');
+      tasksList.querySelectorAll('.task-row').forEach(row => {
+        row.classList.remove('template-locked');
+        const titleInput = row.querySelector('.task-title-input');
+        const predSel = row.querySelector('.task-pred');
+        if (titleInput) { titleInput.disabled = false; titleInput.readOnly = false; }
+        if (predSel) predSel.disabled = false;
+      });
+    }
+  },
+
   submitForm(form) {
-    if (!validateRequiredFields(form)) return;
-    if (!this.validateManualAssignees(form)) return;
+    // Temporarily enable disabled fields so FormData picks them up
+    const disabledFields = form.querySelectorAll('[disabled]');
+    disabledFields.forEach(f => f.disabled = false);
+    if (!validateRequiredFields(form)) { disabledFields.forEach(f => f.disabled = true); return; }
+    if (!this.validateManualAssignees(form)) { disabledFields.forEach(f => f.disabled = true); return; }
     const data = Object.fromEntries(new FormData(form).entries());
     const entity = Auth.activeEntity;
 
@@ -2675,9 +2827,7 @@ const Workflow = {
       tr.appendChild(el('td', { text: formatPHP(t.pfAmount || 0) }));
       tr.appendChild(el('td', { text: String((t.tasks || []).length) }));
       const tdAct = el('td');
-      const genBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Generate' });
-      genBtn.addEventListener('click', () => this.generateFromTemplate(t.id));
-      tdAct.appendChild(genBtn);
+
       const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
       editBtn.addEventListener('click', () => { this.view = 'templateForm'; this.templateEditingId = t.id; App.handleRoute(); });
       tdAct.appendChild(editBtn);
