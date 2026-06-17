@@ -623,6 +623,14 @@ tbody tr:hover {
 .badge-lta { background: #fff7ed; color: var(--color-lta); }
 .badge-recurring { background: #f3e8ff; color: #6b21a8; }
 
+/* WR phase badges — distinct color per phase, aligned with the board/progress palette */
+.badge-draft { background: #f1f5f9; color: #475569; }
+.badge-preprocessing { background: #dbeafe; color: #1d4ed8; }
+.badge-processing { background: #fef3c7; color: #92400e; }
+.badge-billing { background: #f3e8ff; color: #7e22ce; }
+.badge-disbursement { background: #e0e7ff; color: #4338ca; }
+.badge-neutral { background: #f1f5f9; color: #475569; }
+
 /* Modals */
 .modal-overlay {
   position: fixed;
@@ -1331,6 +1339,21 @@ tbody tr:hover {
   background: #f8f9fa;
   transform: translateY(-1px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.operations-list-view .list-item {
+  display: grid;
+  grid-template-columns: 1fr 150px 120px;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.operations-list-view .list-item > .badge {
+  justify-self: end;
+}
+
+.operations-list-view .list-item > span:not(.badge) {
+  justify-self: end;
 }
 
 .list-item-title {

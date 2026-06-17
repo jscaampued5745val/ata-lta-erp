@@ -303,7 +303,7 @@ const Workflow = {
       container.appendChild(titleBar);
     } else if (this.view === 'templates' || this.view === 'templateForm') {
         // Do nothing here, these views render their own breadcrumb title bar
-    } else {
+    } else if (this.view !== 'archive') {
       container.appendChild(el('h1', { text: 'Operations' }));
     }
 
@@ -362,14 +362,26 @@ const Workflow = {
 
     const empFilter = el('select', { class: 'form-select' });
     empFilter.appendChild(el('option', { value: '', text: 'All Employees' }));
-    DB.getWhere('users', u => u.entities?.map(e => e.toUpperCase()).includes(entity)).forEach(u => {
+    DB.getWhere('users', u => {
+      const userEnts = (u.entities || []).map(e => e.toUpperCase());
+      if (entity === 'ALL') {
+        return userEnts.some(e => Auth.user.entities.map(ae => ae.toUpperCase()).includes(e));
+      }
+      return userEnts.includes(entity.toUpperCase());
+    }).forEach(u => {
       empFilter.appendChild(el('option', { value: u.id, text: u.name }));
     });
     filters.appendChild(empFilter);
 
     const clientFilter = el('select', { class: 'form-select' });
     clientFilter.appendChild(el('option', { value: '', text: 'All Clients' }));
-    DB.getWhere('clients', c => c.entity === entity).forEach(c => {
+    DB.getWhere('clients', c => {
+      const clientEnt = (c.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(clientEnt);
+      }
+      return clientEnt === entity.toUpperCase();
+    }).forEach(c => {
       clientFilter.appendChild(el('option', { value: c.id, text: c.name }));
     });
     filters.appendChild(clientFilter);
@@ -645,7 +657,7 @@ const Workflow = {
       container.appendChild(el('p', { text: 'No work requests found.', class: 'empty-state' }));
       return;
     }
-    const list = el('div', { class: 'list-view' });
+    const list = el('div', { class: 'list-view operations-list-view' });
     wrs.forEach(wr => {
       const client = DB.getById('clients', wr.clientId);
       const row = el('div', { class: 'list-item' });
@@ -654,6 +666,7 @@ const Workflow = {
       textCol.appendChild(el('div', { class: 'list-item-meta', text: (client?.name || '—') + ' | Due: ' + (wr.dueDate ? formatDate(wr.dueDate) : '—') }));
       
       const badgeRow = el('div', { style: 'display: flex; gap: 6px; margin-top: 4px;' });
+      badgeRow.appendChild(this.getPriorityBadgeForWr(wr));
       badgeRow.appendChild(this.getFinanceBadgeForWr(wr));
       badgeRow.appendChild(this.getDocBadgeForWr(wr));
       textCol.appendChild(badgeRow);
@@ -689,15 +702,15 @@ const Workflow = {
 
   statusBadge(status) {
     const map = {
-      'Draft': 'badge-info',
-      'Pre-processing': 'badge-info',
-      'Processing': 'badge-warning',
-      'Billing': 'badge-warning',
-      'Disbursement': 'badge-warning',
+      'Draft': 'badge-draft',
+      'Pre-processing': 'badge-preprocessing',
+      'Processing': 'badge-processing',
+      'Billing': 'badge-billing',
+      'Disbursement': 'badge-disbursement',
       'Completed': 'badge-success',
       'Cancelled': 'badge-danger'
     };
-    return el('span', { class: 'badge ' + (map[status] || ''), text: status });
+    return el('span', { class: 'badge ' + (map[status] || 'badge-neutral'), text: status });
   },
 
   getFinanceBadgeForWr(wr) {
@@ -766,6 +779,21 @@ const Workflow = {
     return el('span', {
       text,
       style: 'font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: ' + bg + '; color: ' + fg + '; display: inline-flex; align-items: center; border: 1px solid rgba(0,0,0,0.05);'
+    });
+  },
+
+  getPriorityBadgeForWr(wr) {
+    const priority = wr.priority || 'Normal';
+    const pMap = {
+      'Urgent': { text: 'Urgent', bg: '#fee2e2', fg: '#991b1b' },
+      'Priority': { text: 'Priority', bg: '#fef3c7', fg: '#92400e' },
+      'Low Priority': { text: 'Low Priority', bg: '#dcfce7', fg: '#166534' },
+      'Normal': { text: 'Normal', bg: '#f1f5f9', fg: '#475569' }
+    };
+    const pConfig = pMap[priority] || pMap['Normal'];
+    return el('span', {
+      text: 'Priority: ' + pConfig.text,
+      style: 'font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: ' + pConfig.bg + '; color: ' + pConfig.fg + '; display: inline-flex; align-items: center; border: 1px solid rgba(0,0,0,0.05);'
     });
   },
 
