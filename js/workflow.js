@@ -362,14 +362,26 @@ const Workflow = {
 
     const empFilter = el('select', { class: 'form-select' });
     empFilter.appendChild(el('option', { value: '', text: 'All Employees' }));
-    DB.getWhere('users', u => u.entities?.map(e => e.toUpperCase()).includes(entity)).forEach(u => {
+    DB.getWhere('users', u => {
+      const userEnts = (u.entities || []).map(e => e.toUpperCase());
+      if (entity === 'ALL') {
+        return userEnts.some(e => Auth.user.entities.map(ae => ae.toUpperCase()).includes(e));
+      }
+      return userEnts.includes(entity.toUpperCase());
+    }).forEach(u => {
       empFilter.appendChild(el('option', { value: u.id, text: u.name }));
     });
     filters.appendChild(empFilter);
 
     const clientFilter = el('select', { class: 'form-select' });
     clientFilter.appendChild(el('option', { value: '', text: 'All Clients' }));
-    DB.getWhere('clients', c => c.entity === entity).forEach(c => {
+    DB.getWhere('clients', c => {
+      const clientEnt = (c.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(clientEnt);
+      }
+      return clientEnt === entity.toUpperCase();
+    }).forEach(c => {
       clientFilter.appendChild(el('option', { value: c.id, text: c.name }));
     });
     filters.appendChild(clientFilter);

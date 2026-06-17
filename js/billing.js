@@ -139,21 +139,39 @@ const Billing = {
     const filters = el('div', { class: 'filters-bar' });
     const wrFilter = el('select', { class: 'form-select' });
     wrFilter.appendChild(el('option', { value: '', text: 'All Work Requests' }));
-    DB.getWhere('workRequests', wr => wr.entity === entity).forEach(wr => {
+    DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      }
+      return wrEnt === entity.toUpperCase();
+    }).forEach(wr => {
       wrFilter.appendChild(el('option', { value: wr.id, text: wr.title }));
     });
     filters.appendChild(wrFilter);
 
     const clientFilter = el('select', { class: 'form-select' });
     clientFilter.appendChild(el('option', { value: '', text: 'All Clients' }));
-    DB.getWhere('clients', c => c.entity === entity).forEach(c => {
+    DB.getWhere('clients', c => {
+      const clientEnt = (c.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(clientEnt);
+      }
+      return clientEnt === entity.toUpperCase();
+    }).forEach(c => {
       clientFilter.appendChild(el('option', { value: c.id, text: c.name }));
     });
     filters.appendChild(clientFilter);
 
     const empFilter = el('select', { class: 'form-select' });
     empFilter.appendChild(el('option', { value: '', text: 'All Employees' }));
-    DB.getWhere('users', u => u.entities?.map(e => e.toUpperCase()).includes(entity)).forEach(u => {
+    DB.getWhere('users', u => {
+      const userEnts = (u.entities || []).map(e => e.toUpperCase());
+      if (entity === 'ALL') {
+        return userEnts.some(e => Auth.user.entities.map(ae => ae.toUpperCase()).includes(e));
+      }
+      return userEnts.includes(entity.toUpperCase());
+    }).forEach(u => {
       empFilter.appendChild(el('option', { value: u.id, text: u.name }));
     });
     filters.appendChild(empFilter);
