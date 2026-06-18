@@ -292,6 +292,11 @@ const Workflow = {
       
       const actions = el('div', { class: 'title-bar-actions' });
       if (isManagerial && wr && !isArchived) {
+        if (wr.status === 'Draft') {
+          const editWrBtn = el('button', { class: 'btn btn-outline btn-sm', text: 'Edit Work Request', style: 'margin-right: var(--spacing-sm);' });
+          editWrBtn.addEventListener('click', () => { this.view = 'form'; this.editingId = wr.id; App.handleRoute(); });
+          actions.appendChild(editWrBtn);
+        }
         const addBtn = el('button', { class: 'btn btn-primary btn-sm', text: '+ Add Task', style: 'margin-right: var(--spacing-sm);' });
         addBtn.addEventListener('click', () => { this.showAddTaskModal(wr.id, () => App.handleRoute()); });
         actions.appendChild(addBtn);
@@ -324,7 +329,11 @@ const Workflow = {
     return container;
   },
 
-  init() {},
+  init() {
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.multi-select-menu.show').forEach(m => m.classList.remove('show'));
+    });
+  },
 
   // ============================================================
   // List View
@@ -496,6 +505,11 @@ const Workflow = {
       const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailWrId = wr.id; App.handleRoute(); });
       tdAct.appendChild(viewBtn);
+      if (isManagerial && wr.status === 'Draft') {
+        const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
+        editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.view = 'form'; this.editingId = wr.id; App.handleRoute(); });
+        tdAct.appendChild(editBtn);
+      }
       if (isManagerial && wr.status !== 'Completed' && wr.status !== 'Cancelled') {
         const ts = this.getPhaseTransitionStatus(wr.id);
         if (ts && ts.canTransition && ts.nextPhase) {
@@ -1066,8 +1080,16 @@ const Workflow = {
   addTaskRow(container, taskData) {
     const row = el('div', { class: 'task-row' });
     row.dataset.taskKey = taskData?.id || generateId('tmp');
-    const existingPred = (taskData?.predecessors || taskData?.dependencies || [])[0];
-    if (existingPred) row.dataset.predKey = existingPred;
+
+    // Detect if existing task depends on every previous task -> show as "All (*)"
+    const existingPreds = taskData?.predecessors || taskData?.dependencies || [];
+    const previousTaskKeys = Array.from(container.querySelectorAll('.task-row')).map(r => r.dataset.taskKey);
+    const dependsOnAllPrevious = previousTaskKeys.length > 0 && previousTaskKeys.every(k => existingPreds.includes(k));
+    if (dependsOnAllPrevious) {
+      row.dataset.predKeys = '*';
+    } else {
+      row.dataset.predKeys = existingPreds.join(',');
+    }
 
     const titleIn = el('input', { type: 'text', placeholder: 'Task title', class: 'task-title-input', value: taskData?.title || '' });
     titleIn.addEventListener('input', () => this.updatePredecessorOptions(container));
@@ -1113,11 +1135,23 @@ const Workflow = {
     row.appendChild(assigneeSel);
     row.appendChild(assigneeOtherInput);
 
-    const predSel = el('select', { class: 'task-pred' });
-    predSel.addEventListener('change', () => {
-      row.dataset.predKey = predSel.value;
+    // Custom Multi-select Dropdown
+    const predWrapper = el('div', { class: 'multi-select-dropdown task-pred' });
+    const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— No dependency —' });
+    const predMenu = el('div', { class: 'multi-select-menu' });
+    predWrapper.appendChild(predBtn);
+    predWrapper.appendChild(predMenu);
+
+    predBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.multi-select-menu.show').forEach(m => {
+        if (m !== predMenu) m.classList.remove('show');
+      });
+      predMenu.classList.toggle('show');
     });
-    row.appendChild(predSel);
+    predMenu.addEventListener('click', (e) => e.stopPropagation());
+
+    row.appendChild(predWrapper);
 
     const removeBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×' });
     removeBtn.addEventListener('click', () => {
@@ -1138,23 +1172,84 @@ const Workflow = {
     }));
 
     rows.forEach((row, idx) => {
-      const predSel = row.querySelector('.task-pred');
-      const current = row.dataset.predKey || predSel.value || '';
-      predSel.innerHTML = '';
-      predSel.appendChild(el('option', { value: '', text: '— No predecessor —' }));
+      const predWrapper = row.querySelector('.task-pred');
+      if (!predWrapper) return;
+      const predBtn = predWrapper.querySelector('.multi-select-btn');
+      const predMenu = predWrapper.querySelector('.multi-select-menu');
+      if (!predBtn || !predMenu) return;
 
-      tasks.forEach(task => {
+      const currentKeys = (row.dataset.predKeys || '').split(',').filter(Boolean);
+      predMenu.innerHTML = '';
+
+      const updateSelection = () => {
+        const checkedOptions = Array.from(predMenu.querySelectorAll('.multi-select-option input:checked'));
+        let selectedKeys = checkedOptions.map(opt => opt.value);
+
+        if (selectedKeys.includes('*')) {
+          row.dataset.predKeys = '*';
+          predBtn.textContent = 'All previous tasks (*)';
+          predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+            if (input.value !== '*') input.checked = true;
+          });
+        } else if (selectedKeys.length > 0) {
+          row.dataset.predKeys = selectedKeys.join(',');
+          const selectedLabels = selectedKeys.map(k => {
+            const t = tasks.find(tsk => tsk.key === k);
+            return t ? t.label : 'Task';
+          });
+          predBtn.textContent = selectedLabels.join(', ');
+        } else {
+          row.dataset.predKeys = '';
+          predBtn.textContent = '— No dependency —';
+        }
+      };
+
+      // 1. Add "All previous tasks (*)"
+      if (idx > 0) {
+        const optionEl = el('label', { class: 'multi-select-option' });
+        const checkbox = el('input', { type: 'checkbox', value: '*' });
+        if (currentKeys.includes('*')) checkbox.checked = true;
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) {
+            predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+              if (input !== checkbox) input.checked = true;
+            });
+          } else {
+            predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+              input.checked = false;
+            });
+          }
+          updateSelection();
+        });
+        optionEl.appendChild(checkbox);
+        optionEl.appendChild(document.createTextNode('All previous tasks (*)'));
+        predMenu.appendChild(optionEl);
+      }
+
+      // 2. Add individual tasks
+      tasks.forEach((task, tIdx) => {
         if (task.key === row.dataset.taskKey) return;
-        const opt = el('option', { value: task.key, text: task.label });
-        predSel.appendChild(opt);
+
+        const optionEl = el('label', { class: 'multi-select-option' });
+        const checkbox = el('input', { type: 'checkbox', value: task.key });
+        
+        const isPrevious = tIdx < idx;
+        const shouldBeChecked = currentKeys.includes(task.key) || (currentKeys.includes('*') && isPrevious);
+        if (shouldBeChecked) checkbox.checked = true;
+
+        checkbox.addEventListener('change', () => {
+          if (!checkbox.checked) {
+            const allCheckbox = predMenu.querySelector('.multi-select-option input[value="*"]');
+            if (allCheckbox) allCheckbox.checked = false;
+          }
+          updateSelection();
+        });
+        optionEl.appendChild(checkbox);
+        optionEl.appendChild(document.createTextNode(task.label));
+        predMenu.appendChild(optionEl);
       });
 
-      if (current) {
-        predSel.value = current;
-        row.dataset.predKey = predSel.value === current ? current : '';
-      } else {
-        row.dataset.predKey = '';
-      }
+      updateSelection();
     });
   },
 
@@ -1221,18 +1316,18 @@ const Workflow = {
       tasksList.querySelectorAll('.task-row').forEach(row => {
         row.classList.add('template-locked');
         const titleInput = row.querySelector('.task-title-input');
-        const predSel = row.querySelector('.task-pred');
+        const predBtn = row.querySelector('.task-pred .multi-select-btn');
         if (titleInput) { titleInput.disabled = true; titleInput.readOnly = true; }
-        if (predSel) predSel.disabled = true;
+        if (predBtn) predBtn.disabled = true;
       });
     } else {
       tasksSection.classList.remove('tasks-template-locked');
       tasksList.querySelectorAll('.task-row').forEach(row => {
         row.classList.remove('template-locked');
         const titleInput = row.querySelector('.task-title-input');
-        const predSel = row.querySelector('.task-pred');
+        const predBtn = row.querySelector('.task-pred .multi-select-btn');
         if (titleInput) { titleInput.disabled = false; titleInput.readOnly = false; }
-        if (predSel) predSel.disabled = false;
+        if (predBtn) predBtn.disabled = false;
       });
     }
   },
@@ -1267,19 +1362,26 @@ const Workflow = {
       const assigneeSel = row.querySelector('.task-assignee');
       const assigneeOtherInput = row.querySelector('.task-assignee-other');
       const isManualAssignee = assigneeSel.value === 'others';
+      const predKeysStr = row.dataset.predKeys || '';
+      const predecessorKeys = predKeysStr.split(',').filter(Boolean);
       tasks.push({
         key: row.dataset.taskKey || generateId('tmp'),
         title,
         assigneeId: isManualAssignee ? null : (assigneeSel.value || null),
         assigneeName: isManualAssignee ? (assigneeOtherInput.value.trim() || null) : null,
-        predecessorKey: row.querySelector('.task-pred').value || ''
+        predecessorKeys: predecessorKeys
       });
     });
 
-    const cycleCheck = tasks.map(t => ({
-      id: t.key,
-      predecessors: t.predecessorKey ? [t.predecessorKey] : []
-    }));
+    const cycleCheck = tasks.map((t, i) => {
+      let preds = [];
+      if (t.predecessorKeys.includes('*')) {
+        preds = tasks.slice(0, i).map(pt => pt.key);
+      } else {
+        preds = t.predecessorKeys;
+      }
+      return { id: t.key, predecessors: preds };
+    });
     if (this.detectCycle(cycleCheck)) {
       this.showMessage('Dependency Error', 'Task dependencies contain a cycle. Please fix before saving.', 'danger');
       return;
@@ -1296,16 +1398,22 @@ const Workflow = {
     const idMap = new Map();
     tasks.forEach(t => idMap.set(t.key, generateId('t')));
 
+    const resolvePredecessors = (t, i) => {
+      if (t.predecessorKeys.includes('*')) {
+        return tasks.slice(0, i).map(pt => idMap.get(pt.key)).filter(Boolean);
+      }
+      return t.predecessorKeys.map(k => idMap.get(k)).filter(Boolean);
+    };
+
     const taskRecords = tasks.map((t, i) => {
       const existing = existingTasksById[t.key];
-      const predId = t.predecessorKey ? idMap.get(t.predecessorKey) : null;
       return {
         id: idMap.get(t.key),
         workRequestId: recordId,
         title: t.title,
         assigneeId: t.assigneeId || null,
         assigneeName: t.assigneeName || null,
-        predecessors: predId ? [predId] : [],
+        predecessors: resolvePredecessors(t, i),
         status: existing?.status || 'Draft',
         dueDate: record.dueDate,
         createdAt: existing?.createdAt || now,
@@ -1630,20 +1738,102 @@ const Workflow = {
 
         // Task Title Cell (With collapsible indicator)
         const tdTitle = el('td');
-        const titleWrap = el('div', { class: 'task-v2-title-cell' });
-        titleWrap.appendChild(el('span', { class: 'task-v2-row-caret', text: '›' }));
-        titleWrap.appendChild(el('div', { class: 'task-v2-title' + (t.status === 'Completed' ? ' completed' : ''), text: t.title }));
+        const titleWrap = el('div', { class: 'task-v2-title-cell', style: 'display: flex; align-items: flex-start; gap: 8px;' });
+        titleWrap.appendChild(el('span', { class: 'task-v2-row-caret', text: '›', style: 'margin-top: 2px;' }));
+        
+        const titleAndDeps = el('div', { style: 'display: flex; flex-direction: column;' });
+        titleAndDeps.appendChild(el('div', { class: 'task-v2-title' + (t.status === 'Completed' ? ' completed' : ''), text: t.title }));
+        
+        // Show dependencies if they exist
+        const preds = t.predecessors || [];
+        if (preds.length > 0) {
+          const predTitles = preds.map(pid => {
+            const pt = DB.getById('tasks', pid);
+            return pt ? pt.title : null;
+          }).filter(Boolean);
+          if (predTitles.length > 0) {
+            const depLabel = el('span', { 
+              text: 'Blocking dependencies: ' + predTitles.join(', '), 
+              style: 'font-size: 11px; color: var(--color-text-muted, #7c7c8a); margin-top: 2px; font-style: italic;' 
+            });
+            titleAndDeps.appendChild(depLabel);
+          }
+        }
+        titleWrap.appendChild(titleAndDeps);
         tdTitle.appendChild(titleWrap);
         tr.appendChild(tdTitle);
 
         // Assigned To
         const tdAssignee = el('td');
-        const assigneeWrap = el('div', { style: 'display:flex; align-items:center; gap:var(--spacing-xs);' });
-        const av = el('div', { class: 'avatar-xs' });
-        if (assignee?.avatarUrl) av.style.backgroundImage = `url('${assignee.avatarUrl}')`;
-        assigneeWrap.appendChild(av);
-        assigneeWrap.appendChild(el('span', { text: assignee?.name || 'Unassigned', style: !assignee ? 'color:var(--color-text-muted);font-style:italic;' : '' }));
-        tdAssignee.appendChild(assigneeWrap);
+        tdAssignee.addEventListener('click', (e) => e.stopPropagation()); // Prevent accordion toggle
+        
+        if (wr.status === 'Draft') {
+          const assigneeSel = el('select', { class: 'form-select inline-assignee-select', style: 'width: 100%; min-width: 130px; font-size: 13px; padding: 4px;' });
+          assigneeSel.appendChild(el('option', { value: '', text: '— Unassigned —' }));
+          
+          const wrEntity = wr.entity || Auth.activeEntity;
+          const staffPool = DB.getWhere('users', u => u.entities.includes(wrEntity) || u.entities.includes(wrEntity.toLowerCase()) || wrEntity === 'ALL');
+          
+          staffPool.forEach(u => {
+            const opt = el('option', { value: u.id, text: u.name });
+            if (t.assigneeId === u.id || t.assignedTo === u.id) opt.selected = true;
+            assigneeSel.appendChild(opt);
+          });
+          
+          assigneeSel.appendChild(el('option', { value: 'others', text: 'Others...' }));
+          
+          const assigneeOtherInput = el('input', {
+            type: 'text',
+            class: 'form-control',
+            placeholder: 'Enter name',
+            value: t.assigneeName || '',
+            style: (t.assigneeName ? 'display: block;' : 'display: none;') + 'margin-top: 4px; font-size: 12px; padding: 2px 4px;'
+          });
+          
+          if (t.assigneeName) {
+            assigneeSel.value = 'others';
+          }
+          
+          assigneeSel.addEventListener('change', () => {
+            const isOthers = assigneeSel.value === 'others';
+            assigneeOtherInput.style.display = isOthers ? 'block' : 'none';
+            if (!isOthers) {
+              assigneeOtherInput.value = '';
+              DB.update('tasks', t.id, { 
+                assigneeId: assigneeSel.value || null, 
+                assigneeName: null, 
+                status: assigneeSel.value ? 'Assigned' : 'Draft',
+                updatedAt: new Date().toISOString() 
+              });
+              App.handleRoute();
+            }
+          });
+          
+          assigneeOtherInput.addEventListener('change', () => {
+            const val = assigneeOtherInput.value.trim();
+            if (val) {
+              DB.update('tasks', t.id, { 
+                assigneeId: null, 
+                assigneeName: val, 
+                status: 'Assigned',
+                updatedAt: new Date().toISOString() 
+              });
+              App.handleRoute();
+            }
+          });
+          
+          const assigneeWrap = el('div', { style: 'display: flex; flex-direction: column;' });
+          assigneeWrap.appendChild(assigneeSel);
+          assigneeWrap.appendChild(assigneeOtherInput);
+          tdAssignee.appendChild(assigneeWrap);
+        } else {
+          const assigneeWrap = el('div', { style: 'display:flex; align-items:center; gap:var(--spacing-xs);' });
+          const av = el('div', { class: 'avatar-xs' });
+          if (assignee?.avatarUrl) av.style.backgroundImage = `url('${assignee.avatarUrl}')`;
+          assigneeWrap.appendChild(av);
+          assigneeWrap.appendChild(el('span', { text: assignee?.name || 'Unassigned', style: !assignee ? 'color:var(--color-text-muted);font-style:italic;' : '' }));
+          tdAssignee.appendChild(assigneeWrap);
+        }
         tr.appendChild(tdAssignee);
 
         // Due Date
@@ -2498,17 +2688,94 @@ const Workflow = {
     priorityGroup.appendChild(prioritySel);
     form.appendChild(priorityGroup);
 
-    const predecessorGroup = el('div', { class: 'form-group' });
-    predecessorGroup.appendChild(el('label', { text: 'Predecessor' }));
-    const predSel = el('select', { name: 'predecessorId' });
-    predSel.appendChild(el('option', { value: '', text: '— No predecessor —' }));
-    const existingTasks = DB.getWhere('tasks', t => t.workRequestId === wrId);
-    existingTasks.forEach(t => {
-      const title = t.title?.trim() || 'Untitled task';
-      predSel.appendChild(el('option', { value: t.id, text: title }));
+    const dependencyGroup = el('div', { class: 'form-group' });
+    dependencyGroup.appendChild(el('label', { text: 'Dependency' }));
+
+    const predWrapper = el('div', { class: 'multi-select-dropdown', style: 'width: 100%;' });
+    const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— No dependency —', style: 'width: 100%;' });
+    const predMenu = el('div', { class: 'multi-select-menu', style: 'width: 100%;' });
+
+    predWrapper.appendChild(predBtn);
+    predWrapper.appendChild(predMenu);
+    dependencyGroup.appendChild(predWrapper);
+    form.appendChild(dependencyGroup);
+
+    predBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.multi-select-menu.show').forEach(m => {
+        if (m !== predMenu) m.classList.remove('show');
+      });
+      predMenu.classList.toggle('show');
     });
-    predecessorGroup.appendChild(predSel);
-    form.appendChild(predecessorGroup);
+
+    predMenu.addEventListener('click', (e) => e.stopPropagation());
+
+    const existingTasks = DB.getWhere('tasks', t => t.workRequestId === wrId);
+    let selectedPreds = [];
+
+    const updateModalSelectionText = () => {
+      if (selectedPreds.includes('*')) {
+        predBtn.textContent = 'All existing tasks (*)';
+        predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+          if (input.value !== '*') input.checked = true;
+        });
+      } else if (selectedPreds.length > 0) {
+        const selectedLabels = selectedPreds.map(id => {
+          const t = existingTasks.find(x => x.id === id);
+          return t ? (t.title || 'Untitled task') : 'Task';
+        });
+        predBtn.textContent = selectedLabels.join(', ');
+      } else {
+        predBtn.textContent = '— No dependency —';
+      }
+    };
+
+    if (existingTasks.length > 0) {
+      const optionEl = el('label', { class: 'multi-select-option' });
+      const checkbox = el('input', { type: 'checkbox', value: '*' });
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+            if (input !== checkbox) input.checked = true;
+          });
+          selectedPreds = ['*'];
+        } else {
+          predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+            input.checked = false;
+          });
+          selectedPreds = [];
+        }
+        updateModalSelectionText();
+      });
+      optionEl.appendChild(checkbox);
+      optionEl.appendChild(document.createTextNode('All existing tasks (*)'));
+      predMenu.appendChild(optionEl);
+    }
+
+    existingTasks.forEach(t => {
+      const optionEl = el('label', { class: 'multi-select-option' });
+      const checkbox = el('input', { type: 'checkbox', value: t.id });
+      checkbox.addEventListener('change', () => {
+        if (!checkbox.checked) {
+          const allCheckbox = predMenu.querySelector('input[value="*"]');
+          if (allCheckbox) allCheckbox.checked = false;
+          selectedPreds = selectedPreds.filter(id => id !== t.id && id !== '*');
+        } else {
+          if (selectedPreds.includes('*')) {
+            selectedPreds = existingTasks.map(x => x.id);
+            const allCheckbox = predMenu.querySelector('input[value="*"]');
+            if (allCheckbox) allCheckbox.checked = false;
+          }
+          if (!selectedPreds.includes(t.id)) {
+            selectedPreds.push(t.id);
+          }
+        }
+        updateModalSelectionText();
+      });
+      optionEl.appendChild(checkbox);
+      optionEl.appendChild(document.createTextNode(t.title || 'Untitled task'));
+      predMenu.appendChild(optionEl);
+    });
 
     const submitBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Add Task' });
     form.appendChild(submitBtn);
@@ -2526,19 +2793,21 @@ const Workflow = {
       assigneeOtherInput.classList.remove('input-error');
       const data = Object.fromEntries(new FormData(form).entries());
       const isManualAssignee = data.assigneeId === 'others';
-      const predecessorId = data.predecessorId || '';
+      const allExistingIds = existingTasks.map(t => t.id);
+      const predecessors = selectedPreds.includes('*') ? allExistingIds : selectedPreds;
+
       const newTask = {
         id: generateId('t'),
         workRequestId: wrId,
         title: data.title.trim(),
         assigneeId: isManualAssignee ? null : (data.assigneeId || null),
         assigneeName: isManualAssignee ? (data.assigneeName?.trim() || null) : null,
-        status: 'Draft',
+        status: (isManualAssignee || data.assigneeId) ? 'Assigned' : 'Draft',
         priority: data.priority || 'Normal',
         dueDate: data.dueDate || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        predecessors: predecessorId ? [predecessorId] : [],
+        predecessors,
         timeLogs: [],
         taskDocuments: [],
         comments: []
@@ -2734,7 +3003,7 @@ const Workflow = {
       return { error: 'Completed and cancelled tasks are immutable.' };
     }
     if ((newStatus === 'In Progress' || newStatus === 'Completed') && !this.canStart(taskId)) {
-      return { error: 'Predecessor tasks must be completed first.' };
+      return { error: 'Dependency tasks must be completed first.' };
     }
 
     const now = new Date().toISOString();
@@ -3003,19 +3272,26 @@ const Workflow = {
       const assigneeSel = row.querySelector('.task-assignee');
       const assigneeOtherInput = row.querySelector('.task-assignee-other');
       const isManualAssignee = assigneeSel?.value === 'others';
+      const predKeysStr = row.dataset.predKeys || '';
+      const predecessorKeys = predKeysStr.split(',').filter(Boolean);
       tasks.push({
         key: row.dataset.taskKey || generateId('tmp'),
         title,
         assigneeId: isManualAssignee ? null : (assigneeSel?.value || null),
         assigneeName: isManualAssignee ? (assigneeOtherInput?.value.trim() || null) : null,
-        predecessorKey: row.querySelector('.task-pred')?.value || ''
+        predecessorKeys: predecessorKeys
       });
     });
 
-    const cycleCheck = tasks.map(t => ({
-      id: t.key,
-      predecessors: t.predecessorKey ? [t.predecessorKey] : []
-    }));
+    const cycleCheck = tasks.map((t, i) => {
+      let preds = [];
+      if (t.predecessorKeys.includes('*')) {
+        preds = tasks.slice(0, i).map(pt => pt.key);
+      } else {
+        preds = t.predecessorKeys;
+      }
+      return { id: t.key, predecessors: preds };
+    });
     if (this.detectCycle(cycleCheck)) {
       this.showMessage('Dependency Error', 'Template tasks contain a cycle. Please fix before saving.', 'danger');
       return;
@@ -3024,16 +3300,20 @@ const Workflow = {
     const idMap = new Map();
     tasks.forEach(t => idMap.set(t.key, generateId('rtt')));
 
-    const taskRecords = tasks.map(t => {
-      const predId = t.predecessorKey ? idMap.get(t.predecessorKey) : null;
-      return {
-        id: idMap.get(t.key),
-        title: t.title,
-        assigneeId: t.assigneeId || null,
-        assigneeName: t.assigneeName || null,
-        predecessors: predId ? [predId] : []
-      };
-    });
+    const resolvePredecessors = (t, i) => {
+      if (t.predecessorKeys.includes('*')) {
+        return tasks.slice(0, i).map(pt => idMap.get(pt.key)).filter(Boolean);
+      }
+      return t.predecessorKeys.map(k => idMap.get(k)).filter(Boolean);
+    };
+
+    const taskRecords = tasks.map((t, i) => ({
+      id: idMap.get(t.key),
+      title: t.title,
+      assigneeId: t.assigneeId || null,
+      assigneeName: t.assigneeName || null,
+      predecessors: resolvePredecessors(t, i)
+    }));
 
     const record = {
       id: this.templateEditingId || generateId('rt'),
