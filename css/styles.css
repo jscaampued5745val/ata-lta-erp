@@ -30,7 +30,8 @@
   --spacing-md: 20px;
   --spacing-lg: 32px;
   --spacing-xl: 40px;
-  --sidebar-width: 250px;
+  --sidebar-width: 200px;
+  --sidebar-collapsed-width: 56px;
   --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.03);
   --shadow-card: 0 15px 35px rgba(0, 0, 0, 0.04);
   --shadow-float: 0 20px 50px rgba(0, 0, 0, 0.15);
@@ -170,7 +171,7 @@ a:hover {
   justify-content: space-between;
   background: var(--color-surface);
   border-bottom: none;
-  padding: 20px 32px;
+  padding: 10px 20px;
   flex-shrink: 0;
   z-index: 10;
 }
@@ -345,12 +346,71 @@ a:hover {
   border-right: none;
   flex-shrink: 0;
   overflow-y: auto;
-  padding-top: var(--spacing-md);
+  overflow-x: hidden;
+  padding-top: var(--spacing-sm);
   box-shadow: 2px 0 10px rgba(0,0,0,0.01);
   z-index: 5;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
   -webkit-overflow-scrolling: touch;
+  transition: width 0.25s ease;
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+/* Sidebar collapse toggle */
+.sidebar-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto var(--spacing-xs);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  transition: background 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.sidebar-collapse-btn:hover {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.sidebar-collapse-btn svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.25s ease;
+}
+
+.sidebar.collapsed .sidebar-collapse-btn svg {
+  transform: rotate(180deg);
+}
+
+/* Hide nav text when collapsed */
+.sidebar.collapsed .nav-link-text,
+.sidebar.collapsed .nav-badge {
+  display: none;
+}
+
+.sidebar.collapsed .nav-list {
+  padding: 0 6px;
+}
+
+.sidebar.collapsed .nav-list li a {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar.collapsed .nav-link-icon {
+  margin-right: 0;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -367,20 +427,43 @@ a:hover {
 .nav-list {
   list-style: none;
   margin: 0;
-  padding: 0 var(--spacing-md);
+  padding: 0 var(--spacing-sm);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .nav-list li a {
-  display: block;
-  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  padding: 9px 14px;
   color: var(--color-text-muted);
   font-weight: 500;
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.nav-link-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-link-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .nav-list li a:hover {
@@ -398,7 +481,7 @@ a:hover {
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   background: var(--color-bg);
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
@@ -752,11 +835,11 @@ tbody tr:hover {
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
 .legend-value { font-weight: 600; color: var(--color-text); }
 
-.page h1 { margin-bottom: var(--spacing-lg); }
+.page h1 { margin-bottom: var(--spacing-sm); }
 .entity-comparison h2 { margin-bottom: var(--spacing-md); }
 
 /* Actions Bar */
-.actions-bar { display: flex; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-lg); }
+.actions-bar { display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); }
 .search-input { flex: 1; max-width: 320px; padding: 10px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); font-family: inherit; font-size: 0.875rem; background: var(--color-surface); }
 .empty-state { color: var(--color-text-muted); font-style: italic; text-align: center; padding: var(--spacing-lg); }
 
@@ -1470,8 +1553,8 @@ tbody tr:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
 }
 
 .filters-bar .form-select,

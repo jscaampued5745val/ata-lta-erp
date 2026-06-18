@@ -12,6 +12,7 @@ const App = {
     this.setupRouting();
     this.setupNavigation();
     this.setupResponsiveMenu();
+    this.setupSidebarCollapse();
     this.setupLogout();
     
     // Default route is dashboard for all users
@@ -174,6 +175,25 @@ const App = {
         sidebar.classList.remove('open');
         if (headerActions) headerActions.classList.remove('show');
       });
+    });
+  },
+
+  setupSidebarCollapse() {
+    const sidebar = document.getElementById('sidebar');
+    const btn = document.getElementById('sidebar-collapse-btn');
+    if (!sidebar || !btn) return;
+
+    // Restore persisted state
+    if (localStorage.getItem('erp_sidebar_collapsed') === 'true') {
+      sidebar.classList.add('collapsed');
+      btn.title = 'Expand sidebar';
+    }
+
+    btn.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      btn.title = isCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
+      localStorage.setItem('erp_sidebar_collapsed', isCollapsed);
     });
   },
 
