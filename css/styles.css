@@ -1012,9 +1012,81 @@ tbody tr:hover {
 .task-assignee, .task-pred { min-width: 150px; }
 .task-assignee-other { min-width: 150px; flex: 1; }
 
+/* Custom Multi-select Dropdown styling */
+.multi-select-dropdown {
+  position: relative;
+  display: inline-block;
+  min-width: 150px;
+}
+.multi-select-btn {
+  width: 100%;
+  padding: 8px 28px 8px 12px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 36px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239494a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.multi-select-btn:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(140, 82, 255, 0.15);
+}
+.multi-select-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  display: none;
+  width: 100%;
+  min-width: 200px;
+  max-height: 250px;
+  overflow-y: auto;
+  margin-top: 4px;
+  padding: var(--spacing-xs, 4px);
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #ccc);
+  border-radius: var(--radius-sm, 4px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.multi-select-menu.show {
+  display: block;
+}
+.multi-select-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text, #333);
+  margin-bottom: 2px;
+  user-select: none;
+}
+.multi-select-option:hover {
+  background: var(--color-bg-hover, #f0f1f3);
+}
+.multi-select-option input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
 /* Template-locked task rows */
 .task-row.template-locked .task-title-input,
-.task-row.template-locked .task-pred {
+.task-row.template-locked .task-pred .multi-select-btn {
   background-color: var(--color-bg-muted, #f0f1f3);
   color: var(--color-text-muted, #888);
   cursor: not-allowed;
