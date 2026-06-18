@@ -858,6 +858,37 @@ tbody tr:hover {
   box-shadow: var(--shadow-float);
 }
 
+.modal.modal-wide {
+  max-width: 780px;
+}
+
+/* Line-item rows inside a modal need to flex properly within the constrained width */
+.modal .line-item-row {
+  flex-wrap: wrap;
+}
+
+.modal .line-item-row .item-type {
+  flex: 0 0 120px;
+}
+
+.modal .line-item-row .item-desc {
+  flex: 2 1 120px;
+  min-width: 0;
+}
+
+.modal .line-item-row .item-amt {
+  flex: 1 1 90px;
+  min-width: 70px;
+}
+
+.modal .line-item-row .btn {
+  flex: 0 0 auto;
+}
+
+.modal .modal-body {
+  overflow-x: hidden;
+}
+
 .modal-header {
   display: flex;
   align-items: center;
