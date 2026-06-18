@@ -274,6 +274,231 @@ const Workflow = {
     });
   },
 
+  /**
+   * Open a modal with the full billing/invoice creation form,
+   * pre-populated from the given work request.
+   */
+  openGenerateBillingModal(wr) {
+    const entity = Auth.activeEntity;
+    const client = DB.getById('clients', wr.clientId);
+    const tasks = DB.getWhere('tasks', t => t.workRequestId === wr.id);
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
+    const form = el('form', { id: 'gen-billing-form' });
+
+    // ---------- Client (read-only, auto-filled) ----------
+    const clientGroup = el('div', { class: 'form-group' });
+    clientGroup.appendChild(el('label', { text: 'Client' }));
+    const clientDisplay = el('input', {
+      type: 'text',
+      value: client ? client.name : '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    });
+    clientGroup.appendChild(clientDisplay);
+    // hidden field so FormData picks it up
+    clientGroup.appendChild(el('input', { type: 'hidden', name: 'clientId', value: wr.clientId || '' }));
+    form.appendChild(clientGroup);
+
+    // ---------- Work Request (read-only, auto-filled) ----------
+    const wrGroup = el('div', { class: 'form-group' });
+    wrGroup.appendChild(el('label', { text: 'Work Request' }));
+    const wrDisplay = el('input', {
+      type: 'text',
+      value: wr.title || '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    });
+    wrGroup.appendChild(wrDisplay);
+    wrGroup.appendChild(el('input', { type: 'hidden', name: 'workRequestId', value: wr.id }));
+    form.appendChild(wrGroup);
+
+    // ---------- Task link (optional) ----------
+    if (tasks.length > 0) {
+      const taskGroup = el('div', { class: 'form-group' });
+      taskGroup.appendChild(el('label', { text: 'Link to Specific Task' }));
+      const taskSel = el('select', { name: 'linkedTaskId' });
+      taskSel.appendChild(el('option', { value: '', text: '— Whole Project —' }));
+      tasks.forEach(t => {
+        taskSel.appendChild(el('option', { value: t.id, text: t.title }));
+      });
+      taskGroup.appendChild(taskSel);
+      form.appendChild(taskGroup);
+    }
+
+    // ---------- Dates ----------
+    const dateRow = el('div', { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 12px;' });
+
+    const issueDateGroup = el('div', { class: 'form-group' });
+    issueDateGroup.appendChild(el('label', { text: 'Issue Date *' }));
+    issueDateGroup.appendChild(el('input', {
+      type: 'date', name: 'issueDate',
+      value: new Date().toISOString().slice(0, 10),
+      required: true
+    }));
+    dateRow.appendChild(issueDateGroup);
+
+    const dueDateGroup = el('div', { class: 'form-group' });
+    dueDateGroup.appendChild(el('label', { text: 'Due Date *' }));
+    dueDateGroup.appendChild(el('input', {
+      type: 'date', name: 'dueDate',
+      value: '', required: true
+    }));
+    dateRow.appendChild(dueDateGroup);
+    form.appendChild(dateRow);
+
+    // ---------- Invoice Number (auto-generated, read-only) ----------
+    const numGroup = el('div', { class: 'form-group' });
+    numGroup.appendChild(el('label', { text: 'Invoice Number' }));
+    numGroup.appendChild(el('input', {
+      type: 'text', name: 'invoiceNumber',
+      value: Billing.nextInvoiceNumber(entity),
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    form.appendChild(numGroup);
+
+    // ---------- Line Items ----------
+    const itemsSection = el('div', { class: 'form-section', style: 'margin-top: 4px;' });
+    itemsSection.appendChild(el('h4', { text: 'Line Items', style: 'margin-bottom: 8px; font-size: 0.9rem;' }));
+    const itemsList = el('div', { id: 'modal-line-item-rows' });
+    itemsSection.appendChild(itemsList);
+
+    const recalcModalTotals = () => {
+      const rows = itemsList.querySelectorAll('.line-item-row');
+      let subtotal = 0;
+      rows.forEach(row => {
+        subtotal += parseFloat(row.querySelector('.item-amt').value) || 0;
+      });
+      const subEl = form.querySelector('#modal-inv-subtotal');
+      const totEl = form.querySelector('#modal-inv-total');
+      if (subEl) subEl.textContent = formatPHP(subtotal);
+      if (totEl) totEl.textContent = formatPHP(subtotal);
+    };
+
+    const addModalLineItem = (item) => {
+      const row = el('div', { class: 'line-item-row' });
+      const typeSel = el('select', { class: 'item-type' });
+      ['Professional Fee', 'Government Fee'].forEach(t => {
+        const opt = el('option', { value: t, text: t });
+        if (item?.type === t) opt.selected = true;
+        typeSel.appendChild(opt);
+      });
+      row.appendChild(typeSel);
+      row.appendChild(el('input', { type: 'text', placeholder: 'Description', class: 'item-desc', value: item?.description || '' }));
+      row.appendChild(el('input', { type: 'number', placeholder: 'Amount', class: 'item-amt', value: item?.amount || '', min: 0, step: 0.01 }));
+      const removeBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×' });
+      removeBtn.addEventListener('click', () => { row.remove(); recalcModalTotals(); });
+      row.appendChild(removeBtn);
+      itemsList.appendChild(row);
+    };
+
+    // Default line items
+    addModalLineItem({ type: 'Professional Fee', description: '', amount: '' });
+    addModalLineItem({ type: 'Government Fee', description: '', amount: '' });
+
+    const addItemBtn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: '+ Add Line Item', style: 'margin-top: 6px;' });
+    addItemBtn.addEventListener('click', () => addModalLineItem());
+    itemsSection.appendChild(addItemBtn);
+    form.appendChild(itemsSection);
+
+    // ---------- Totals ----------
+    const totals = el('div', { style: 'display: flex; flex-direction: column; gap: 4px; align-items: flex-end; margin-top: 8px; padding: 12px; background: #f8fafc; border-radius: 8px;' });
+    const subRow = el('div', { style: 'display: flex; gap: 12px; font-size: 0.85rem; color: #64748b;' });
+    subRow.appendChild(el('span', { text: 'Subtotal:' }));
+    subRow.appendChild(el('span', { id: 'modal-inv-subtotal', text: '₱0.00' }));
+    totals.appendChild(subRow);
+    const grandRow = el('div', { style: 'display: flex; gap: 12px; font-size: 1rem; font-weight: 700; color: #1e293b;' });
+    grandRow.appendChild(el('span', { text: 'Total:' }));
+    grandRow.appendChild(el('span', { id: 'modal-inv-total', text: '₱0.00' }));
+    totals.appendChild(grandRow);
+    form.appendChild(totals);
+
+    // Live recalculation
+    form.addEventListener('input', () => recalcModalTotals());
+
+    wrapper.appendChild(form);
+
+    // ---------- Footer buttons ----------
+    const footer = el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const saveBtn = el('button', { type: 'button', class: 'btn btn-primary', text: 'Save Invoice' });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    wrapper.appendChild(footer);
+
+    // Open modal
+    const overlay = this.showModal('Generate Billing', wrapper);
+    overlay.querySelector('.modal').classList.add('modal-wide');
+
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    saveBtn.addEventListener('click', () => {
+      // Basic validation
+      const issueDate = form.querySelector('[name="issueDate"]').value;
+      const dueDate = form.querySelector('[name="dueDate"]').value;
+      if (!issueDate || !dueDate) {
+        this.showMessage('Validation Error', 'Please fill in both Issue Date and Due Date.', 'warning');
+        return;
+      }
+
+      const data = Object.fromEntries(new FormData(form).entries());
+      const rows = form.querySelectorAll('.line-item-row');
+      const lineItems = [];
+      let subtotal = 0;
+      rows.forEach(row => {
+        const amt = parseFloat(row.querySelector('.item-amt').value) || 0;
+        subtotal += amt;
+        lineItems.push({
+          type: row.querySelector('.item-type').value,
+          description: row.querySelector('.item-desc').value.trim(),
+          amount: amt
+        });
+      });
+
+      const record = {
+        id: generateId('inv'),
+        invoiceNumber: data.invoiceNumber,
+        clientId: data.clientId,
+        workRequestId: data.workRequestId || null,
+        linkedTaskId: data.linkedTaskId || null,
+        entity: entity,
+        issueDate: data.issueDate,
+        dueDate: data.dueDate,
+        lineItems,
+        subtotal,
+        vat: 0,
+        total: subtotal,
+        status: 'Draft',
+        payments: [],
+        createdBy: Auth.user.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      DB.insert('invoices', record);
+
+      // Link invoice back to WR
+      if (data.workRequestId) {
+        const linkedWr = DB.getById('workRequests', data.workRequestId);
+        if (linkedWr) {
+          DB.update('workRequests', linkedWr.id, { linkedInvoiceId: record.id });
+        }
+      }
+
+      overlay.remove();
+
+      this.showMessage(
+        'Invoice Created',
+        'Invoice ' + record.invoiceNumber + ' has been created successfully and linked to "' + wr.title + '".',
+        'success'
+      );
+
+      // Refresh WR detail
+      App.handleRoute();
+    });
+  },
+
   render() {
     const container = el('div', { class: 'page' });
     
@@ -2350,6 +2575,18 @@ const Workflow = {
       });
       invCol.appendChild(invList);
     }
+
+    // Generate Billing button
+    const genBillingBtn = el('button', {
+      class: 'btn btn-primary btn-sm',
+      text: '+ Generate Billing',
+      style: 'margin-top: 12px; width: 100%;'
+    });
+    genBillingBtn.addEventListener('click', () => {
+      this.openGenerateBillingModal(wr);
+    });
+    invCol.appendChild(genBillingBtn);
+
     grid.appendChild(invCol);
 
     // Disbursements Column

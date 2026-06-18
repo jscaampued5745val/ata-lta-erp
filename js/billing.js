@@ -7,6 +7,7 @@
 const Billing = {
   view: 'list', // 'list' | 'form' | 'detail' | 'aging' | 'templates'
   detailId: null,
+  pendingPrefill: null, // { clientId, workRequestId } — set when generating billing from a WR
 
   getInvoiceById(id) {
     if (!id) return null;
@@ -563,6 +564,8 @@ const Billing = {
   renderForm() {
     const entity = Auth.activeEntity;
     const inv = this.detailId ? this.getInvoiceById(this.detailId) : null;
+    const prefill = this.pendingPrefill;
+    this.pendingPrefill = null; // consume once
     const container = el('div');
 
     // Header bar
@@ -587,6 +590,7 @@ const Billing = {
     DB.getWhere('clients', c => c.entity === entity).forEach(c => {
       const opt = el('option', { value: c.id, text: c.name });
       if (inv && inv.clientId === c.id) opt.selected = true;
+      else if (!inv && prefill && prefill.clientId === c.id) opt.selected = true;
       clientSel.appendChild(opt);
     });
     clientGroup.appendChild(clientSel);
@@ -600,6 +604,7 @@ const Billing = {
     DB.getWhere('workRequests', wr => wr.entity === entity).forEach(wr => {
       const opt = el('option', { value: wr.id, text: wr.title });
       if (inv && inv.workRequestId === wr.id) opt.selected = true;
+      else if (!inv && prefill && prefill.workRequestId === wr.id) opt.selected = true;
       wrSel.appendChild(opt);
     });
     wrGroup.appendChild(wrSel);
