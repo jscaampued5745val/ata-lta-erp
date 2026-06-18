@@ -23,7 +23,7 @@ const Transmittal = {
       h1.appendChild(document.createTextNode(t?.trackingNumber || 'Detail'));
       titleBar.appendChild(h1);
       
-      const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
       titleBar.appendChild(backBtn);
       container.appendChild(titleBar);
@@ -144,7 +144,7 @@ const Transmittal = {
     filtersBar.appendChild(dateTo);
 
     const clearBtn = el('button', {
-      class: 'btn btn-ghost btn-sm',
+      class: 'btn btn-secondary btn-sm',
       html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
@@ -248,7 +248,7 @@ const Transmittal = {
       tr.appendChild(tdStatus);
       tr.appendChild(el('td', { text: String((t.items || []).length) }));
       const tdAct = el('td');
-      const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
+      const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailId = t.id; App.handleRoute(); });
       tdAct.appendChild(viewBtn);
       tr.appendChild(tdAct);
@@ -330,7 +330,7 @@ const Transmittal = {
       left.appendChild(el('div', { class: 'list-item-title', text: t.trackingNumber }));
       left.appendChild(el('div', { class: 'list-item-meta', text: this.getClientName(t.clientId) + ' • ' + this.getWorkRequestTitle(t.workRequestId) + ' • ' + String((t.items || []).length) + ' items' }));
       item.appendChild(left);
-      const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
+      const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailId = t.id; App.handleRoute(); });
       item.appendChild(viewBtn);
       list.appendChild(item);
@@ -355,7 +355,7 @@ const Transmittal = {
     const saveTopBtn = el('button', { type: 'button', class: 'btn btn-primary', text: isNew ? 'Create Transmittal' : 'Save Changes' });
     saveTopBtn.addEventListener('click', () => { this.submitForm(form); });
     headerActions.appendChild(saveTopBtn);
-    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
     cancelBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
     headerActions.appendChild(cancelBtn);
     headerBar.appendChild(headerActions);
@@ -403,7 +403,7 @@ const Transmittal = {
     const tnInput = el('input', { type: 'text', name: 'trackingNumber', readonly: true, value: existing ? existing.trackingNumber : '' });
     tnInput.style.flex = '1';
     tnWrap.appendChild(tnInput);
-    const genBtn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: 'Generate' });
+    const genBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Generate' });
     genBtn.addEventListener('click', () => {
       tnInput.value = this.generateTrackingNumber(entity);
     });
@@ -577,11 +577,11 @@ const Transmittal = {
 
     // Top actions bar
     const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });
-    const topBackBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+    const topBackBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
     topBackBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
     topActions.appendChild(topBackBtn);
 
-    const printBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Print Transmittal' });
+    const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal' });
     printBtn.addEventListener('click', () => this.openPrintLetter(t));
     topActions.appendChild(printBtn);
 

@@ -156,7 +156,7 @@ const DMS = {
     filtersBar.appendChild(dateTo);
 
     const clearBtn = el('button', {
-      class: 'btn btn-ghost btn-sm',
+      class: 'btn btn-secondary btn-sm',
       html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
@@ -275,7 +275,7 @@ const DMS = {
       tr.appendChild(tdLife);
 
       const tdAct = el('td');
-      const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
+      const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailId = doc.id; App.handleRoute(); });
       tdAct.appendChild(viewBtn);
       tr.appendChild(tdAct);
@@ -315,7 +315,7 @@ const DMS = {
       left.appendChild(el('div', { class: 'list-item-title', text: doc.fileName }));
       left.appendChild(el('div', { class: 'list-item-meta', text: (uploader?.name || '—') + ' • ' + formatDate(doc.uploadDate) }));
       item.appendChild(left);
-      const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
+      const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailId = doc.id; App.handleRoute(); });
       item.appendChild(viewBtn);
       list.appendChild(item);
@@ -334,7 +334,7 @@ const DMS = {
     const headerBar = el('div', { class: 'form-header-bar' });
     headerBar.appendChild(el('h2', { text: 'Upload Document' }));
     const headerActions = el('div', { class: 'form-actions-top' });
-    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
     cancelBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
     headerActions.appendChild(cancelBtn);
     headerBar.appendChild(headerActions);
@@ -526,7 +526,7 @@ const DMS = {
 
     // Top actions bar
     const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });
-    const topBackBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+    const topBackBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
     topBackBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
     topActions.appendChild(topBackBtn);
     container.appendChild(topActions);
@@ -702,7 +702,7 @@ const DMS = {
 
         const hfBtnGroup = el('div', { class: 'form-group form-actions' });
         const saveBtn = el('button', { type: 'submit', class: 'btn btn-success', text: 'Save Handover' });
-        const cancelHfBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+        const cancelHfBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
         cancelHfBtn.addEventListener('click', () => {
           handoverForm.classList.add('hidden');
           recordBtn.classList.remove('hidden');

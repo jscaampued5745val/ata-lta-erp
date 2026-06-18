@@ -36,6 +36,16 @@ async function runTests() {
   context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   page = await context.newPage();
 
+  page.on('console', msg => {
+    const text = msg.text();
+    if (!text.includes('Download the React DevTools')) {
+      console.log('PAGE CONSOLE:', text);
+    }
+  });
+  page.on('pageerror', err => {
+    console.error('PAGE UNHANDLED ERROR:', err);
+  });
+
   // Dialog handler for rejection prompts
   page.on('dialog', async dialog => {
     if (dialog.type() === 'prompt') {
@@ -234,6 +244,8 @@ async function runTests() {
   await page.waitForTimeout(300);
 
   // ─── TEST 16: Reports month filter ──────────────────────────────
+  await logout();
+  await loginAs(SEED_USERS[0]);
   await page.goto(BASE + '/#reports');
   await page.waitForTimeout(800);
   await page.click('button:has-text("Monthly Pending")');

@@ -210,7 +210,7 @@ const Workflow = {
     const modal = el('div', { class: 'modal' });
     const header = el('div', { class: 'modal-header' });
     header.appendChild(el('h3', { class: 'modal-title', text: title }));
-    const closeBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '✕' });
+    const closeBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '✕' });
     closeBtn.addEventListener('click', () => { overlay.remove(); if (onClose) onClose(); });
     header.appendChild(closeBtn);
     modal.appendChild(header);
@@ -293,7 +293,7 @@ const Workflow = {
       const actions = el('div', { class: 'title-bar-actions' });
       if (isManagerial && wr && !isArchived) {
         if (wr.status === 'Draft') {
-          const editWrBtn = el('button', { class: 'btn btn-outline btn-sm', text: 'Edit Work Request', style: 'margin-right: var(--spacing-sm);' });
+          const editWrBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit Work Request', style: 'margin-right: var(--spacing-sm);' });
           editWrBtn.addEventListener('click', () => { this.view = 'form'; this.editingId = wr.id; App.handleRoute(); });
           actions.appendChild(editWrBtn);
         }
@@ -301,7 +301,7 @@ const Workflow = {
         addBtn.addEventListener('click', () => { this.showAddTaskModal(wr.id, () => App.handleRoute()); });
         actions.appendChild(addBtn);
       }
-      const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { this.view = 'list'; this.detailWrId = null; App.handleRoute(); });
       actions.appendChild(backBtn);
       titleBar.appendChild(actions);
@@ -352,11 +352,11 @@ const Workflow = {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Work Request' });
       addBtn.addEventListener('click', () => { this.view = 'form'; this.editingId = null; App.handleRoute(); });
       topActions.appendChild(addBtn);
-      const templateBtn = el('button', { class: 'btn btn-ghost', text: 'Retainer Templates' });
+      const templateBtn = el('button', { class: 'btn btn-secondary', text: 'Retainer Templates' });
       templateBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
       topActions.appendChild(templateBtn);
     }
-    const archiveBtn = el('button', { class: 'btn btn-ghost', text: 'Archive' });
+    const archiveBtn = el('button', { class: 'btn btn-secondary', text: 'Archive' });
     archiveBtn.addEventListener('click', () => { this.view = 'archive'; App.handleRoute(); });
     topActions.appendChild(archiveBtn);
     headerBar.appendChild(topActions);
@@ -410,7 +410,7 @@ const Workflow = {
     filters.appendChild(statusFilter);
 
     const clearBtn = el('button', {
-      class: 'btn btn-ghost btn-sm',
+      class: 'btn btn-secondary btn-sm',
       html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
@@ -502,11 +502,11 @@ const Workflow = {
       tr.appendChild(el('td', { text: wr.dueDate ? formatDate(wr.dueDate) : '—' }));
       tr.appendChild(el('td', { text: assignedUser?.name || '—' }));
       const tdAct = el('td');
-      const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
+      const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailWrId = wr.id; App.handleRoute(); });
       tdAct.appendChild(viewBtn);
       if (isManagerial && wr.status === 'Draft') {
-        const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
+        const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit' });
         editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.view = 'form'; this.editingId = wr.id; App.handleRoute(); });
         tdAct.appendChild(editBtn);
       }
@@ -851,7 +851,7 @@ const Workflow = {
     let templateBtnRef = null;
     if (!wr && templates.length > 0) {
       const templateWrapper = el('div', { class: 'template-btn-wrapper' });
-      const templateBtn = el('button', { type: 'button', class: 'btn btn-outline', text: 'Use Retainer Template' });
+      const templateBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Use Retainer Template' });
       templateBtnRef = templateBtn;
       const templateDropdown = el('div', { class: 'template-dropdown hidden' });
 
@@ -883,7 +883,7 @@ const Workflow = {
     }
 
     const saveBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Work Request', form: 'wr-form' });
-    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
     cancelBtn.addEventListener('click', () => { this.view = 'list'; this.editingId = null; App.handleRoute(); });
     topActions.appendChild(saveBtn);
     topActions.appendChild(cancelBtn);
@@ -2104,7 +2104,7 @@ const Workflow = {
                       cActions.classList.add('hidden');
                       const editActions = el('div', { style: 'display:flex; gap:8px; margin-top:4px;' });
                       const saveEditBtn = el('button', { class: 'btn btn-primary btn-xs', text: 'Save' });
-                      const cancelEditBtn = el('button', { class: 'btn btn-ghost btn-xs', text: 'Cancel' });
+                      const cancelEditBtn = el('button', { class: 'btn btn-secondary btn-xs', text: 'Cancel' });
                       
                       saveEditBtn.addEventListener('click', (ev) => {
                         ev.stopPropagation();
@@ -3091,7 +3091,7 @@ const Workflow = {
     h1.appendChild(document.createTextNode('Retainer Templates'));
     titleBar.appendChild(h1);
 
-    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
     backBtn.addEventListener('click', () => { this.view = 'list'; this.templateEditingId = null; App.handleRoute(); });
     titleBar.appendChild(backBtn);
     wrapper.appendChild(titleBar);
@@ -3125,7 +3125,7 @@ const Workflow = {
       tr.appendChild(el('td', { text: String((t.tasks || []).length) }));
       const tdAct = el('td');
 
-      const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
+      const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit' });
       editBtn.addEventListener('click', () => { this.view = 'templateForm'; this.templateEditingId = t.id; App.handleRoute(); });
       tdAct.appendChild(editBtn);
       tr.appendChild(tdAct);
@@ -3164,7 +3164,7 @@ const Workflow = {
     h1.appendChild(document.createTextNode(template ? template.name : 'Create Template'));
     titleBar.appendChild(h1);
 
-    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Templates' });
+    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Templates' });
     backBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
     titleBar.appendChild(backBtn);
     container.appendChild(titleBar);
@@ -3355,7 +3355,7 @@ const Workflow = {
     h1.appendChild(document.createTextNode('Archive'));
     titleBar.appendChild(h1);
 
-    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Work Requests' });
+    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Work Requests' });
     backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
     titleBar.appendChild(backBtn);
     container.appendChild(titleBar);
@@ -3382,7 +3382,7 @@ const Workflow = {
       tr.appendChild(el('td')).appendChild(this.statusBadge(wr.status));
       tr.appendChild(el('td', { text: formatDate(wr.updatedAt) }));
       const tdAct = el('td');
-      const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
+      const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailWrId = wr.id; App.handleRoute(); });
       tdAct.appendChild(viewBtn);
       if (isManagerial) {

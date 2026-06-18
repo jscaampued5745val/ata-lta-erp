@@ -23,7 +23,7 @@ const Clients = {
       h1.appendChild(document.createTextNode(isNew ? 'New Client' : (c?.name || 'Edit Client')));
       titleBar.appendChild(h1);
       
-      const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { this.editingId = null; App.handleRoute(); });
       titleBar.appendChild(backBtn);
       container.appendChild(titleBar);
@@ -40,7 +40,7 @@ const Clients = {
     // Tabs
     const tabs = el('div', { class: 'admin-tabs clients-tabs-bar', style: 'margin-bottom: 20px;' });
     const activeTabBtn = el('button', {
-      class: 'btn ' + (this.activeTab === 'active' ? 'btn-primary' : 'btn-ghost'),
+      class: 'btn ' + (this.activeTab === 'active' ? 'btn-primary' : 'btn-secondary'),
       text: 'Active Clients'
     });
     activeTabBtn.addEventListener('click', () => {
@@ -50,7 +50,7 @@ const Clients = {
     tabs.appendChild(activeTabBtn);
 
     const archivedTabBtn = el('button', {
-      class: 'btn ' + (this.activeTab === 'archived' ? 'btn-primary' : 'btn-ghost'),
+      class: 'btn ' + (this.activeTab === 'archived' ? 'btn-primary' : 'btn-secondary'),
       text: 'Archived Clients'
     });
     archivedTabBtn.addEventListener('click', () => {
@@ -180,7 +180,7 @@ const Clients = {
       row.appendChild(el('td', { text: (c.retainer || c.isRetainer) ? 'Yes' : 'No' }));
       const actions = el('td');
       if (Auth.can('clients:edit')) {
-        const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
+        const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit' });
         editBtn.addEventListener('click', () => this.showForm(c.id));
         actions.appendChild(editBtn);
       }
@@ -188,9 +188,9 @@ const Clients = {
       const role = Auth.user.role;
       if (role === 'Admin' || role === 'Manager') {
         const archiveBtn = el('button', { 
-          class: 'btn btn-ghost btn-sm', 
+          class: 'btn btn-secondary btn-sm text-danger', 
           text: 'Archive', 
-          style: 'color: var(--color-danger); margin-left: 8px;' 
+          style: 'margin-left: 8px;' 
         });
         archiveBtn.addEventListener('click', () => {
           if (role === 'Admin') {
@@ -224,7 +224,7 @@ const Clients = {
     const headerActions = el('div', { class: 'form-actions-top' });
     const saveBtnTop = el('button', { type: 'submit', form: 'client-form', class: 'btn btn-primary', text: client ? 'Save Changes' : 'Save Client' });
     headerActions.appendChild(saveBtnTop);
-    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
     cancelBtn.addEventListener('click', () => this.showList());
     headerActions.appendChild(cancelBtn);
     headerBar.appendChild(headerActions);
