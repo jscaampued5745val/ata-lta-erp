@@ -230,10 +230,7 @@ const App = {
        location.hash = '#dashboard';
        return;
     }
-    if (hash === '#admin' && Auth.user.role !== 'Admin') {
-       location.hash = '#dashboard';
-       return;
-    }
+
 
     const module = moduleMap[hash];
     const content = document.getElementById('content');

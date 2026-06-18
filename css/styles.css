@@ -36,6 +36,19 @@
   --shadow-card: 0 15px 35px rgba(0, 0, 0, 0.04);
   --shadow-float: 0 20px 50px rgba(0, 0, 0, 0.15);
   --shadow-primary: 0 8px 20px rgba(37, 99, 235, 0.35);
+
+  /* Button & Link Typography Tokens (ERP Industry Standards)
+     Ref: SAP Fiori, Microsoft Fluent, Material Design, Oracle Redwoods */
+  --btn-font-size: 0.875rem;           /* 14px — standard primary/secondary */
+  --btn-font-size-sm: 0.8125rem;       /* 13px — compact buttons */
+  --btn-font-size-xs: 0.75rem;         /* 12px — high-density table rows */
+  --btn-font-weight: 500;              /* Medium — enterprise standard */
+  --btn-font-weight-emphasis: 600;     /* Semi-bold — emphasized/CTA actions */
+  --btn-letter-spacing: 0.025em;       /* ~0.35px — SAP/Fluent convention */
+  --btn-line-height: 1.43;             /* Enterprise standard for 14px text */
+  --link-font-weight: 400;             /* Regular — body/table/form links */
+  --link-font-weight-nav: 500;         /* Medium — sidebar navigation links */
+  --link-line-height: 1.5;             /* Standard for readability & touch targets */
 }
 
 /* Reset & Base */
@@ -81,6 +94,8 @@ h1, h2, h3, h4, h5, h6, p {
 a {
   color: var(--color-primary);
   text-decoration: none;
+  font-weight: var(--link-font-weight);
+  line-height: var(--link-line-height);
 }
 
 a:hover {
@@ -462,11 +477,12 @@ a:hover {
   justify-content: space-between;
   padding: 9px 14px;
   color: var(--color-text-muted);
-  font-weight: 500;
+  font-weight: var(--link-font-weight-nav);
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--btn-font-size);
+  line-height: var(--link-line-height);
+  letter-spacing: var(--btn-letter-spacing);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -566,7 +582,7 @@ h3 {
 }
 
 .form-group label {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-text-muted);
 }
@@ -621,8 +637,10 @@ select:focus {
   border: none;
   border-radius: var(--radius-sm);
   font-family: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: var(--btn-font-size);
+  font-weight: var(--btn-font-weight);
+  letter-spacing: var(--btn-letter-spacing);
+  line-height: var(--btn-line-height);
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 36px;
@@ -639,14 +657,66 @@ select:focus {
   transform: translateY(-1px);
 }
 
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid #d0d5dd;
+}
+
+.btn-secondary:hover {
+  background: var(--color-bg);
+  border-color: #b8bfc9;
+  color: var(--color-text);
+  transform: translateY(-1px);
+}
+
 .btn-ghost {
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--color-primary);
+  border: 1px solid transparent;
 }
 
 .btn-ghost:hover {
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: rgba(37, 99, 235, 0.06);
+  border-color: rgba(37, 99, 235, 0.2);
+  color: var(--color-primary-dark);
+}
+
+.btn-link {
+  background: transparent;
+  color: var(--color-primary);
+  border: none;
+  padding: 2px 6px;
+  text-decoration: none;
+  font-size: var(--btn-font-size-xs);
+}
+
+.btn-link:hover {
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+.btn-link.text-danger,
+.btn-link[style*="color:var(--color-danger)"] {
+  color: var(--color-danger);
+}
+
+.btn-link.text-danger:hover,
+.btn-link[style*="color:var(--color-danger)"]:hover {
+  background: rgba(239, 68, 68, 0.06);
+  color: #dc2626;
+}
+
+.btn-secondary.text-danger {
+  color: var(--color-danger);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.btn-secondary.text-danger:hover {
+  background: rgba(239, 68, 68, 0.05);
+  border-color: var(--color-danger);
+  color: #dc2626;
 }
 
 .btn-danger {
@@ -695,6 +765,14 @@ th {
   letter-spacing: 0.05em;
   background: var(--color-surface);
   border-bottom: 2px solid var(--color-border);
+}
+
+/* Table link typography — ERP standard: match body size, regular weight, color-distinguished */
+td a {
+  font-weight: var(--link-font-weight);
+  font-size: inherit;
+  line-height: var(--link-line-height);
+  letter-spacing: normal;
 }
 
 tbody tr {
@@ -803,6 +881,32 @@ tbody tr:hover {
   padding: var(--spacing-md) var(--spacing-lg);
   background: var(--color-bg);
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+
+/* Modal cancel button — ensure it always uses the secondary tier */
+.modal-btn-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--btn-font-size);
+  font-weight: var(--btn-font-weight);
+  letter-spacing: var(--btn-letter-spacing);
+  line-height: var(--btn-line-height);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 36px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid #d0d5dd;
+}
+
+.modal-btn-cancel:hover {
+  background: var(--color-bg);
+  border-color: #b8bfc9;
 }
 
 /* Progress Bar */
@@ -922,7 +1026,7 @@ tbody tr:hover {
 .checkbox-label { display: flex; align-items: center; gap: var(--spacing-xs); cursor: pointer; font-size: 0.875rem; font-weight: 500; }
 
 /* Small Button */
-.btn-sm { padding: 6px 12px; font-size: 0.8125rem; border-radius: var(--radius-sm); }
+.btn-sm { padding: 6px 12px; font-size: var(--btn-font-size-sm); line-height: var(--btn-line-height); border-radius: var(--radius-sm); }
 
 /* Form Actions */
 .form-actions { display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-lg); }
@@ -935,10 +1039,12 @@ tbody tr:hover {
   color: var(--color-primary, #4f6ef7);
   border: 1.5px solid var(--color-primary, #4f6ef7);
   padding: 8px 16px;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: var(--btn-font-size);
+  font-weight: var(--btn-font-weight);
+  letter-spacing: var(--btn-letter-spacing);
+  line-height: var(--btn-line-height);
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
 }
@@ -982,9 +1088,10 @@ tbody tr:hover {
 
 /* View Mode Toggle */
 .view-mode-toggle { display: flex; gap: var(--spacing-xs); background: var(--color-bg); padding: 4px; border-radius: var(--radius-sm); }
-.view-mode-toggle button { padding: 6px 12px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.8125rem; display: inline-flex; align-items: center; gap: 4px; }
+.view-mode-toggle button { padding: 6px 12px; border: 1px solid transparent; background: transparent; border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; font-size: var(--btn-font-size-sm); font-weight: var(--btn-font-weight); letter-spacing: var(--btn-letter-spacing); line-height: var(--btn-line-height); display: inline-flex; align-items: center; gap: 4px; color: var(--color-text-muted); transition: all 0.2s ease; }
 .view-mode-toggle button svg { flex-shrink: 0; }
-.view-mode-toggle button.active { background: var(--color-surface); color: var(--color-primary); font-weight: 600; box-shadow: var(--shadow-card); }
+.view-mode-toggle button:hover { background: var(--color-surface); color: var(--color-text); border-color: var(--color-border); }
+.view-mode-toggle button.active { background: var(--color-surface); color: var(--color-primary); font-weight: var(--btn-font-weight-emphasis); box-shadow: var(--shadow-card); border-color: rgba(37, 99, 235, 0.15); }
 
 /* Card Grid */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--spacing-lg); }
@@ -1149,7 +1256,6 @@ tbody tr:hover {
 
 /* Admin Panel */
 .admin-tabs { display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-lg); }
-.admin-tabs .btn { border-radius: var(--radius-pill); }
 .reset-section { background: var(--color-bg); border-radius: var(--radius-lg); padding: var(--spacing-lg); margin-bottom: var(--spacing-lg); }
 .reset-section h3 { margin-bottom: var(--spacing-sm); }
 .reset-section p { color: var(--color-text-muted); font-size: 0.875rem; margin-bottom: var(--spacing-md); }
@@ -2640,8 +2746,8 @@ tbody tr:hover {
 /* Improve Inline Add Buttons */
 .btn-add-inline {
   box-shadow: 0 2px 4px rgba(37, 99, 235, 0.15);
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: var(--btn-font-weight-emphasis);
+  letter-spacing: var(--btn-letter-spacing);
 }
 
 .btn-add-inline:hover {
@@ -2651,13 +2757,15 @@ tbody tr:hover {
 
 .btn-xs {
   padding: 2px 8px;
-  font-size: 0.75rem;
+  font-size: var(--btn-font-size-xs);
+  letter-spacing: var(--btn-letter-spacing);
+  line-height: var(--btn-line-height);
   border-radius: 4px;
 }
 
 /* Dynamic Route Button */
 .btn-route-dynamic {
-  font-weight: 700;
+  font-weight: var(--btn-font-weight-emphasis);
   border-width: 2px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

@@ -1367,7 +1367,7 @@ const Dashboard = {
       const headerRow = el('div', { class: 'sidebar-header' });
       headerRow.appendChild(el('h3', { class: 'sidebar-title', text: `Schedule: ${formatDate(this.selectedDay)}` }));
       
-      const clearBtn = el('button', { class: 'btn btn-ghost btn-xs', text: 'Clear' });
+      const clearBtn = el('button', { class: 'btn btn-secondary btn-xs', text: 'Clear' });
       clearBtn.onclick = (e) => {
         e.stopPropagation();
         this.selectedDay = null;

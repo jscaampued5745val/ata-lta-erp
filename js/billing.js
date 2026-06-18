@@ -41,11 +41,11 @@ const Billing = {
         const genInvBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Print Invoice', style: 'margin-right:8px;' });
         genInvBtn.addEventListener('click', () => this.generateInvoice(inv));
         actions.appendChild(genInvBtn);
-        const genVouchBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Print Voucher (No Header)', style: 'margin-right:8px;' });
+        const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Voucher (No Header)', style: 'margin-right:8px;' });
         genVouchBtn.addEventListener('click', () => this.generateVoucher(inv));
         actions.appendChild(genVouchBtn);
       }
-      const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Invoices' });
+      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Invoices' });
       backBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
       actions.appendChild(backBtn);
       titleBar.appendChild(actions);
@@ -60,7 +60,7 @@ const Billing = {
       h1.appendChild(document.createTextNode('Templates'));
       titleBar.appendChild(h1);
 
-      const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Invoices' });
+      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Invoices' });
       backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
       titleBar.appendChild(backBtn);
       container.appendChild(titleBar);
@@ -74,7 +74,7 @@ const Billing = {
       h1.appendChild(document.createTextNode('Trash'));
       titleBar.appendChild(h1);
 
-      const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to Invoices' });
+      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Invoices' });
       backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
       titleBar.appendChild(backBtn);
       container.appendChild(titleBar);
@@ -116,24 +116,21 @@ const Billing = {
     const entity = Auth.activeEntity;
     const wrapper = el('div');
 
-    // Header bar
-    const headerBar = el('div', { class: 'form-header-bar' });
-    headerBar.appendChild(el('h2', { text: 'Invoices' }));
-    const topActions = el('div', { class: 'form-actions-top' });
+    // Actions bar
+    const actions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-md);' });
     const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
     addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
-    topActions.appendChild(addBtn);
-    const templatesBtn = el('button', { class: 'btn btn-ghost', text: 'Templates' });
+    actions.appendChild(addBtn);
+    const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
     templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
-    topActions.appendChild(templatesBtn);
-    const agingBtn = el('button', { class: 'btn btn-ghost', text: 'Aging Report' });
+    actions.appendChild(templatesBtn);
+    const agingBtn = el('button', { class: 'btn btn-secondary', text: 'Aging Report' });
     agingBtn.addEventListener('click', () => { this.view = 'aging'; App.handleRoute(); });
-    topActions.appendChild(agingBtn);
-    const trashBtn = el('button', { class: 'btn btn-ghost', text: 'Trash' });
+    actions.appendChild(agingBtn);
+    const trashBtn = el('button', { class: 'btn btn-secondary', text: 'Trash' });
     trashBtn.addEventListener('click', () => { this.view = 'trash'; App.handleRoute(); });
-    topActions.appendChild(trashBtn);
-    headerBar.appendChild(topActions);
-    wrapper.appendChild(headerBar);
+    actions.appendChild(trashBtn);
+    wrapper.appendChild(actions);
 
     // Filters
     const filters = el('div', { class: 'filters-bar' });
@@ -191,7 +188,7 @@ const Billing = {
     filters.appendChild(statusFilter);
 
     const clearBtn = el('button', {
-      class: 'btn btn-ghost btn-sm',
+      class: 'btn btn-secondary btn-sm',
       html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
@@ -337,12 +334,12 @@ const Billing = {
       tr.appendChild(el('td', { text: formatPHP(balance) }));
       tr.appendChild(el('td')).appendChild(this.statusBadge(inv.status));
       const tdAct = el('td');
-      const viewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'View' });
+      const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailId = inv.id; App.handleRoute(); });
       tdAct.appendChild(viewBtn);
 
       if (inv.status === 'Draft') {
-        const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit', style: 'margin-left:4px;' });
+        const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit', style: 'margin-left:4px;' });
         editBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           this.view = 'form'; this.detailId = inv.id; App.handleRoute();
@@ -458,7 +455,7 @@ const Billing = {
         // Card actions for Draft invoices
         if (inv.status === 'Draft') {
           const cardActions = el('div', { style: 'display:flex; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid #e2e8f0;' });
-          const editBtn = el('button', { class: 'btn btn-ghost btn-xs', text: 'Edit' });
+          const editBtn = el('button', { class: 'btn btn-secondary btn-xs', text: 'Edit' });
           editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.view = 'form'; this.detailId = inv.id; App.handleRoute();
@@ -517,7 +514,7 @@ const Billing = {
 
       // List actions for Draft invoices
       if (inv.status === 'Draft') {
-        const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
+        const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit' });
         editBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           this.view = 'form'; this.detailId = inv.id; App.handleRoute();
@@ -570,7 +567,7 @@ const Billing = {
     headerBar.appendChild(el('h2', { text: inv ? 'Edit Invoice' : 'Create Sales Invoice' }));
     const topActions = el('div', { class: 'form-actions-top' });
     const saveBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Invoice', form: 'invoice-form' });
-    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
     cancelBtn.addEventListener('click', () => { this.view = 'list'; this.detailId = null; App.handleRoute(); });
     topActions.appendChild(saveBtn);
     topActions.appendChild(cancelBtn);
@@ -1198,7 +1195,7 @@ const Billing = {
     const isAdminOrManager = role === 'Admin' || role === 'Manager';
     
     if (inv.status === 'Draft') {
-      const editBtn = el('button', { class: 'btn btn-ghost', text: 'Edit Invoice', style: 'margin-right:8px;' });
+      const editBtn = el('button', { class: 'btn btn-secondary', text: 'Edit Invoice', style: 'margin-right:8px;' });
       editBtn.addEventListener('click', () => {
         this.view = 'form';
         this.detailId = inv.id;
@@ -1716,7 +1713,7 @@ const Billing = {
       genBtn.addEventListener('click', () => this.generateFromTemplate(t));
       tdAct.appendChild(genBtn);
       
-      const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit', style: 'margin-left:4px;' });
+      const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit', style: 'margin-left:4px;' });
       editBtn.addEventListener('click', () => this.showTemplateForm(t));
       tdAct.appendChild(editBtn);
 
@@ -1929,7 +1926,7 @@ const Billing = {
     const container = el('div');
     const topActions = el('div', { class: 'form-header-bar', style: 'margin-bottom: var(--spacing-lg);' });
     topActions.appendChild(el('h2', { text: 'Aging Report' }));
-    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
     backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
     topActions.appendChild(backBtn);
     container.appendChild(topActions);

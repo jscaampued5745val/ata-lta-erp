@@ -24,7 +24,7 @@ const Users = {
 
     if (isAdmin) {
       const usersTab = el('button', {
-        class: 'btn ' + (this.view === 'users' ? 'btn-primary' : 'btn-ghost'),
+        class: 'btn ' + (this.view === 'users' ? 'btn-primary' : 'btn-secondary'),
         text: 'Users'
       });
       usersTab.addEventListener('click', () => { this.view = 'users'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
@@ -32,7 +32,7 @@ const Users = {
     }
 
     const auditTab = el('button', {
-      class: 'btn ' + (this.view === 'audit' ? 'btn-primary' : 'btn-ghost'),
+      class: 'btn ' + (this.view === 'audit' ? 'btn-primary' : 'btn-secondary'),
       text: 'Audit Log'
     });
     auditTab.addEventListener('click', () => { this.view = 'audit'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
@@ -45,7 +45,7 @@ const Users = {
       const totalPending = pendingDisbursements.length + pendingChanges.length;
 
       const pendingTab = el('button', {
-        class: 'btn ' + (this.view === 'pending' ? 'btn-primary' : 'btn-ghost'),
+        class: 'btn ' + (this.view === 'pending' ? 'btn-primary' : 'btn-secondary'),
         text: 'Pending Approvals'
       });
       if (totalPending > 0) {
@@ -56,7 +56,7 @@ const Users = {
       tabs.appendChild(pendingTab);
     } else {
       const myPendingTab = el('button', {
-        class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-ghost'),
+        class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
         text: 'My Pending Submissions'
       });
       myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
@@ -175,7 +175,7 @@ const Users = {
       tr.appendChild(el('td')).appendChild(this.roleBadge(u.role));
       tr.appendChild(el('td', { text: (u.entities || []).join(', ') }));
       const tdAct = el('td');
-      const editBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Edit' });
+      const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit' });
       editBtn.addEventListener('click', () => this.showUserForm(u.id));
       tdAct.appendChild(editBtn);
       tr.appendChild(tdAct);
@@ -266,7 +266,7 @@ const Users = {
 
     const btnGroup = el('div', { class: 'form-group form-actions' });
     const saveBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save User' });
-    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
     cancelBtn.addEventListener('click', () => this.showUserList());
     btnGroup.appendChild(saveBtn);
     btnGroup.appendChild(cancelBtn);
@@ -364,7 +364,7 @@ const Users = {
     const confirmWrap = el('div', { class: 'reset-confirm' });
     confirmWrap.appendChild(el('span', { text: 'Are you sure? This will erase all changes.', style: 'color: var(--color-danger); font-size: 0.875rem;' }));
     const yesBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Yes, Reset' });
-    const noBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Cancel' });
+    const noBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Cancel' });
     confirmWrap.appendChild(yesBtn);
     confirmWrap.appendChild(noBtn);
     section.appendChild(confirmWrap);
@@ -414,7 +414,7 @@ const Users = {
     filterBtn.addEventListener('click', () => this.refreshAuditLog(tableContainer, userFilter.value, dateFrom.value, dateTo.value));
     filters.appendChild(filterBtn);
 
-    const clearBtn = el('button', { class: 'btn btn-ghost', text: 'Clear' });
+    const clearBtn = el('button', { class: 'btn btn-secondary', text: 'Clear' });
     clearBtn.addEventListener('click', () => {
       if (isAdmin) userFilter.value = '';
       dateFrom.value = '';
@@ -647,7 +647,7 @@ const Users = {
       bottomRow.appendChild(infoLeft);
       
       const reviewBtn = el('button', {
-        class: 'btn btn-ghost btn-sm',
+        class: 'btn btn-secondary btn-sm',
         text: 'Review',
         style: 'font-size: 11px; padding: 4px 8px;'
       });
@@ -721,7 +721,7 @@ const Users = {
       
       // Actions
       const tdAct = el('td');
-      const reviewBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Review' });
+      const reviewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Review' });
       tdAct.appendChild(reviewBtn);
       tr.appendChild(tdAct);
       
@@ -769,7 +769,7 @@ const Users = {
       row.appendChild(leftPart);
       
       const rightWrap = el('div', { style: 'margin-left: auto;' });
-      rightWrap.appendChild(el('button', { class: 'btn btn-ghost btn-sm', text: 'Review' }));
+      rightWrap.appendChild(el('button', { class: 'btn btn-secondary btn-sm', text: 'Review' }));
       row.appendChild(rightWrap);
       
       list.appendChild(row);
@@ -886,7 +886,7 @@ const Users = {
     const header = el('div', { class: 'form-header-bar', style: 'border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 24px;' });
     header.appendChild(el('h2', { text: 'Review Pending Change Request', style: 'margin: 0; font-size: 1.25rem; font-weight: 600; color: #1e3a8a;' }));
     
-    const backBtn = el('button', { class: 'btn btn-ghost btn-sm', text: '← Back to List' });
+    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
     backBtn.addEventListener('click', () => {
       this.pendingDetailId = null;
       App.handleRoute();
@@ -1033,7 +1033,7 @@ const Users = {
     });
 
     if (canApprove) {
-      const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve Change', style: 'padding: 10px 20px; font-weight: 600;' });
+      const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve Change' });
       approveBtn.addEventListener('click', () => {
         Workflow.showConfirm('Confirm Approval', 'Are you sure you want to approve this change?', () => {
           PendingChanges.approve(pc.id);
@@ -1043,7 +1043,7 @@ const Users = {
       });
       actions.appendChild(approveBtn);
 
-      const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Reject', style: 'padding: 10px 20px; font-weight: 600;' });
+      const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Reject' });
       rejectBtn.addEventListener('click', () => {
         const reason = prompt('Enter rejection reason:');
         if (reason !== null) {
@@ -1054,7 +1054,7 @@ const Users = {
       });
       actions.appendChild(rejectBtn);
     } else if (isSubmitter && pc.status === 'pending') {
-      const withdrawBtn = el('button', { class: 'btn btn-ghost', text: 'Withdraw Submission', style: 'padding: 10px 20px; font-weight: 600; border: 1px solid #e2e8f0;' });
+      const withdrawBtn = el('button', { class: 'btn btn-secondary', text: 'Withdraw Submission' });
       withdrawBtn.addEventListener('click', () => {
         Workflow.showConfirm('Confirm Withdrawal', 'Are you sure you want to withdraw this submission?', () => {
           PendingChanges.delete(pc.id);
