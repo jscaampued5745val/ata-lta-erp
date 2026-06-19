@@ -5524,10 +5524,13 @@ tbody tr:hover {
 }
 
 .filters-bar .filter-field-wrapper.has-value select.form-select,
-.filters-bar .filter-field-wrapper.has-value input,
-.audit-filters .filter-field-wrapper.has-value select.form-select,
-.audit-filters .filter-field-wrapper.has-value input {
+.audit-filters .filter-field-wrapper.has-value select.form-select {
   padding-right: 44px !important;
+}
+
+.filters-bar .filter-field-wrapper.has-value input,
+.audit-filters .filter-field-wrapper.has-value input {
+  padding-right: 52px !important;
 }
 
 /* Date input dynamic sizing */
@@ -5541,9 +5544,18 @@ tbody tr:hover {
 
 .filters-bar .filter-field-wrapper.has-value input[type="date"],
 .audit-filters .filter-field-wrapper.has-value input[type="date"] {
-  width: 175px;
-  min-width: 175px;
-  max-width: 175px;
+  width: 200px;
+  min-width: 200px;
+  max-width: 200px;
+  padding-right: 62px !important;
+}
+
+.filter-field-wrapper input[type="date"] ~ .filter-field-clear {
+  right: 32px;
+}
+
+.filter-field-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
 }
 
 .filter-field-clear {
