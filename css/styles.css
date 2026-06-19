@@ -5533,9 +5533,11 @@ tbody tr:hover {
   padding-right: 52px !important;
 }
 
-/* Date input dynamic sizing */
+/* Date input dynamic sizing (material datepicker replaces the native input) */
 .filters-bar .filter-field-wrapper input[type="date"],
-.audit-filters .filter-field-wrapper input[type="date"] {
+.audit-filters .filter-field-wrapper input[type="date"],
+.filters-bar .filter-field-wrapper:has(.mdp-wrapper) .mdp-wrapper,
+.audit-filters .filter-field-wrapper:has(.mdp-wrapper) .mdp-wrapper {
   width: 130px;
   min-width: 130px;
   max-width: 130px;
@@ -5543,15 +5545,22 @@ tbody tr:hover {
 }
 
 .filters-bar .filter-field-wrapper.has-value input[type="date"],
-.audit-filters .filter-field-wrapper.has-value input[type="date"] {
+.audit-filters .filter-field-wrapper.has-value input[type="date"],
+.filters-bar .filter-field-wrapper.has-value:has(.mdp-wrapper) .mdp-wrapper,
+.audit-filters .filter-field-wrapper.has-value:has(.mdp-wrapper) .mdp-wrapper {
   width: 220px;
   min-width: 220px;
   max-width: 220px;
-  padding-right: 62px !important;
 }
 
-.filter-field-wrapper input[type="date"] ~ .filter-field-clear {
-  right: 32px;
+/* Reserve right space for the clear icon so selected date text doesn't overlap it */
+.filter-field-wrapper.has-value .mdp-display {
+  padding-right: 44px;
+}
+
+/* Keep the clear icon the same distance from the material datepicker calendar indicator as on other fields */
+.filter-field-wrapper:has(.mdp-wrapper) .filter-field-clear {
+  right: 40px;
 }
 
 .filter-field-wrapper input[type="date"]::-webkit-calendar-picker-indicator {

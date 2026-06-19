@@ -222,6 +222,13 @@ const Reports = {
     });
     clearBtn.addEventListener('click', () => {
       this.filters = { workRequest: '', client: '', clientText: '', employee: '', dateFrom: '', dateTo: '' };
+      wrSel.value = '';
+      clientFilter.value = '';
+      empFilter.value = '';
+      if (!excludeDateRange) {
+        fromInput.value = '';
+        toInput.value = '';
+      }
       triggerChange();
     });
     bar.appendChild(clearBtn);

@@ -96,6 +96,16 @@ const MaterialDatePicker = (() => {
           d.textContent = formatDisplay(val) || 'Select date';
           d.classList.toggle('mdp-placeholder', !val);
         }
+        // Sync the filter-field clear button and has-value state since the
+        // material datepicker replaces the input value setter and bypasses
+        // wrapFilterFieldWithClear's own visibility update.
+        const filterWrapper = this.closest('.filter-field-wrapper');
+        if (filterWrapper) {
+          const hasVal = !!val;
+          filterWrapper.classList.toggle('has-value', hasVal);
+          const clearBtn = filterWrapper.querySelector('.filter-field-clear');
+          if (clearBtn) clearBtn.style.display = hasVal ? 'flex' : 'none';
+        }
       },
       configurable: true
     });
