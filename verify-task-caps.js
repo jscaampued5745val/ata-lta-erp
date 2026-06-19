@@ -236,19 +236,54 @@ async function runVerification() {
         `Saved WR: ${JSON.stringify(savedWr)}`
       );
 
-      // 3. Verify that a Work Request with an assignee is no longer blocked from transitioning to Pre-processing
+      // 3. Verify that a Work Request with an assignee or all tasks assigned is no longer blocked from transitioning
       if (savedWr) {
-        const tsBefore = Workflow.getPhaseTransitionStatus(savedWr.id);
-        const hasEmployeeAssignmentError = tsBefore?.missing?.includes('Employee assignment');
+        // Subcase 8a: WR itself is assigned, has no tasks -> should not have Employee assignment error
+        const ts1 = Workflow.getPhaseTransitionStatus(savedWr.id);
+        const err1 = ts1?.missing?.includes('Employee assignment');
         assert(
-          'Case 8: Transition eligibility has no Employee assignment error',
-          !hasEmployeeAssignmentError,
-          `Missing fields before assignee: ${JSON.stringify(tsBefore?.missing)}`
+          'Case 8a: WR assigned, no tasks -> Transition allowed',
+          !err1,
+          `Missing: ${JSON.stringify(ts1?.missing)}`
+        );
+
+        // Subcase 8b: WR itself is NOT assigned, has no tasks -> should have Employee assignment error
+        DB.update('workRequests', savedWr.id, { assignedTo: null });
+        const ts2 = Workflow.getPhaseTransitionStatus(savedWr.id);
+        const err2 = ts2?.missing?.includes('Employee assignment');
+        assert(
+          'Case 8b: WR NOT assigned, no tasks -> Blocked',
+          err2 === true,
+          `Missing: ${JSON.stringify(ts2?.missing)}`
+        );
+
+        // Subcase 8c: WR itself is NOT assigned, has tasks, but some are unassigned -> should have Employee assignment error
+        const taskId1 = 't-test-trans-1';
+        const taskId2 = 't-test-trans-2';
+        DB.insert('tasks', { id: taskId1, workRequestId: savedWr.id, title: 'Task 1', assigneeId: testStaffId });
+        DB.insert('tasks', { id: taskId2, workRequestId: savedWr.id, title: 'Task 2', assigneeId: null });
+        const ts3 = Workflow.getPhaseTransitionStatus(savedWr.id);
+        const err3 = ts3?.missing?.includes('Employee assignment');
+        assert(
+          'Case 8c: WR NOT assigned, some tasks unassigned -> Blocked',
+          err3 === true,
+          `Missing: ${JSON.stringify(ts3?.missing)}`
+        );
+
+        // Subcase 8d: WR itself is NOT assigned, has tasks, and ALL tasks are assigned -> should not have Employee assignment error
+        DB.update('tasks', taskId2, { assigneeId: testStaffId });
+        const ts4 = Workflow.getPhaseTransitionStatus(savedWr.id);
+        const err4 = ts4?.missing?.includes('Employee assignment');
+        assert(
+          'Case 8d: WR NOT assigned, all tasks assigned -> Transition allowed',
+          !err4,
+          `Missing: ${JSON.stringify(ts4?.missing)}`
         );
 
         // Clean up created WR and associated tasks
         DB.delete('workRequests', savedWr.id);
-        DB.getWhere('tasks', t => t.workRequestId === savedWr.id).forEach(t => DB.delete('tasks', t.id));
+        DB.delete('tasks', taskId1);
+        DB.delete('tasks', taskId2);
       }
 
     } catch (e) {

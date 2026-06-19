@@ -34,7 +34,12 @@ const Workflow = {
     switch (wr.status) {
       case 'Draft':
         if (!wr.clientId) { canTransition = false; missing.push('Client assignment'); }
-        if (!wr.assignedTo) { canTransition = false; missing.push('Employee assignment'); }
+        const wrAssigned = !!wr.assignedTo;
+        const allTasksAssigned = tasks.length > 0 && tasks.every(t => t.assigneeId || t.assignedTo || t.assigneeName);
+        if (!wrAssigned && !allTasksAssigned) {
+          canTransition = false;
+          missing.push('Employee assignment');
+        }
         // Rule 1: Requires signed proposal/retainer placeholder
         if (!tasks.some(t => t.taskDocuments?.length > 0)) { 
             // In real world, we'd check for a specific 'Proposal' doc type
