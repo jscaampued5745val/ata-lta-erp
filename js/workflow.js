@@ -598,7 +598,7 @@ const Workflow = {
     const priorityFilter = el('select', { class: 'form-select' });
     priorityFilter.appendChild(el('option', { value: '', text: 'All Priorities' }));
     ['Urgent', 'Priority', 'Low Priority'].forEach(p => priorityFilter.appendChild(el('option', { value: p, text: p })));
-    filters.appendChild(priorityFilter);
+    filters.appendChild(wrapFilterFieldWithClear(priorityFilter));
 
     const empOptions = [{ value: '', text: 'All Employees' }];
     DB.getWhere('users', u => {
@@ -635,16 +635,16 @@ const Workflow = {
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
     const dateTo = el('input', { type: 'date', class: 'form-select' });
     filters.appendChild(el('span', { text: 'Due From', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
-    filters.appendChild(dateFrom);
+    filters.appendChild(wrapFilterFieldWithClear(dateFrom));
     filters.appendChild(el('span', { text: 'Due To', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
-    filters.appendChild(dateTo);
+    filters.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const statusFilter = el('select', { class: 'form-select' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Draft', 'Pre-processing', 'Processing', 'Billing', 'Disbursement', 'Completed'].forEach(s => {
       statusFilter.appendChild(el('option', { value: s, text: s }));
     });
-    filters.appendChild(statusFilter);
+    filters.appendChild(wrapFilterFieldWithClear(statusFilter));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',

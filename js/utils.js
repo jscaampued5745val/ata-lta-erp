@@ -295,3 +295,83 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
   // Expose addEventListener on wrapper (already works since it's a div)
   return wrapper;
 }
+
+/**
+ * Wraps a standard input or select element with a relative container
+ * and appends a clear button (SVG cancel icon) that resets its value.
+ * Toggles the visibility of the clear button based on whether the field has a value.
+ *
+ * @param {HTMLElement} element - The select or input element to wrap
+ * @param {function} [onClear] - Optional callback triggered when the field is cleared
+ * @returns {HTMLElement} The wrapper element containing the select/input and the clear button
+ */
+function wrapFilterFieldWithClear(element, onClear) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'filter-field-wrapper';
+  
+  if (element.style.maxWidth) wrapper.style.maxWidth = element.style.maxWidth;
+  
+  if (element.parentNode) {
+    element.parentNode.insertBefore(wrapper, element);
+  }
+  wrapper.appendChild(element);
+  
+  const clearBtn = document.createElement('span');
+  clearBtn.className = 'filter-field-clear';
+  clearBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>';
+  clearBtn.style.display = 'none';
+  wrapper.appendChild(clearBtn);
+  
+  function updateClearVisibility() {
+    clearBtn.style.display = element.value ? 'flex' : 'none';
+  }
+  
+  // Intercept the setter on the element's value property so programmatic changes update the button
+  let proto = Object.getPrototypeOf(element);
+  let descriptor = null;
+  while (proto) {
+    descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (descriptor) break;
+    proto = Object.getPrototypeOf(proto);
+  }
+  
+  if (descriptor && descriptor.set) {
+    Object.defineProperty(element, 'value', {
+      get() {
+        return descriptor.get.call(element);
+      },
+      set(val) {
+        descriptor.set.call(element, val);
+        updateClearVisibility();
+      },
+      configurable: true
+    });
+  }
+  
+  element.addEventListener('input', updateClearVisibility);
+  element.addEventListener('change', updateClearVisibility);
+  
+  clearBtn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    element.value = '';
+    updateClearVisibility();
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    if (onClear) onClear();
+  });
+  
+  // Initial check
+  updateClearVisibility();
+  
+  // Expose value on wrapper for direct setting
+  Object.defineProperty(wrapper, 'value', {
+    get() { return element.value; },
+    set(val) {
+      element.value = val;
+      updateClearVisibility();
+    }
+  });
+  
+  return wrapper;
+}

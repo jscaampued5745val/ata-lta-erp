@@ -162,7 +162,7 @@ const Reports = {
     });
     wrSel.value = this.filters.workRequest;
     wrSel.addEventListener('change', () => { this.filters.workRequest = wrSel.value; triggerChange(); });
-    bar.appendChild(wrSel);
+    bar.appendChild(wrapFilterFieldWithClear(wrSel));
 
     // Client
     const clientOptions = [{ value: '', text: '— Client —' }];
@@ -208,12 +208,12 @@ const Reports = {
       const fromInput = el('input', { type: 'date', class: 'form-select', value: this.filters.dateFrom });
       fromInput.addEventListener('change', () => { this.filters.dateFrom = fromInput.value; triggerChange(); });
       bar.appendChild(el('span', { text: 'From:', style: 'font-size:0.8125rem; font-weight:600; color:var(--color-text-muted);' }));
-      bar.appendChild(fromInput);
+      bar.appendChild(wrapFilterFieldWithClear(fromInput));
 
       const toInput = el('input', { type: 'date', class: 'form-select', value: this.filters.dateTo });
       toInput.addEventListener('change', () => { this.filters.dateTo = toInput.value; triggerChange(); });
       bar.appendChild(el('span', { text: 'To:', style: 'font-size:0.8125rem; font-weight:600; color:var(--color-text-muted);' }));
-      bar.appendChild(toInput);
+      bar.appendChild(wrapFilterFieldWithClear(toInput));
     }
 
     const clearBtn = el('button', {

@@ -400,7 +400,7 @@ const Users = {
       userFilter.value = Auth.user.id;
       userFilter.disabled = true;
     }
-    filters.appendChild(userFilter);
+    filters.appendChild(wrapFilterFieldWithClear(userFilter));
 
     // Client Filter
     const clientOptions = [{ value: '', text: 'All Clients' }];
@@ -412,11 +412,11 @@ const Users = {
 
     filters.appendChild(el('span', { text: 'From:', style: 'font-size: 0.875rem; color: var(--color-text-muted);' }));
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
-    filters.appendChild(dateFrom);
+    filters.appendChild(wrapFilterFieldWithClear(dateFrom));
 
     filters.appendChild(el('span', { text: 'To:', style: 'font-size: 0.875rem; color: var(--color-text-muted);' }));
     const dateTo = el('input', { type: 'date', class: 'form-select' });
-    filters.appendChild(dateTo);
+    filters.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const clearBtn = el('button', { class: 'btn btn-secondary', text: 'Clear' });
     clearBtn.addEventListener('click', () => {
