@@ -2121,41 +2121,41 @@ const Workflow = {
           
           const assigneeOtherInput = el('input', {
             type: 'text',
-            class: 'form-control',
+            class: 'form-control task-assignee-other',
             placeholder: 'Type assignee name',
             value: t.assigneeName || '',
-            style: 'font-size: 12px; padding: 2px 4px; flex: 1;'
+            style: 'font-size: 13px; padding: 4px; display: none;'
           });
 
           const backBtn = el('button', {
-            class: 'btn btn-secondary btn-xs',
-            text: '←',
-            style: 'margin-left: 4px; padding: 2px 6px; font-size: 12px; cursor: pointer;'
+            type: 'button',
+            class: 'btn btn-ghost btn-sm btn-assignee-back',
+            html: '&#x2190;', // arrow ←
+            title: 'Back to selection',
+            style: 'display: none;'
           });
-
-          const inputRow = el('div', {
-            style: 'display: flex; align-items: center; margin-top: 4px;'
-          });
-          inputRow.appendChild(assigneeOtherInput);
-          inputRow.appendChild(backBtn);
           
           if (t.assigneeName) {
             assigneeSel.value = 'others';
             assigneeSel.style.display = 'none';
-            inputRow.style.display = 'flex';
+            assigneeOtherInput.style.display = 'block';
+            backBtn.style.display = 'inline-block';
           } else {
             assigneeSel.style.display = 'block';
-            inputRow.style.display = 'none';
+            assigneeOtherInput.style.display = 'none';
+            backBtn.style.display = 'none';
           }
           
           assigneeSel.addEventListener('change', () => {
             const isOthers = assigneeSel.value === 'others';
             if (isOthers) {
               assigneeSel.style.display = 'none';
-              inputRow.style.display = 'flex';
+              assigneeOtherInput.style.display = 'block';
+              backBtn.style.display = 'inline-block';
               assigneeOtherInput.focus();
             } else {
-              inputRow.style.display = 'none';
+              assigneeOtherInput.style.display = 'none';
+              backBtn.style.display = 'none';
               assigneeOtherInput.value = '';
               DB.update('tasks', t.id, { 
                 assigneeId: assigneeSel.value || null, 
@@ -2183,7 +2183,8 @@ const Workflow = {
           backBtn.addEventListener('click', () => {
             assigneeSel.value = '';
             assigneeOtherInput.value = '';
-            inputRow.style.display = 'none';
+            assigneeOtherInput.style.display = 'none';
+            backBtn.style.display = 'none';
             assigneeSel.style.display = 'block';
             DB.update('tasks', t.id, {
               assigneeId: null,
@@ -2194,9 +2195,10 @@ const Workflow = {
             App.handleRoute();
           });
           
-          const assigneeWrap = el('div', { class: 'task-assignee-wrapper', style: 'display: flex; flex-direction: column;' });
+          const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
           assigneeWrap.appendChild(assigneeSel);
-          assigneeWrap.appendChild(inputRow);
+          assigneeWrap.appendChild(assigneeOtherInput);
+          assigneeWrap.appendChild(backBtn);
           tdAssignee.appendChild(assigneeWrap);
         } else {
           const assigneeWrap = el('div', { style: 'display:flex; align-items:center; gap:var(--spacing-xs);' });
