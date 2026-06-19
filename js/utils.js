@@ -108,7 +108,7 @@ const PaymentIcons = {
  * @param {string} [opts.maxWidth] - Optional max-width CSS value
  * @returns {HTMLElement} wrapper element with .value property
  */
-function createSearchableDropdown({ placeholder, options, maxWidth }) {
+function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeText = false, addNewLabel = null }) {
   const wrapper = document.createElement('div');
   wrapper.className = 'searchable-dropdown';
   if (maxWidth) wrapper.style.maxWidth = maxWidth;
@@ -150,7 +150,8 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
     if (trimmedFilter) {
       const hasExactMatch = options.some(o => o.text.toLowerCase() === trimmedFilter.toLowerCase());
       if (!hasExactMatch) {
-        filtered.push({ value: trimmedFilter, text: trimmedFilter });
+        const label = addNewLabel ? addNewLabel(trimmedFilter) : trimmedFilter;
+        filtered.push({ value: trimmedFilter, text: trimmedFilter, itemLabel: label });
       }
     }
 
@@ -167,7 +168,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
       item.className = 'searchable-dropdown-item';
       if (opt.value === selectedValue) item.classList.add('selected');
       if (i === highlightIdx) item.classList.add('highlighted');
-      item.textContent = opt.text;
+      item.textContent = opt.itemLabel || opt.text;
       item.addEventListener('mousedown', (e) => {
         e.preventDefault(); // prevent blur
         selectOption(opt.value, opt.text);
@@ -188,6 +189,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
     selectedValue = val;
     selectedText = text;
     input.value = val ? text : '';
+    input.title = input.value || placeholder || '';
     clearBtn.style.display = val ? 'flex' : 'none';
     if (changed) {
       wrapper.dispatchEvent(new Event('change', { bubbles: true }));
@@ -208,6 +210,10 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
     isOpen = false;
     wrapper.classList.remove('open');
     // Restore display text
+    if (allowFreeText && !selectedValue && input.value.trim()) {
+      selectedValue = input.value.trim();
+      selectedText = selectedValue;
+    }
     input.value = selectedValue ? selectedText : '';
   }
 
@@ -221,7 +227,6 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
     if (!isOpen) open();
     renderList(input.value);
     wrapper.dispatchEvent(new Event('input', { bubbles: true }));
-    wrapper.dispatchEvent(new Event('change', { bubbles: true }));
   });
 
   input.addEventListener('blur', () => {
@@ -245,6 +250,8 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
       e.preventDefault();
       if (highlightIdx >= 0 && highlightIdx < items.length) {
         items[highlightIdx].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      } else if (items.length > 0) {
+        items[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       }
     } else if (e.key === 'Escape') {
       close();
@@ -262,7 +269,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
   arrow.addEventListener('mousedown', (e) => {
     e.preventDefault();
     if (isOpen) { close(); input.blur(); }
-    else { input.focus(); }
+    else { input.focus(); if (!isOpen) open(); }
   });
 
   // Close when clicking outside
@@ -284,6 +291,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
         selectedText = match ? match.text : val;
         input.value = selectedText;
       }
+      input.title = input.value || placeholder || '';
       clearBtn.style.display = val ? 'flex' : 'none';
     }
   });

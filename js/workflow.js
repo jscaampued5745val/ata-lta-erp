@@ -10,6 +10,87 @@ const Workflow = {
   templateEditingId: null,
   selectedTaskId: null,
 
+  standardTaskTemplates: [
+    { title: 'Gathering requirements and preparing documents for preprocessing', defaultChecklist: ['SEC Certificate', 'Articles of Incorporation', "Mayor's Permit", 'BIR Form 1901/1903'] },
+    { title: 'Creation of ORUS account', defaultChecklist: [] },
+    { title: 'Registration of Books of Accounts', defaultChecklist: [] },
+    { title: 'Application and Received of Authority to Print', defaultChecklist: [] },
+    { title: 'Pickup of Sales/Service Invoice', defaultChecklist: [] },
+    { title: 'Billing', defaultChecklist: [] },
+    { title: 'Disbursement', defaultChecklist: [] },
+    { title: 'Transmittal', defaultChecklist: [] }
+  ],
+
+  /**
+   * Builds a typable employee assignee dropdown like the filter tray.
+   * Existing ground workers are offered; typing a new name shows an
+   * "Add employee: X" option and auto-registers it on selection/Enter/blur.
+   * Returns the dropdown wrapper. `onChange` receives { assigneeId: null, assigneeName }.
+   */
+  createGroundWorkerDropdown({ selectedGroundWorkerName, onChange, placeholder = 'Employee...', maxWidth, className } = {}) {
+    const buildOptions = () => {
+      return (DB.getAll('groundWorkers') || []).map(gw => ({ value: gw.id, text: gw.name }));
+    };
+
+    const dropdown = createSearchableDropdown({
+      placeholder,
+      options: buildOptions(),
+      allowFreeText: true,
+      maxWidth,
+      addNewLabel: (text) => `Add employee: ${text}`
+    });
+    if (className) dropdown.classList.add(className);
+
+    let lastAppliedName = (selectedGroundWorkerName || '').trim();
+
+    const applyValue = () => {
+      const val = dropdown.value;
+      const text = dropdown.searchText.trim();
+      let name = '';
+      if (val) {
+        const gw = (DB.getAll('groundWorkers') || []).find(g => g.id === val);
+        name = gw ? gw.name : val;
+      } else if (text) {
+        name = text;
+      }
+      if (name === lastAppliedName) return;
+      if (name) {
+        const existing = (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase());
+        if (!existing) {
+          DB.insert('groundWorkers', { id: generateId('gw'), name });
+        }
+      }
+      lastAppliedName = name;
+      onChange({ assigneeId: null, assigneeName: name || null });
+    };
+
+    dropdown.value = selectedGroundWorkerName || '';
+
+    const input = dropdown.querySelector('input');
+    let blurTimeout;
+    const cancelBlurCommit = () => { if (blurTimeout) clearTimeout(blurTimeout); };
+
+    // Apply only on explicit selection, Enter, or blur — not on every keystroke.
+    dropdown.addEventListener('change', () => {
+      cancelBlurCommit();
+      applyValue();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        cancelBlurCommit();
+        applyValue();
+      }
+    });
+    input.addEventListener('blur', () => {
+      cancelBlurCommit();
+      blurTimeout = setTimeout(applyValue, 150);
+    });
+    input.addEventListener('focus', cancelBlurCommit);
+
+    return dropdown;
+  },
+
   // ============================================================
   // Phase Transition Logic (Robust Business Accounting Logic)
   // ============================================================
@@ -1396,79 +1477,16 @@ const Workflow = {
     titleIn.addEventListener('input', () => this.updatePredecessorOptions(container));
     row.appendChild(titleIn);
 
-    const assigneeSel = el('select', { class: 'task-assignee' });
-    assigneeSel.appendChild(el('option', { value: '', text: '— Assignee —' }));
-
-    // Only show users from the same entity
-    const entity = Auth.activeEntity;
-    const staffPool = DB.getWhere('users', u => u.entities.includes(entity) || u.entities.includes(entity.toLowerCase()));
-
-    staffPool.forEach(u => {
-      const opt = el('option', { value: u.id, text: u.name });
-      if (taskData && (taskData.assigneeId === u.id || taskData.assignedTo === u.id)) opt.selected = true;
-      assigneeSel.appendChild(opt);
+    // Ground worker assignee — typable dropdown like the filter tray
+    const gwDropdown = this.createGroundWorkerDropdown({
+      selectedGroundWorkerName: taskData?.assigneeName || '',
+      placeholder: 'Employee...',
+      className: 'task-assignee-groundworker',
+      onChange: () => {} // value is read at submit time
     });
-
-    // Manual employee name option
-    assigneeSel.appendChild(el('option', { value: 'others', text: 'Others' }));
-    const assigneeOtherInput = el('input', {
-      type: 'text',
-      class: 'task-assignee-other',
-      placeholder: 'Type assignee name',
-      style: 'display: none;'
-    });
-
-    const backBtn = el('button', {
-      type: 'button',
-      class: 'btn btn-ghost btn-sm btn-assignee-back',
-      html: '&#x2190;', // arrow ←
-      title: 'Back to selection',
-      style: 'display: none;'
-    });
-
-    const showDropdown = () => {
-      assigneeSel.style.display = 'block';
-      assigneeOtherInput.style.display = 'none';
-      backBtn.style.display = 'none';
-      assigneeSel.value = '';
-      assigneeOtherInput.value = '';
-      assigneeOtherInput.required = false;
-      assigneeOtherInput.classList.remove('input-error');
-    };
-
-    const showInput = () => {
-      assigneeSel.style.display = 'none';
-      assigneeOtherInput.style.display = 'block';
-      backBtn.style.display = 'inline-block';
-      assigneeSel.value = 'others';
-      assigneeOtherInput.required = true;
-      assigneeOtherInput.focus();
-    };
-
-    assigneeSel.addEventListener('change', () => {
-      if (assigneeSel.value === 'others') {
-        showInput();
-      }
-    });
-
-    backBtn.addEventListener('click', () => {
-      showDropdown();
-    });
-
-    if (taskData?.assigneeName) {
-      assigneeSel.value = 'others';
-      assigneeOtherInput.value = taskData.assigneeName;
-      assigneeSel.style.display = 'none';
-      assigneeOtherInput.style.display = 'block';
-      backBtn.style.display = 'inline-block';
-      assigneeOtherInput.required = true;
-    }
 
     const assigneeWrapper = el('div', { class: 'task-assignee-wrapper' });
-    assigneeWrapper.appendChild(assigneeSel);
-    assigneeWrapper.appendChild(assigneeOtherInput);
-    assigneeWrapper.appendChild(backBtn);
-
+    assigneeWrapper.appendChild(gwDropdown);
     row.appendChild(assigneeWrapper);
 
     // Custom Multi-select Dropdown
@@ -1590,25 +1608,16 @@ const Workflow = {
   },
 
   validateManualAssignees(form) {
+    // With the typable ground-worker-only dropdown, assignment is optional.
+    // Just clear any lingering input-error states.
     const taskRows = form.querySelectorAll('.task-row');
-    let firstInvalid = null;
     taskRows.forEach(row => {
-      const title = row.querySelector('.task-title-input')?.value.trim();
-      if (!title) return;
-      const assigneeSel = row.querySelector('.task-assignee');
-      const assigneeOtherInput = row.querySelector('.task-assignee-other');
-      if (assigneeSel?.value === 'others' && !assigneeOtherInput?.value.trim()) {
-        assigneeOtherInput.classList.add('input-error');
-        if (!firstInvalid) firstInvalid = assigneeOtherInput;
-      } else if (assigneeOtherInput) {
-        assigneeOtherInput.classList.remove('input-error');
+      const gwAutocomplete = row.querySelector('.task-assignee-groundworker');
+      if (gwAutocomplete) {
+        const gwInput = gwAutocomplete.querySelector('input');
+        gwInput?.classList.remove('input-error');
       }
     });
-    if (firstInvalid) {
-      this.showMessage('Validation Error', 'Please enter an employee name for tasks marked as Others.', 'danger');
-      firstInvalid.focus();
-      return false;
-    }
     return true;
   },
 
@@ -1690,22 +1699,34 @@ const Workflow = {
       updatedAt: now
     };
 
+    if (!this.editingId) {
+      record.requestedBy = Auth.user.id;
+    }
+
     // Collect tasks from rows
     const taskRows = form.querySelectorAll('.task-row');
     const tasks = [];
     taskRows.forEach(row => {
       const title = row.querySelector('.task-title-input').value.trim();
       if (!title) return;
-      const assigneeSel = row.querySelector('.task-assignee');
-      const assigneeOtherInput = row.querySelector('.task-assignee-other');
-      const isManualAssignee = assigneeSel.value === 'others';
+      const gwAutocomplete = row.querySelector('.task-assignee-groundworker');
+      const groundWorkerName = gwAutocomplete?.searchText?.trim() || '';
+
+      // Auto-register new ground workers
+      if (groundWorkerName) {
+        const existing = (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === groundWorkerName.toLowerCase());
+        if (!existing) {
+          DB.insert('groundWorkers', { id: generateId('gw'), name: groundWorkerName });
+        }
+      }
+
       const predKeysStr = row.dataset.predKeys || '';
       const predecessorKeys = predKeysStr.split(',').filter(Boolean);
       tasks.push({
         key: row.dataset.taskKey || generateId('tmp'),
         title,
-        assigneeId: isManualAssignee ? null : (assigneeSel.value || null),
-        assigneeName: isManualAssignee ? (assigneeOtherInput.value.trim() || null) : null,
+        assigneeId: null,
+        assigneeName: groundWorkerName || null,
         predecessorKeys: predecessorKeys
       });
     });
@@ -1755,7 +1776,11 @@ const Workflow = {
         dueDate: record.dueDate,
         createdAt: existing?.createdAt || now,
         updatedAt: now,
-        sortOrder: i
+        sortOrder: i,
+        checklist: existing?.checklist || [],
+        timeLogs: existing?.timeLogs || [],
+        taskDocuments: existing?.taskDocuments || [],
+        comments: existing?.comments || []
       };
     });
 
@@ -1902,12 +1927,17 @@ const Workflow = {
     const isArchived = wr.status === 'Cancelled';
 
     // End-of-day time log reminder banner (Manila 5 PM+)
+    // Show to the Work Request owner (assignedTo or requestedBy) when ground worker tasks are missing today's log.
     const now = new Date();
     const manilaHour = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' })).getHours();
-    if (manilaHour >= 17 && !isArchived) {
-      const myTasks = sortedTasks.filter(t => (t.assigneeId || t.assignedTo) === Auth.user.id && t.status !== 'Completed' && t.status !== 'Cancelled');
+    const isWrOwner = wr.assignedTo === Auth.user.id || wr.requestedBy === Auth.user.id;
+    if (manilaHour >= 17 && !isArchived && isWrOwner) {
       const todayStr = now.toISOString().slice(0, 10);
-      const missingLogTasks = myTasks.filter(t => !(t.timeLogs || []).some(l => l.date === todayStr));
+      const missingLogTasks = sortedTasks.filter(t =>
+        t.assigneeName && !t.assigneeId &&
+        t.status !== 'Completed' && t.status !== 'Cancelled' &&
+        !(t.timeLogs || []).some(l => l.date === todayStr)
+      );
       if (missingLogTasks.length > 0) {
         const reminderBanner = el('div', {
           style: 'background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;'
@@ -1918,7 +1948,7 @@ const Workflow = {
         }));
         const reminderText = el('div', { style: 'flex:1;' });
         reminderText.appendChild(el('div', {
-          text: `⏰ End of day reminder: You haven't logged time today for ${missingLogTasks.length} assigned task(s).`,
+          text: `⏰ End of day reminder: ${missingLogTasks.length} ground worker task(s) are missing a time log for today.`,
           style: 'font-weight:600;color:#92400e;font-size:13px;'
         }));
         const logBtn = el('button', {
@@ -2097,6 +2127,27 @@ const Workflow = {
           }
         }
         titleWrap.appendChild(titleAndDeps);
+
+        // Request Log button for ground worker assignments
+        if (t.assigneeName && !t.assigneeId) {
+          const requestLogBtn = el('button', {
+            type: 'button',
+            class: 'btn btn-ghost btn-xs',
+            html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Request Log',
+            style: 'margin-left:auto;white-space:nowrap;font-size:11px;padding:2px 8px;'
+          });
+          requestLogBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = `Subject: Time Log Request: ${t.title}\n\nHi ${t.assigneeName},\n\nPlease reply with your time log for today for the task: ${t.title} (Work Request: ${wr.title}).\n\nPlease include:\n- Start Time:\n- End Time:\n- Brief description of what you accomplished:\n\nThank you!`;
+            navigator.clipboard.writeText(text).then(() => {
+              this.showMessage('Copied', `Time log request copied for ${t.assigneeName}.`, 'success');
+            }).catch(() => {
+              this.showMessage('Error', 'Could not copy to clipboard.', 'danger');
+            });
+          });
+          titleWrap.appendChild(requestLogBtn);
+        }
+
         tdTitle.appendChild(titleWrap);
         tr.appendChild(tdTitle);
 
@@ -2105,100 +2156,25 @@ const Workflow = {
         tdAssignee.addEventListener('click', (e) => e.stopPropagation()); // Prevent accordion toggle
         
         if (wr.status === 'Draft') {
-          const assigneeSel = el('select', { class: 'form-select inline-assignee-select', style: 'width: 100%; min-width: 130px; font-size: 13px; padding: 4px;' });
-          assigneeSel.appendChild(el('option', { value: '', text: '— Unassigned —' }));
-          
-          const wrEntity = wr.entity || Auth.activeEntity;
-          const staffPool = DB.getWhere('users', u => u.entities.includes(wrEntity) || u.entities.includes(wrEntity.toLowerCase()) || wrEntity === 'ALL');
-          
-          staffPool.forEach(u => {
-            const opt = el('option', { value: u.id, text: u.name });
-            if (t.assigneeId === u.id || t.assignedTo === u.id) opt.selected = true;
-            assigneeSel.appendChild(opt);
-          });
-          
-          assigneeSel.appendChild(el('option', { value: 'others', text: 'Others...' }));
-          
-          const assigneeOtherInput = el('input', {
-            type: 'text',
-            class: 'form-control task-assignee-other',
-            placeholder: 'Type assignee name',
-            value: t.assigneeName || '',
-            style: 'font-size: 13px; padding: 4px; display: none;'
-          });
-
-          const backBtn = el('button', {
-            type: 'button',
-            class: 'btn btn-ghost btn-sm btn-assignee-back',
-            html: '&#x2190;', // arrow ←
-            title: 'Back to selection',
-            style: 'display: none;'
-          });
-          
-          if (t.assigneeName) {
-            assigneeSel.value = 'others';
-            assigneeSel.style.display = 'none';
-            assigneeOtherInput.style.display = 'block';
-            backBtn.style.display = 'inline-block';
-          } else {
-            assigneeSel.style.display = 'block';
-            assigneeOtherInput.style.display = 'none';
-            backBtn.style.display = 'none';
-          }
-          
-          assigneeSel.addEventListener('change', () => {
-            const isOthers = assigneeSel.value === 'others';
-            if (isOthers) {
-              assigneeSel.style.display = 'none';
-              assigneeOtherInput.style.display = 'block';
-              backBtn.style.display = 'inline-block';
-              assigneeOtherInput.focus();
-            } else {
-              assigneeOtherInput.style.display = 'none';
-              backBtn.style.display = 'none';
-              assigneeOtherInput.value = '';
-              DB.update('tasks', t.id, { 
-                assigneeId: assigneeSel.value || null, 
-                assigneeName: null, 
-                status: assigneeSel.value ? 'Assigned' : 'Draft',
-                updatedAt: new Date().toISOString() 
-              });
-              App.handleRoute();
-            }
-          });
-          
-          assigneeOtherInput.addEventListener('change', () => {
-            const val = assigneeOtherInput.value.trim();
-            if (val) {
-              DB.update('tasks', t.id, { 
-                assigneeId: null, 
-                assigneeName: val, 
-                status: 'Assigned',
-                updatedAt: new Date().toISOString() 
+          // Ground worker assignee — typable dropdown like the filter tray
+          const gwDropdown = this.createGroundWorkerDropdown({
+            selectedGroundWorkerName: t.assigneeName || '',
+            placeholder: 'Employee...',
+            className: 'inline-ground-worker-autocomplete',
+            onChange: ({ assigneeName }) => {
+              const name = assigneeName || '';
+              DB.update('tasks', t.id, {
+                assigneeId: null,
+                assigneeName: name || null,
+                status: name ? 'Assigned' : 'Draft',
+                updatedAt: new Date().toISOString()
               });
               App.handleRoute();
             }
           });
 
-          backBtn.addEventListener('click', () => {
-            assigneeSel.value = '';
-            assigneeOtherInput.value = '';
-            assigneeOtherInput.style.display = 'none';
-            backBtn.style.display = 'none';
-            assigneeSel.style.display = 'block';
-            DB.update('tasks', t.id, {
-              assigneeId: null,
-              assigneeName: null,
-              status: 'Draft',
-              updatedAt: new Date().toISOString()
-            });
-            App.handleRoute();
-          });
-          
           const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
-          assigneeWrap.appendChild(assigneeSel);
-          assigneeWrap.appendChild(assigneeOtherInput);
-          assigneeWrap.appendChild(backBtn);
+          assigneeWrap.appendChild(gwDropdown);
           tdAssignee.appendChild(assigneeWrap);
         } else {
           const assigneeWrap = el('div', { style: 'display:flex; align-items:center; gap:var(--spacing-xs);' });
@@ -2582,13 +2558,16 @@ const Workflow = {
             const dateStr = logDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', weekday: 'short' });
             
             const item = el('div', { class: 'detail-item-v2', style: 'display:flex; flex-direction:column; gap:4px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #e2e8f0;' });
-            
+
             const mainRow = el('div', { style: 'display:flex; justify-content:space-between; align-items:center; width:100%;' });
             mainRow.appendChild(el('span', { text: `${dateStr} • ${l.startTime} - ${l.endTime}`, style: 'font-weight:600;' }));
             mainRow.appendChild(el('span', { class: 'kpi-label', text: `${l.hours}h`, style: 'font-size:11px;' }));
-            
+
             item.appendChild(mainRow);
-            
+
+            const workerLabel = l.workerName || (DB.getById('users', l.userId)?.name || l.userId || 'Unknown');
+            item.appendChild(el('span', { text: `Worker: ${workerLabel}`, style: 'font-size:11px; color:var(--color-text-muted);' }));
+
             if (l.note) {
               item.appendChild(el('span', { text: l.note, style: 'font-size:11px; color:var(--color-text-muted); font-style:italic;' }));
             }
@@ -2597,6 +2576,96 @@ const Workflow = {
         }
         timeSection.appendChild(timeList);
         detailsGrid.appendChild(timeSection);
+
+        // Requirements Checklist Section
+        const checklistSection = el('div', { class: 'task-details-col' });
+        const checklistHeader = el('div', { class: 'details-section-title' });
+        checklistHeader.appendChild(el('span', { text: 'Requirements Checklist' }));
+        checklistSection.appendChild(checklistHeader);
+
+        const checklistList = el('div', { class: 'details-content-list' });
+        const normalizedChecklist = (t.checklist || []).map(item => {
+          if (typeof item === 'string') return { id: generateId('chk'), text: item, completed: false };
+          return item;
+        });
+
+        const renderChecklist = () => {
+          checklistList.innerHTML = '';
+          if (normalizedChecklist.length === 0) {
+            checklistList.appendChild(el('div', { class: 'empty-state', text: 'No checklist items.' }));
+          } else {
+            normalizedChecklist.forEach((item, idx) => {
+              const row = el('div', { class: 'detail-item-v2 checklist-item-row', style: 'display:flex; align-items:center; gap:8px; padding:4px 0;' });
+              const cb = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
+              cb.checked = !!item.completed;
+              const text = el('span', { text: item.text, style: item.completed ? 'text-decoration:line-through; color:var(--color-text-muted);' : '' });
+              cb.addEventListener('change', (e) => {
+                e.stopPropagation();
+                item.completed = cb.checked;
+                text.style.textDecoration = item.completed ? 'line-through' : '';
+                text.style.color = item.completed ? 'var(--color-text-muted)' : '';
+                DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+              });
+              row.appendChild(cb);
+              row.appendChild(text);
+
+              const assigneeDropdown = this.createGroundWorkerDropdown({
+                selectedGroundWorkerName: item.assigneeName,
+                placeholder: 'Assign...',
+                maxWidth: '150px',
+                className: 'checklist-assignee-dropdown',
+                onChange: ({ assigneeName }) => {
+                  item.assigneeId = null;
+                  item.assigneeName = assigneeName || null;
+                  DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                }
+              });
+              row.appendChild(assigneeDropdown);
+
+              const delBtn = el('button', {
+                type: 'button',
+                class: 'btn btn-ghost btn-xs',
+                text: '×',
+                style: 'color:var(--color-danger); font-size:1.2rem; padding:0 4px; line-height:1;'
+              });
+              delBtn.title = 'Delete checklist item';
+              delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                normalizedChecklist.splice(idx, 1);
+                DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                renderChecklist();
+              });
+              row.appendChild(delBtn);
+              checklistList.appendChild(row);
+            });
+          }
+        };
+
+        const addChecklistRow = el('div', { style: 'display:flex; gap:8px; margin-top:8px;' });
+        const newItemInput = el('input', { type: 'text', placeholder: 'Add checklist item...', style: 'flex:1; font-size:0.85rem;' });
+        const addItemBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Add Item' });
+        addItemBtn.addEventListener('click', () => {
+          const val = newItemInput.value.trim();
+          if (!val) return;
+          normalizedChecklist.push({ id: generateId('chk'), text: val, completed: false, assigneeId: null, assigneeName: null });
+          DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+          newItemInput.value = '';
+          renderChecklist();
+        });
+        newItemInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            addItemBtn.click();
+          }
+        });
+        addChecklistRow.appendChild(newItemInput);
+        addChecklistRow.appendChild(addItemBtn);
+
+        checklistSection.appendChild(checklistList);
+        checklistSection.appendChild(addChecklistRow);
+        detailsGrid.appendChild(checklistSection);
+
+        renderChecklist();
 
         detailsContainer.appendChild(detailsGrid);
         detailsTd.appendChild(detailsContainer);
@@ -2927,8 +2996,22 @@ const Workflow = {
   },
 
   showAddTimeLogModal(taskId) {
+    const task = DB.getById('tasks', taskId);
+    const defaultWorkerName = task?.assigneeName
+      ? task.assigneeName
+      : (task?.assigneeId || task?.assignedTo)
+        ? (DB.getById('users', task.assigneeId || task.assignedTo)?.name || '')
+        : '';
+
     const form = el('form', { class: 'form-stacked' });
-    
+
+    // Worker Name field
+    const workerInput = el('input', { type: 'text', name: 'workerName', placeholder: 'Worker name', value: defaultWorkerName });
+    form.appendChild(el('div', { class: 'form-group' }, [
+      el('label', { text: 'Worker Name' }),
+      workerInput
+    ]));
+
     // Date field
     const dateInput = el('input', { type: 'date', name: 'date', required: true, value: new Date().toISOString().slice(0, 10) });
     form.appendChild(el('div', { class: 'form-group' }, [
@@ -3002,8 +3085,11 @@ const Workflow = {
         return;
       }
       const hours = Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 60 * 4) / 4;
+      const workerName = workerInput.value.trim() || (DB.getById('users', Auth.user.id)?.name || '');
       const entry = {
         userId: Auth.user.id,
+        loggedByUserId: Auth.user.id,
+        workerName,
         startTime: start,
         endTime: end,
         date: dateVal,
@@ -3011,11 +3097,12 @@ const Workflow = {
         hours
       };
       const task = DB.getById('tasks', taskId);
-      
-      // Guard: prevent double time log for the same day by the same user
-      const alreadyLogged = (task.timeLogs || []).some(l => l.date === entry.date && l.userId === Auth.user.id);
+
+      // Guard: prevent the same worker from logging twice on the same day for this task.
+      // Different workers may each log once per day.
+      const alreadyLogged = (task.timeLogs || []).some(l => l.date === entry.date && (l.workerName || '') === workerName);
       if (alreadyLogged) {
-        this.showMessage('Warning', `You have already logged time for this task on ${dateVal}.`, 'warning');
+        this.showMessage('Warning', `${workerName} has already logged time for this task on ${dateVal}.`, 'warning');
         return;
       }
 
@@ -3028,67 +3115,122 @@ const Workflow = {
 
   showAddTaskModal(wrId, onAdded) {
     const form = el('form', { class: 'form-stacked' });
+
+    // Standard Task Template state
+    let checklistItems = [];
+    let checklistFromTemplate = false;
+    const wr = DB.getById('workRequests', wrId);
+
+    // Standard Task Template dropdown
+    const templateGroup = el('div', { class: 'form-group' });
+    templateGroup.appendChild(el('label', { text: 'Standard Task Template' }));
+    const templateSel = el('select', { name: 'template' });
+    templateSel.appendChild(el('option', { value: '', text: '— Custom —' }));
+    this.standardTaskTemplates.forEach((tmpl, idx) => {
+      templateSel.appendChild(el('option', { value: String(idx), text: tmpl.title }));
+    });
+    templateGroup.appendChild(templateSel);
+    form.appendChild(templateGroup);
+
+    // Task Title
+    const titleInput = el('input', { type: 'text', name: 'title', required: true });
     form.appendChild(el('div', { class: 'form-group' }, [
       el('label', { text: 'Task Title *' }),
-      el('input', { type: 'text', name: 'title', required: true })
+      titleInput
     ]));
-    
-    const assigneeGroup = el('div', { class: 'form-group' });
-    assigneeGroup.appendChild(el('label', { text: 'Assignee' }));
-    const assigneeSel = el('select', { name: 'assigneeId' });
-    assigneeSel.appendChild(el('option', { value: '', text: '— Select Assignee —' }));
-    DB.getAll('users').forEach(u => {
-      assigneeSel.appendChild(el('option', { value: u.id, text: u.name }));
-    });
-    assigneeSel.appendChild(el('option', { value: 'others', text: 'Others' }));
-    const assigneeOtherInput = el('input', {
-      type: 'text',
-      name: 'assigneeName',
-      placeholder: 'Type assignee name',
-      style: 'display: none;'
-    });
 
-    const backBtn = el('button', {
-      type: 'button',
-      class: 'btn btn-ghost btn-sm btn-assignee-back',
-      html: '&#x2190;', // arrow ←
-      title: 'Back to selection',
-      style: 'display: none;'
-    });
+    // Checklist builder
+    const checklistGroup = el('div', { class: 'form-group' });
+    checklistGroup.appendChild(el('label', { text: 'Checklist Items' }));
+    const checklistContainer = el('div', { class: 'checklist-items-container' });
 
-    const showDropdown = () => {
-      assigneeSel.style.display = 'block';
-      assigneeOtherInput.style.display = 'none';
-      backBtn.style.display = 'none';
-      assigneeSel.value = '';
-      assigneeOtherInput.value = '';
-      assigneeOtherInput.required = false;
-      assigneeOtherInput.classList.remove('input-error');
+    const checklistBuilder = el('div', { style: 'display:flex; gap:8px; align-items:center;' });
+    const checklistInput = el('input', { type: 'text', placeholder: 'Add a checklist item...', style: 'flex:1;' });
+    const addChecklistBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Add' });
+    checklistBuilder.appendChild(checklistInput);
+    checklistBuilder.appendChild(addChecklistBtn);
+    checklistContainer.appendChild(checklistBuilder);
+    checklistGroup.appendChild(checklistContainer);
+    form.appendChild(checklistGroup);
+
+    const renderChecklist = () => {
+      const existingList = checklistContainer.querySelector('.checklist-items-list');
+      if (existingList) existingList.remove();
+      if (checklistItems.length === 0) return;
+
+      const list = el('div', { class: 'checklist-items-list', style: 'display:flex; flex-direction:column; gap:6px; margin-top:8px;' });
+      checklistItems.forEach((item, idx) => {
+        const row = el('div', { style: 'display:flex; align-items:center; gap:8px; padding:6px 8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px;' });
+        row.appendChild(el('span', { text: item.text, style: 'flex:1; font-size:0.85rem;' }));
+
+        const assigneeDropdown = this.createGroundWorkerDropdown({
+          selectedGroundWorkerName: item.assigneeName,
+          placeholder: 'Assign...',
+          maxWidth: '140px',
+          className: 'modal-checklist-assignee',
+          onChange: ({ assigneeName }) => {
+            item.assigneeId = null;
+            item.assigneeName = assigneeName || null;
+          }
+        });
+        row.appendChild(assigneeDropdown);
+
+        const delBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×' });
+        delBtn.addEventListener('click', () => {
+          checklistItems.splice(idx, 1);
+          checklistFromTemplate = false;
+          renderChecklist();
+        });
+        row.appendChild(delBtn);
+        list.appendChild(row);
+      });
+      checklistContainer.insertBefore(list, checklistBuilder);
     };
 
-    const showInput = () => {
-      assigneeSel.style.display = 'none';
-      assigneeOtherInput.style.display = 'block';
-      backBtn.style.display = 'inline-block';
-      assigneeSel.value = 'others';
-      assigneeOtherInput.required = true;
-      assigneeOtherInput.focus();
+    const addChecklistItem = () => {
+      const val = checklistInput.value.trim();
+      if (!val) return;
+      checklistItems.push({ text: val, assigneeId: null, assigneeName: null });
+      checklistFromTemplate = false;
+      checklistInput.value = '';
+      renderChecklist();
     };
-
-    assigneeSel.addEventListener('change', () => {
-      if (assigneeSel.value === 'others') {
-        showInput();
+    addChecklistBtn.addEventListener('click', addChecklistItem);
+    checklistInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addChecklistItem();
       }
     });
 
-    backBtn.addEventListener('click', () => {
-      showDropdown();
+    templateSel.addEventListener('change', () => {
+      const idx = parseInt(templateSel.value, 10);
+      if (!isNaN(idx) && this.standardTaskTemplates[idx]) {
+        const tmpl = this.standardTaskTemplates[idx];
+        titleInput.value = tmpl.title;
+        checklistItems = tmpl.defaultChecklist.map(text => ({ text, assigneeId: null, assigneeName: null }));
+        checklistFromTemplate = true;
+      } else {
+        if (checklistFromTemplate) {
+          checklistItems = [];
+        }
+        checklistFromTemplate = false;
+      }
+      renderChecklist();
+    });
+
+    const assigneeGroup = el('div', { class: 'form-group' });
+    assigneeGroup.appendChild(el('label', { text: 'Assignee' }));
+
+    // Ground worker assignee — typable dropdown like the filter tray
+    const gwDropdown = this.createGroundWorkerDropdown({
+      placeholder: 'Employee...',
+      className: 'modal-task-assignee',
+      onChange: () => {} // value read at submit time
     });
 
     const assigneeWrapper = el('div', { class: 'task-assignee-wrapper' });
-    assigneeWrapper.appendChild(assigneeSel);
-    assigneeWrapper.appendChild(assigneeOtherInput);
-    assigneeWrapper.appendChild(backBtn);
+    assigneeWrapper.appendChild(gwDropdown);
     assigneeGroup.appendChild(assigneeWrapper);
     form.appendChild(assigneeGroup);
 
@@ -3202,30 +3344,38 @@ const Workflow = {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       if (!validateRequiredFields(form)) return;
-      if (assigneeSel.value === 'others' && !assigneeOtherInput.value.trim()) {
-        assigneeOtherInput.classList.add('input-error');
-        assigneeOtherInput.focus();
-        this.showMessage('Validation Error', 'Please enter an employee name.', 'danger');
-        return;
-      }
-      assigneeOtherInput.classList.remove('input-error');
+      const groundWorkerName = gwDropdown.searchText.trim();
       const data = Object.fromEntries(new FormData(form).entries());
-      const isManualAssignee = data.assigneeId === 'others';
       const allExistingIds = existingTasks.map(t => t.id);
       const predecessors = selectedPreds.includes('*') ? allExistingIds : selectedPreds;
+
+      // Auto-register new ground workers
+      if (groundWorkerName) {
+        const existing = (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === groundWorkerName.toLowerCase());
+        if (!existing) {
+          DB.insert('groundWorkers', { id: generateId('gw'), name: groundWorkerName });
+        }
+      }
 
       const newTask = {
         id: generateId('t'),
         workRequestId: wrId,
         title: data.title.trim(),
-        assigneeId: isManualAssignee ? null : (data.assigneeId || null),
-        assigneeName: isManualAssignee ? (data.assigneeName?.trim() || null) : null,
-        status: (isManualAssignee || data.assigneeId) ? 'Assigned' : 'Draft',
+        assigneeId: null,
+        assigneeName: groundWorkerName || null,
+        status: groundWorkerName ? 'Assigned' : 'Draft',
         priority: data.priority || 'Normal',
         dueDate: data.dueDate || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         predecessors,
+        checklist: checklistItems.map(item => ({
+          id: generateId('chk'),
+          text: item.text,
+          completed: false,
+          assigneeId: item.assigneeId || null,
+          assigneeName: item.assigneeName || null
+        })),
         timeLogs: [],
         taskDocuments: [],
         comments: []
@@ -3468,6 +3618,17 @@ const Workflow = {
     }
     if ((newStatus === 'In Progress' || newStatus === 'Completed') && !this.canStart(taskId)) {
       return { error: 'Dependency tasks must be completed first.' };
+    }
+
+    if (newStatus === 'Completed' || newStatus === 'For Review') {
+      const checklist = task.checklist || [];
+      const hasIncomplete = checklist.some(item => {
+        if (typeof item === 'string') return true;
+        return !item.completed;
+      });
+      if (hasIncomplete) {
+        return { error: `All checklist items must be completed before marking this task as ${newStatus}.` };
+      }
     }
 
     const now = new Date().toISOString();
@@ -3733,16 +3894,24 @@ const Workflow = {
     taskRows.forEach(row => {
       const title = row.querySelector('.task-title-input').value.trim();
       if (!title) return;
-      const assigneeSel = row.querySelector('.task-assignee');
-      const assigneeOtherInput = row.querySelector('.task-assignee-other');
-      const isManualAssignee = assigneeSel?.value === 'others';
+      const gwAutocomplete = row.querySelector('.task-assignee-groundworker');
+      const groundWorkerName = gwAutocomplete?.searchText?.trim() || '';
+
+      // Auto-register new ground workers
+      if (groundWorkerName) {
+        const existing = (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === groundWorkerName.toLowerCase());
+        if (!existing) {
+          DB.insert('groundWorkers', { id: generateId('gw'), name: groundWorkerName });
+        }
+      }
+
       const predKeysStr = row.dataset.predKeys || '';
       const predecessorKeys = predKeysStr.split(',').filter(Boolean);
       tasks.push({
         key: row.dataset.taskKey || generateId('tmp'),
         title,
-        assigneeId: isManualAssignee ? null : (assigneeSel?.value || null),
-        assigneeName: isManualAssignee ? (assigneeOtherInput?.value.trim() || null) : null,
+        assigneeId: null,
+        assigneeName: groundWorkerName || null,
         predecessorKeys: predecessorKeys
       });
     });

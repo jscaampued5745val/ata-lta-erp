@@ -20,6 +20,22 @@ function makeId(prefix, num) {
   return prefix + '-' + String(num).padStart(4, '0');
 }
 
+function defaultRequirementChecklist(taskId) {
+  const items = [
+    'SEC Certificate',
+    'Articles of Incorporation',
+    "Mayor's Permit",
+    'BIR Form 1901/1903'
+  ];
+  return items.map((text, i) => ({
+    id: taskId + '-cl-' + String(i + 1).padStart(3, '0'),
+    text,
+    completed: false,
+    assigneeId: null,
+    assigneeName: null
+  }));
+}
+
 const seedData = {
   schemaVersion: 3,
 
@@ -134,6 +150,12 @@ const seedData = {
       avatarUrl: 'https://randomuser.me/api/portraits/men/10.jpg',
       createdAt: now
     }
+  ],
+
+  groundWorkers: [
+    { id: makeId('gw', 1), name: 'Juan dela Cruz' },
+    { id: makeId('gw', 2), name: 'Maria Santos' },
+    { id: makeId('gw', 3), name: 'Pedro Garcia' }
   ],
 
   clients: [
@@ -1567,20 +1589,54 @@ const seedData = {
   disbursementTemplates: []
 };
 
+// Seed derived/default fields for Phase 1.
+(function seedTaskChecklists() {
+  seedData.tasks.forEach(t => {
+    const titleLower = (t.title || '').toLowerCase();
+    if (titleLower.includes('requirement') || titleLower.includes('gather')) {
+      t.checklist = defaultRequirementChecklist(t.id);
+    } else if (!Array.isArray(t.checklist)) {
+      t.checklist = [];
+    }
+  });
+})();
+
+(function seedTaskTimeLogAttribution() {
+  const userNameById = Object.fromEntries(seedData.users.map(u => [u.id, u.name]));
+  seedData.tasks.forEach(t => {
+    if (!Array.isArray(t.timeLogs)) {
+      t.timeLogs = [];
+    }
+    t.timeLogs.forEach(log => {
+      if (!('loggedByUserId' in log) && log.userId) {
+        log.loggedByUserId = log.userId;
+      }
+      if (!('workerName' in log)) {
+        log.workerName = userNameById[log.userId || log.loggedByUserId] || t.assigneeName || 'Unknown';
+      }
+    });
+  });
+})();
+
 // ============================================================
 // LOCALSTORAGE DB API
 // ============================================================
 
 const DB = {
-  SCHEMA_VERSION: 9,
+  SCHEMA_VERSION: 11,
 
   init() {
     const stored = localStorage.getItem('erp_schema_version');
-    if (!stored || parseInt(stored, 10) !== this.SCHEMA_VERSION) {
-      const oldVersion = stored ? parseInt(stored, 10) : 0;
+    let oldVersion = stored ? parseInt(stored, 10) : 0;
+    if (!stored || oldVersion !== this.SCHEMA_VERSION) {
       if (oldVersion === 2) {
         this.migrateV2ToV3();
-      } else {
+        oldVersion = 3;
+      }
+      if (oldVersion > 0 && oldVersion < this.SCHEMA_VERSION) {
+        if (oldVersion < 10) this.migrateV9ToV10();
+        if (oldVersion < 11) this.migrateV10ToV11();
+      } else if (oldVersion === 0) {
         this.resetToSeed();
       }
     }
@@ -1679,6 +1735,61 @@ const DB = {
     if (!localStorage.getItem('erp_transmittals')) this.save('transmittals', []);
     if (!localStorage.getItem('erp_billingTemplates')) this.save('billingTemplates', []);
     if (!localStorage.getItem('erp_disbursementTemplates')) this.save('disbursementTemplates', []);
+
+    localStorage.setItem('erp_schema_version', '3');
+  },
+
+  migrateV9ToV10() {
+    const users = this.getAll('users');
+    const userNameById = {};
+    users.forEach(u => { userNameById[u.id] = u.name; });
+
+    const tasks = this.getAll('tasks');
+    tasks.forEach(t => {
+      if (!Array.isArray(t.checklist)) {
+        t.checklist = [];
+      }
+      if (!Array.isArray(t.timeLogs)) {
+        t.timeLogs = [];
+      }
+      t.timeLogs.forEach(log => {
+        if (!('loggedByUserId' in log) && log.userId) {
+          log.loggedByUserId = log.userId;
+        }
+        if (!('workerName' in log)) {
+          log.workerName = userNameById[log.userId || log.loggedByUserId] || t.assigneeName || 'Unknown';
+        }
+      });
+    });
+    this.save('tasks', tasks);
+
+    if (!localStorage.getItem('erp_groundWorkers')) {
+      this.save('groundWorkers', seedData.groundWorkers || []);
+    }
+
+    localStorage.setItem('erp_schema_version', '10');
+  },
+
+  migrateV10ToV11() {
+    const tasks = this.getAll('tasks');
+    tasks.forEach(t => {
+      if (!Array.isArray(t.checklist)) {
+        t.checklist = [];
+      }
+      t.checklist = t.checklist.map(item => {
+        if (typeof item === 'string') {
+          return { id: generateId('chk'), text: item, completed: false, assigneeId: null, assigneeName: null };
+        }
+        return {
+          id: item.id || generateId('chk'),
+          text: item.text || '',
+          completed: !!item.completed,
+          assigneeId: item.assigneeId || null,
+          assigneeName: item.assigneeName || null
+        };
+      });
+    });
+    this.save('tasks', tasks);
 
     localStorage.setItem('erp_schema_version', String(this.SCHEMA_VERSION));
   },
