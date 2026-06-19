@@ -171,6 +171,12 @@ const Billing = {
     }).forEach(u => {
       empOptions.push({ value: u.id, text: u.name });
     });
+    (DB.getAll('tasks') || []).forEach(t => {
+      const name = (t.assigneeName || '').trim();
+      if (name && !empOptions.some(opt => opt.value === name || opt.text === name)) {
+        empOptions.push({ value: name, text: name });
+      }
+    });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions });
     filters.appendChild(empFilter);
 
@@ -273,8 +279,34 @@ const Billing = {
         const wr = DB.getById('workRequests', inv.workRequestId);
         return wr && wr.id === wrFilter.value;
       });
-      if (clientFilter.value) invoices = invoices.filter(inv => inv.clientId === clientFilter.value);
-      if (empFilter.value) invoices = invoices.filter(inv => inv.createdBy === empFilter.value);
+      const selectedClient = clientFilter.value ? DB.getById('clients', clientFilter.value) : null;
+      if (selectedClient && selectedClient.name === clientFilter.searchText) {
+        invoices = invoices.filter(inv => inv.clientId === clientFilter.value);
+      } else if (clientFilter.searchText && clientFilter.searchText.trim() !== '') {
+        const query = clientFilter.searchText.trim().toLowerCase();
+        invoices = invoices.filter(inv => {
+          const client = DB.getById('clients', inv.clientId);
+          return client && client.name.toLowerCase().includes(query);
+        });
+      }
+      if (empFilter.searchText && empFilter.searchText.trim() !== '') {
+        const query = empFilter.searchText.trim().toLowerCase();
+        invoices = invoices.filter(inv => {
+          const creator = inv.createdBy ? DB.getById('users', inv.createdBy) : null;
+          if (creator && creator.name.toLowerCase().includes(query)) return true;
+          const tasks = inv.workRequestId ? DB.getWhere('tasks', t => t.workRequestId === inv.workRequestId) : [];
+          return tasks.some(t => {
+            if (t.assigneeId) {
+              const u = DB.getById('users', t.assigneeId);
+              if (u && u.name.toLowerCase().includes(query)) return true;
+            }
+            if (t.assigneeName && t.assigneeName.toLowerCase().includes(query)) return true;
+            return false;
+          });
+        });
+      } else if (empFilter.value) {
+        invoices = invoices.filter(inv => inv.createdBy === empFilter.value);
+      }
       if (dateFrom.value) invoices = invoices.filter(inv => inv.issueDate >= dateFrom.value);
       if (dateTo.value) invoices = invoices.filter(inv => inv.issueDate <= dateTo.value);
       if (statusFilter.value) invoices = invoices.filter(inv => inv.status === statusFilter.value);
@@ -285,6 +317,7 @@ const Billing = {
     };
 
     [wrFilter, clientFilter, empFilter, dateFrom, dateTo, statusFilter].forEach(el => el.addEventListener('change', () => { saveCurrentFilters(); refresh(); }));
+    [empFilter, clientFilter].forEach(el => el.addEventListener('input', () => { saveCurrentFilters(); refresh(); }));
     refresh();
 
     return wrapper;
