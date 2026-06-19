@@ -402,6 +402,14 @@ const Users = {
     }
     filters.appendChild(userFilter);
 
+    // Client Filter
+    const clientOptions = [{ value: '', text: 'All Clients' }];
+    DB.getAll('clients').forEach(c => {
+      clientOptions.push({ value: c.id, text: c.name });
+    });
+    const clientFilter = createSearchableDropdown({ placeholder: 'All Clients', options: clientOptions });
+    filters.appendChild(clientFilter);
+
     filters.appendChild(el('span', { text: 'From:', style: 'font-size: 0.875rem; color: var(--color-text-muted);' }));
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
     filters.appendChild(dateFrom);
@@ -410,16 +418,13 @@ const Users = {
     const dateTo = el('input', { type: 'date', class: 'form-select' });
     filters.appendChild(dateTo);
 
-    const filterBtn = el('button', { class: 'btn btn-primary', text: 'Filter' });
-    filterBtn.addEventListener('click', () => this.refreshAuditLog(tableContainer, userFilter.value, dateFrom.value, dateTo.value));
-    filters.appendChild(filterBtn);
-
     const clearBtn = el('button', { class: 'btn btn-secondary', text: 'Clear' });
     clearBtn.addEventListener('click', () => {
       if (isAdmin) userFilter.value = '';
+      clientFilter.value = '';
       dateFrom.value = '';
       dateTo.value = '';
-      this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '');
+      this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '', '', '');
     });
     filters.appendChild(clearBtn);
 
@@ -427,17 +432,53 @@ const Users = {
 
     const tableContainer = el('div');
     wrapper.appendChild(tableContainer);
-    this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '');
+
+    const triggerRefresh = () => {
+      this.refreshAuditLog(tableContainer, userFilter.value, clientFilter.value, clientFilter.searchText, dateFrom.value, dateTo.value);
+    };
+
+    userFilter.addEventListener('change', triggerRefresh);
+    clientFilter.addEventListener('change', triggerRefresh);
+    clientFilter.addEventListener('input', triggerRefresh);
+    dateFrom.addEventListener('change', triggerRefresh);
+    dateTo.addEventListener('change', triggerRefresh);
+
+    this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '', '', '');
 
     return wrapper;
   },
 
-  refreshAuditLog(container, userId, dateFrom, dateTo) {
+  refreshAuditLog(container, userId, clientId, clientSearchText, dateFrom, dateTo) {
     this.clearNode(container);
     let logs = DB.getAll('auditLog');
 
     if (userId) {
       logs = logs.filter(l => l.userId === userId);
+    }
+
+    if (clientId || (clientSearchText && clientSearchText.trim() !== '')) {
+      const selectedClient = clientId ? DB.getById('clients', clientId) : null;
+      if (selectedClient && selectedClient.name === clientSearchText) {
+        logs = logs.filter(l => {
+          if (!l.details) return false;
+          const detailsLower = l.details.toLowerCase();
+          return detailsLower.includes(clientId.toLowerCase()) ||
+                 detailsLower.includes(selectedClient.name.toLowerCase());
+        });
+      } else if (clientSearchText && clientSearchText.trim() !== '') {
+        const query = clientSearchText.trim().toLowerCase();
+        const matchingClients = DB.getAll('clients').filter(c =>
+          c.id.toLowerCase().includes(query) || c.name.toLowerCase().includes(query)
+        );
+        logs = logs.filter(l => {
+          if (!l.details) return false;
+          const detailsLower = l.details.toLowerCase();
+          if (detailsLower.includes(query)) return true;
+          return matchingClients.some(c =>
+            detailsLower.includes(c.id.toLowerCase()) || detailsLower.includes(c.name.toLowerCase())
+          );
+        });
+      }
     }
 
     if (dateFrom) {

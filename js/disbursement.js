@@ -201,6 +201,12 @@ const Disbursement = {
     DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role)).forEach(u => {
       empOptions.push({ value: u.id, text: u.name });
     });
+    (DB.getAll('tasks') || []).forEach(t => {
+      const name = (t.assigneeName || '').trim();
+      if (name && !empOptions.some(opt => opt.value === name || opt.text === name)) {
+        empOptions.push({ value: name, text: name });
+      }
+    });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions, maxWidth: '180px' });
     filtersBar.appendChild(empFilter);
 
@@ -283,28 +289,50 @@ const Disbursement = {
     const listContainer = el('div');
     wrapper.appendChild(listContainer);
 
-    const refresh = () => this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, fundFilter.value, statusFilter.value, dateFrom.value, dateTo.value, viewMode);
+    const refresh = () => this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, fundFilter.value, statusFilter.value, dateFrom.value, dateTo.value, viewMode, empFilter.searchText, clientFilter.searchText);
     [wrFilter, clientFilter, empFilter, fundFilter, statusFilter, dateFrom, dateTo].forEach(f => f.addEventListener('change', () => { saveCurrentFilters(); refresh(); }));
+    [empFilter, clientFilter].forEach(el => el.addEventListener('input', () => { saveCurrentFilters(); refresh(); }));
 
     refresh();
 
     return wrapper;
   },
 
-  refreshList(container, wrFilter, clientFilter, empFilter, fundFilter, statusFilter, dateFrom, dateTo, viewMode) {
+  refreshList(container, wrFilter, clientFilter, empFilter, fundFilter, statusFilter, dateFrom, dateTo, viewMode, empSearchText, clientSearchText) {
     while (container.firstChild) container.removeChild(container.firstChild);
     const entity = Auth.activeEntity;
     let items = DB.getWhere('disbursements', d => (entity === 'ALL' ? Auth.user.entities.includes(d.entity) : d.entity === entity));
 
     if (wrFilter) items = items.filter(d => d.linkedWorkRequestId === wrFilter);
-    if (clientFilter) {
-      items = items.filter(d => {
-        if (!d.linkedWorkRequestId) return false;
-        const wr = DB.getById('workRequests', d.linkedWorkRequestId);
-        return wr && wr.clientId === clientFilter;
-      });
+    if (clientFilter || (clientSearchText && clientSearchText.trim() !== '')) {
+      const selectedClient = clientFilter ? DB.getById('clients', clientFilter) : null;
+      if (selectedClient && selectedClient.name === clientSearchText) {
+        items = items.filter(d => {
+          if (!d.linkedWorkRequestId) return false;
+          const wr = DB.getById('workRequests', d.linkedWorkRequestId);
+          return wr && wr.clientId === clientFilter;
+        });
+      } else if (clientSearchText && clientSearchText.trim() !== '') {
+        const query = clientSearchText.trim().toLowerCase();
+        items = items.filter(d => {
+          if (!d.linkedWorkRequestId) return false;
+          const wr = DB.getById('workRequests', d.linkedWorkRequestId);
+          if (!wr) return false;
+          const client = DB.getById('clients', wr.clientId);
+          return client && client.name.toLowerCase().includes(query);
+        });
+      }
     }
-    if (empFilter) items = items.filter(d => this.getEmployeeId(d) === empFilter);
+    if (empSearchText && empSearchText.trim() !== '') {
+      const query = empSearchText.trim().toLowerCase();
+      items = items.filter(d => {
+        const empId = d.employeeId || d.requestedBy;
+        const u = empId ? DB.getById('users', empId) : null;
+        return u && u.name.toLowerCase().includes(query);
+      });
+    } else if (empFilter) {
+      items = items.filter(d => this.getEmployeeId(d) === empFilter);
+    }
     if (fundFilter) items = items.filter(d => this.getFundSource(d) === fundFilter);
     if (statusFilter) {
       if (statusFilter === 'Pending') {
