@@ -32,7 +32,9 @@ function defaultRequirementChecklist(taskId) {
     text,
     completed: false,
     assigneeId: null,
-    assigneeName: null
+    assigneeName: null,
+    dependsOn: null,
+    timeLogs: []
   }));
 }
 
@@ -1618,12 +1620,20 @@ const seedData = {
   });
 })();
 
+(function seedTaskCoAssignees() {
+  seedData.tasks.forEach(t => {
+    if (!Array.isArray(t.coAssignees)) {
+      t.coAssignees = [];
+    }
+  });
+})();
+
 // ============================================================
 // LOCALSTORAGE DB API
 // ============================================================
 
 const DB = {
-  SCHEMA_VERSION: 11,
+  SCHEMA_VERSION: 12,
 
   init() {
     const stored = localStorage.getItem('erp_schema_version');
@@ -1636,6 +1646,7 @@ const DB = {
       if (oldVersion > 0 && oldVersion < this.SCHEMA_VERSION) {
         if (oldVersion < 10) this.migrateV9ToV10();
         if (oldVersion < 11) this.migrateV10ToV11();
+        if (oldVersion < 12) this.migrateV11ToV12();
       } else if (oldVersion === 0) {
         this.resetToSeed();
       }
@@ -1792,6 +1803,29 @@ const DB = {
     this.save('tasks', tasks);
 
     localStorage.setItem('erp_schema_version', String(this.SCHEMA_VERSION));
+  },
+
+  migrateV11ToV12() {
+    const tasks = this.getAll('tasks');
+    tasks.forEach(t => {
+      if (!Array.isArray(t.timeLogs)) {
+        t.timeLogs = [];
+      }
+      if (!Array.isArray(t.checklist)) {
+        t.checklist = [];
+      }
+      if (!Array.isArray(t.coAssignees)) {
+        t.coAssignees = [];
+      }
+      t.checklist.forEach(item => {
+        if (!item.id) item.id = generateId('chk');
+        item.dependsOn = item.dependsOn || null;
+        item.timeLogs = item.timeLogs || [];
+      });
+    });
+    this.save('tasks', tasks);
+
+    localStorage.setItem('erp_schema_version', '12');
   },
 
   getAll(table) {

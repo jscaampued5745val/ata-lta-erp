@@ -27,9 +27,28 @@ const Workflow = {
    * "Add employee: X" option and auto-registers it on selection/Enter/blur.
    * Returns the dropdown wrapper. `onChange` receives { assigneeId: null, assigneeName }.
    */
-  createGroundWorkerDropdown({ selectedGroundWorkerName, onChange, placeholder = 'Employee...', maxWidth, className } = {}) {
+  createGroundWorkerDropdown({ selectedGroundWorkerName, onChange, placeholder = 'Employee...', maxWidth, className, priorityNames = [] } = {}) {
+    const prioritySet = new Set((priorityNames || []).filter(Boolean));
+
     const buildOptions = () => {
-      return (DB.getAll('groundWorkers') || []).map(gw => ({ value: gw.id, text: gw.name }));
+      const groundWorkers = (DB.getAll('groundWorkers') || []);
+      const existingNames = new Set(groundWorkers.map(gw => gw.name));
+      const allNames = new Set([...existingNames, ...prioritySet]);
+
+      const sortedNames = Array.from(allNames).sort((a, b) => a.localeCompare(b));
+      const priority = sortedNames.filter(n => prioritySet.has(n));
+      const others = sortedNames.filter(n => !prioritySet.has(n));
+
+      const options = [];
+      priority.forEach(name => {
+        const gw = groundWorkers.find(g => g.name === name);
+        options.push({ value: gw ? gw.id : name, text: name });
+      });
+      others.forEach(name => {
+        const gw = groundWorkers.find(g => g.name === name);
+        options.push({ value: gw.id, text: name });
+      });
+      return options;
     };
 
     const dropdown = createSearchableDropdown({
@@ -130,10 +149,17 @@ const Workflow = {
       case 'Pre-processing':
         // Rule 2: All requirements gathered
         const reqTasks = tasks.filter(t => t.title.toLowerCase().includes('requirement') || t.title.toLowerCase().includes('gather'));
-        if (reqTasks.length > 0 && !reqTasks.every(t => t.status === 'Completed')) {
-          canTransition = false;
-          missing.push('Completion of requirement gathering tasks');
-        }
+        reqTasks.forEach(t => {
+          if (t.status !== 'Completed') {
+            canTransition = false;
+            const incompleteNames = getIncompleteChecklistNames(t);
+            if (incompleteNames.length > 0) {
+              missing.push(`Requirement task "${t.title}" is blocked: ${incompleteNames.join(', ')}`);
+            } else {
+              missing.push(`Requirement task "${t.title}" is not completed`);
+            }
+          }
+        });
         break;
 
       case 'Processing':
@@ -1771,6 +1797,7 @@ const Workflow = {
         title: t.title,
         assigneeId: t.assigneeId || null,
         assigneeName: t.assigneeName || null,
+        coAssignees: existing?.coAssignees || [],
         predecessors: resolvePredecessors(t, i),
         status: existing?.status || 'Draft',
         dueDate: record.dueDate,
@@ -1866,6 +1893,9 @@ const Workflow = {
     const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
 
     const container = el('div', { class: 'project-detail-v2' });
+    container.selectedTaskIds = new Set();
+    container.groupBy = 'phase';
+    container.activeFilters = new Set();
 
     // Beautified Sub-Header
     const subHeader = el('div', { class: 'detail-sub-header-v2' });
@@ -1927,28 +1957,30 @@ const Workflow = {
     const isArchived = wr.status === 'Cancelled';
 
     // End-of-day time log reminder banner (Manila 5 PM+)
-    // Show to the Work Request owner (assignedTo or requestedBy) when ground worker tasks are missing today's log.
+    // Show to the Work Request owner (assignedTo or requestedBy) when ground worker checklist items are missing today's log.
     const now = new Date();
     const manilaHour = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' })).getHours();
     const isWrOwner = wr.assignedTo === Auth.user.id || wr.requestedBy === Auth.user.id;
+    const todayStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })).toISOString().slice(0, 10);
     if (manilaHour >= 17 && !isArchived && isWrOwner) {
-      const todayStr = now.toISOString().slice(0, 10);
-      const missingLogTasks = sortedTasks.filter(t =>
-        t.assigneeName && !t.assigneeId &&
-        t.status !== 'Completed' && t.status !== 'Cancelled' &&
-        !(t.timeLogs || []).some(l => l.date === todayStr)
-      );
-      if (missingLogTasks.length > 0) {
-        const reminderBanner = el('div', {
-          style: 'background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;'
+      const missingItems = [];
+      sortedTasks.forEach(t => {
+        if (t.status === 'Completed' || t.status === 'Cancelled') return;
+        (t.checklist || []).forEach(item => {
+          if (item.assigneeName && !item.assigneeId && !(item.timeLogs || []).some(l => l.date === todayStr)) {
+            missingItems.push({ task: t, item });
+          }
         });
+      });
+      if (missingItems.length > 0) {
+        const reminderBanner = el('div', { class: 'eod-banner' });
         reminderBanner.appendChild(el('div', {
           html: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
           style: 'flex-shrink:0;'
         }));
         const reminderText = el('div', { style: 'flex:1;' });
         reminderText.appendChild(el('div', {
-          text: `⏰ End of day reminder: ${missingLogTasks.length} ground worker task(s) are missing a time log for today.`,
+          text: `⏰ End of day reminder: ${missingItems.length} checklist item(s) assigned to ground workers are missing a time log for today.`,
           style: 'font-weight:600;color:#92400e;font-size:13px;'
         }));
         const logBtn = el('button', {
@@ -1956,19 +1988,397 @@ const Workflow = {
           class: 'btn btn-sm',
           style: 'margin-top:6px;background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-weight:600;cursor:pointer;font-size:12px;'
         });
-        logBtn.addEventListener('click', () => { this.showAddTimeLogModal(missingLogTasks[0].id); });
+        logBtn.addEventListener('click', () => { this.showAddTimeLogModal(missingItems[0].task.id, missingItems[0].item.id); });
         reminderText.appendChild(logBtn);
+        const requestLink = el('a', {
+          href: 'javascript:void(0)',
+          class: 'eod-request-link',
+          text: 'Request all missing logs'
+        });
+        requestLink.addEventListener('click', () => {
+          const lines = missingItems.map(({ task: t, item }) => `- ${t.title}: ${item.text} (assigned to ${item.assigneeName})`);
+          const subject = `Time Log Request: ${wr.title}`;
+          const body = `Hi,\n\nPlease reply with your time logs for today (${todayStr}) for the following items:\n\n${lines.join('\n')}\n\nPlease include:\n- Start Time:\n- End Time:\n- Brief description of what you accomplished:\n\nThank you!`;
+          navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`).then(() => {
+            this.showMessage('Copied', 'Time log request copied to clipboard.', 'success');
+          }).catch(() => {
+            this.showMessage('Error', 'Could not copy to clipboard.', 'danger');
+          });
+        });
+        reminderText.appendChild(requestLink);
         reminderBanner.appendChild(reminderText);
         container.appendChild(reminderBanner);
       }
     }
 
-    const groups = { 'General Tasks': sortedTasks };
-    for (const [groupName, groupTasks] of Object.entries(groups)) {
-      const groupEl = el('div', { class: 'task-group-v2' });
-      const groupHeader = el('div', { class: 'task-group-header' });
-      groupHeader.appendChild(el('span', { text: groupName }));
-      groupHeader.appendChild(el('span', { class: 'task-group-count', text: ` — ${groupTasks.length} tasks` }));
+    // Task view toolbar
+    const toolbar = el('div', { class: 'task-view-toolbar' });
+
+    const groupToggle = el('div', { class: 'group-toggle' });
+    const groupButtons = {};
+    ['phase', 'assignee', 'flat'].forEach(mode => {
+      const btn = el('button', {
+        type: 'button',
+        class: 'btn btn-sm' + (container.groupBy === mode ? ' active' : ''),
+        text: mode === 'phase' ? 'Phase' : mode === 'assignee' ? 'Assignee' : 'Flat list'
+      });
+      groupButtons[mode] = btn;
+      btn.addEventListener('click', () => {
+        if (container.groupBy === mode) return;
+        container.groupBy = mode;
+        updateToolbar();
+        renderGroups();
+      });
+      groupToggle.appendChild(btn);
+    });
+    toolbar.appendChild(groupToggle);
+
+    const filterChips = el('div', { class: 'filter-chips' });
+    const filterButtons = {};
+    ['Missing logs', 'Blocked', 'Incomplete checklist', 'Mine'].forEach(filter => {
+      const chip = el('button', {
+        type: 'button',
+        class: 'filter-chip' + (container.activeFilters.has(filter) ? ' active' : ''),
+        text: filter
+      });
+      filterButtons[filter] = chip;
+      chip.addEventListener('click', () => {
+        if (container.activeFilters.has(filter)) {
+          container.activeFilters.delete(filter);
+        } else {
+          container.activeFilters.add(filter);
+        }
+        updateToolbar();
+        renderGroups();
+      });
+      filterChips.appendChild(chip);
+    });
+    toolbar.appendChild(filterChips);
+
+    const updateToolbar = () => {
+      Object.keys(groupButtons).forEach(mode => {
+        groupButtons[mode].classList.toggle('active', container.groupBy === mode);
+      });
+      Object.keys(filterButtons).forEach(filter => {
+        filterButtons[filter].classList.toggle('active', container.activeFilters.has(filter));
+      });
+    };
+
+    const addTaskBtn = el('button', {
+      type: 'button',
+      class: 'btn btn-primary btn-sm',
+      text: '+ Add Task'
+    });
+    addTaskBtn.addEventListener('click', () => {
+      this.showAddTaskModal(wr.id, () => App.handleRoute());
+    });
+    toolbar.appendChild(addTaskBtn);
+
+    container.appendChild(toolbar);
+
+    // Bulk action bar
+    const bulkBar = el('div', { class: 'bulk-action-bar' });
+    container.appendChild(bulkBar);
+
+    // Empty-state guidance when WR has no tasks
+    if (tasks.length === 0) {
+      const emptyState = el('div', { class: 'task-empty-state' });
+      emptyState.appendChild(el('div', {
+        html: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M17.636 18.364l-.707-.707M6.343 5.343l-.707-.707M3 12h1M5.343 18.364l.707-.707M12 21v-1M12 7a5 5 0 110 10 5 5 0 010-10z"/></svg>'
+      }));
+      emptyState.appendChild(el('p', { text: 'No tasks have been added to this work request yet.' }));
+      const addFirstBtn = el('button', { type: 'button', class: 'btn btn-primary', text: '+ Add First Task' });
+      addFirstBtn.addEventListener('click', () => { this.showAddTaskModal(wr.id, () => App.handleRoute()); });
+      emptyState.appendChild(addFirstBtn);
+      container.appendChild(emptyState);
+    }
+
+    const updateBulkBar = () => {
+      bulkBar.innerHTML = '';
+      const count = container.selectedTaskIds.size;
+      if (count === 0) {
+        bulkBar.style.display = 'none';
+        return;
+      }
+      bulkBar.style.display = 'flex';
+      bulkBar.appendChild(el('span', { class: 'bulk-selection-label', text: `${count} task${count === 1 ? '' : 's'} selected` }));
+
+      const requestLogsBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Request Logs' });
+      requestLogsBtn.addEventListener('click', () => {
+        const todayStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })).toISOString().slice(0, 10);
+        const selected = sortedTasks.filter(t => container.selectedTaskIds.has(t.id));
+        const lines = [];
+        selected.forEach(t => {
+          if (t.status === 'Completed' || t.status === 'Cancelled') return;
+          const taskIsGround = t.assigneeName && !t.assigneeId;
+          const taskMissing = taskIsGround && !(t.timeLogs || []).some(l => l.date === todayStr);
+          if (taskMissing) {
+            lines.push(`- ${t.title} (assigned to ${t.assigneeName})`);
+          }
+          (t.checklist || []).forEach(item => {
+            const itemIsGround = item.assigneeName && !item.assigneeId;
+            const itemMissing = itemIsGround && !(item.timeLogs || []).some(l => l.date === todayStr);
+            if (itemMissing) {
+              lines.push(`- ${t.title}: ${item.text} (assigned to ${item.assigneeName})`);
+            }
+          });
+        });
+        const subject = `Time Log Request: ${wr.title}`;
+        const body = lines.length > 0
+          ? `Hi,\n\nPlease reply with your time logs for today (${todayStr}) for the following items:\n\n${lines.join('\n')}\n\nPlease include:\n- Start Time:\n- End Time:\n- Brief description of what you accomplished:\n\nThank you!`
+          : `Hi,\n\nPlease reply with your time logs for today (${todayStr}).\n\nPlease include:\n- Start Time:\n- End Time:\n- Brief description of what you accomplished:\n\nThank you!`;
+        navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`).then(() => {
+          this.showMessage('Copied', 'Time log request copied to clipboard.', 'success');
+        }).catch(() => {
+          this.showMessage('Error', 'Could not copy to clipboard.', 'danger');
+        });
+      });
+      bulkBar.appendChild(requestLogsBtn);
+
+      const assignWrap = el('div', { class: 'bulk-assign-wrap', style: 'display:flex; align-items:center; gap:8px;' });
+      const assignDropdown = this.createGroundWorkerDropdown({
+        selectedGroundWorkerName: '',
+        placeholder: 'Assign to...',
+        maxWidth: '180px',
+        className: 'bulk-assign-dropdown',
+        onChange: () => {}
+      });
+      assignWrap.appendChild(assignDropdown);
+      const assignBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Assign' });
+      assignBtn.addEventListener('click', () => {
+        const name = (assignDropdown.searchText || '').trim();
+        const selected = sortedTasks.filter(t => container.selectedTaskIds.has(t.id));
+        // Bulk assign dropdown is single-select, so only one name can be chosen.
+        // Treat that single name as the primary assignee and clear any co-assignees.
+        selected.forEach(t => {
+          DB.update('tasks', t.id, {
+            assigneeId: null,
+            assigneeName: name || null,
+            coAssignees: [],
+            status: name ? 'Assigned' : 'Draft',
+            updatedAt: new Date().toISOString()
+          });
+        });
+        if (name && !DB.getAll('groundWorkers').some(gw => gw.name.toLowerCase() === name.toLowerCase())) {
+          DB.insert('groundWorkers', { id: generateId('gw'), name });
+        }
+        App.handleRoute();
+      });
+      assignWrap.appendChild(assignBtn);
+      bulkBar.appendChild(assignWrap);
+
+      const markDoneBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Mark Done' });
+      markDoneBtn.addEventListener('click', () => {
+        const selected = sortedTasks.filter(t => container.selectedTaskIds.has(t.id));
+        let success = 0;
+        const errors = [];
+        selected.forEach(t => {
+          const res = this.updateTaskStatus(t.id, 'Completed');
+          if (res.error) {
+            errors.push(`${t.title}: ${res.error}`);
+          } else {
+            success++;
+          }
+        });
+        if (errors.length > 0) {
+          this.showMessage('Bulk Mark Done', `${success} updated, ${errors.length} failed. ${errors.join(' ')}`, 'warning');
+        } else {
+          this.showMessage('Bulk Mark Done', `${success} task${success === 1 ? '' : 's'} marked Completed.`, 'success');
+        }
+        App.handleRoute();
+      });
+      bulkBar.appendChild(markDoneBtn);
+
+      const logTimeBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Log Time' });
+      logTimeBtn.addEventListener('click', () => {
+        const selected = sortedTasks.filter(t => container.selectedTaskIds.has(t.id));
+        if (selected.length === 0) return;
+        const form = el('form', { class: 'form-stacked' });
+        const workerInput = el('input', { type: 'text', name: 'workerName', placeholder: 'Worker name', value: Auth.user?.name || '' });
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Worker Name' }), workerInput]));
+        const dateInput = el('input', { type: 'date', name: 'date', required: true, value: manilaToday() });
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Date *' }), dateInput]));
+        const startInput = el('input', { type: 'time', name: 'start', required: true });
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Start Time *' }), startInput]));
+        const endInput = el('input', { type: 'time', name: 'end', required: true });
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'End Time *' }), endInput]));
+        const noteInput = el('input', { type: 'text', name: 'note', placeholder: 'What did you work on?' });
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Note / Activity' }), noteInput]));
+        const hoursInput = el('input', { type: 'text', name: 'hours', readOnly: true, value: '0.00', style: 'background: #f1f5f9; cursor: not-allowed;' });
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Calculated Hours' }), hoursInput]));
+
+        function nextManilaDate(dateStr) {
+          const d = new Date(dateStr + 'T00:00:00');
+          d.setDate(d.getDate() + 1);
+          return d.toISOString().slice(0, 10);
+        }
+
+        function updateHours() {
+          const start = startInput.value;
+          const end = endInput.value;
+          if (start && end) {
+            const [sh, sm] = start.split(':').map(Number);
+            const [eh, em] = end.split(':').map(Number);
+            const startMin = sh * 60 + sm;
+            const endMin = eh * 60 + em;
+            const totalMin = endMin > startMin ? endMin - startMin : endMin + 1440 - startMin;
+            const hours = Math.round(totalMin / 60 * 4) / 4;
+            hoursInput.value = hours.toFixed(2);
+          } else {
+            hoursInput.value = '0.00';
+          }
+        }
+        startInput.addEventListener('change', updateHours);
+        endInput.addEventListener('change', updateHours);
+        const submitBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Logs' });
+        form.appendChild(submitBtn);
+        const overlay = this.showModal('Bulk Log Time', form, null);
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const dateVal = dateInput.value;
+          const start = startInput.value;
+          const end = endInput.value;
+          const noteVal = noteInput.value;
+
+          if (!dateVal || !start || !end) return;
+
+          const [sh, sm] = start.split(':').map(Number);
+          const [eh, em] = end.split(':').map(Number);
+          const startMin = sh * 60 + sm;
+          const endMin = eh * 60 + em;
+          const workerName = workerInput.value.trim() || (DB.getById('users', Auth.user.id)?.name || '');
+
+          let entries = [];
+          if (endMin > startMin) {
+            const hours = Math.round((endMin - startMin) / 60 * 4) / 4;
+            if (hours > 0) entries.push({ date: dateVal, startTime: start, endTime: end, hours });
+          } else {
+            const hours1 = Math.round((1440 - startMin) / 60 * 4) / 4;
+            const nextDate = nextManilaDate(dateVal);
+            const hours2 = Math.round(endMin / 60 * 4) / 4;
+            if (hours1 > 0) entries.push({ date: dateVal, startTime: start, endTime: '23:59', hours: hours1 });
+            if (hours2 > 0) entries.push({ date: nextDate, startTime: '00:00', endTime: end, hours: hours2 });
+          }
+
+          if (entries.length === 0) {
+            this.showMessage('Log too short', 'Log too short to record.', 'warning');
+            return;
+          }
+
+          let skipped = 0;
+          let saved = 0;
+          selected.forEach(t => {
+            const taskLogs = t.timeLogs || [];
+            const alreadyLogged = entries.some(entry => taskLogs.some(l => l.date === entry.date && (l.workerName || '') === workerName));
+            if (alreadyLogged) {
+              skipped++;
+              return;
+            }
+            const newEntries = entries.map(entry => ({
+              userId: Auth.user.id,
+              loggedByUserId: Auth.user.id,
+              workerName,
+              startTime: entry.startTime,
+              endTime: entry.endTime,
+              date: entry.date,
+              note: noteVal,
+              hours: entry.hours,
+              checklistItemId: null
+            }));
+            DB.update('tasks', t.id, {
+              timeLogs: [...taskLogs, ...newEntries],
+              updatedAt: new Date().toISOString()
+            });
+            saved++;
+          });
+          overlay.remove();
+          this.showMessage('Bulk Log Time', `${saved} log${saved === 1 ? '' : 's'} saved, ${skipped} skipped (already logged).`, 'success');
+          App.handleRoute();
+        });
+      });
+      bulkBar.appendChild(logTimeBtn);
+
+      const clearLink = el('a', { href: 'javascript:void(0)', class: 'bulk-clear-link', text: 'Clear' });
+      clearLink.addEventListener('click', () => {
+        container.selectedTaskIds.clear();
+        updateBulkBar();
+        renderGroups();
+      });
+      bulkBar.appendChild(clearLink);
+    };
+
+    const renderGroups = () => {
+      listWrapper.innerHTML = '';
+      if (tasks.length === 0) return;
+
+      const todayStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })).toISOString().slice(0, 10);
+
+      const activeFilters = Array.from(container.activeFilters);
+      const filteredTasks = sortedTasks.filter(t => {
+        if (activeFilters.length === 0) return true;
+
+        const checks = {
+          'Missing logs': () => {
+            if (t.status === 'Completed' || t.status === 'Cancelled') return false;
+            const taskIsGround = t.assigneeName && !t.assigneeId;
+            const taskMissing = taskIsGround && !(t.timeLogs || []).some(l => l.date === todayStr);
+            if (taskMissing) return true;
+            return (t.checklist || []).some(item => {
+              const itemIsGround = item.assigneeName && !item.assigneeId;
+              if (!itemIsGround) return false;
+              return !(item.timeLogs || []).some(l => l.date === todayStr);
+            });
+          },
+          'Blocked': () => {
+            const preds = t.predecessors || [];
+            if (preds.some(pid => {
+              const pt = DB.getById('tasks', pid);
+              return pt && pt.status !== 'Completed';
+            })) return true;
+            return (t.checklist || []).some(item => isChecklistBlocked(item, t.checklist));
+          },
+          'Incomplete checklist': () => {
+            const comp = getTaskChecklistCompletion(t);
+            return comp.total > 0 && comp.done < comp.total;
+          },
+          'Mine': () => {
+            if (t.assigneeId === Auth.user.id || t.assignedTo === Auth.user.id) return true;
+            if (t.assigneeName && Auth.user?.name && t.assigneeName === Auth.user.name) return true;
+            if ((t.coAssignees || []).some(n => n && n === Auth.user?.name)) return true;
+            return (t.checklist || []).some(item => item.assigneeName && item.assigneeName === Auth.user.name);
+          }
+        };
+
+        return activeFilters.every(f => checks[f]());
+      });
+
+      let groups = {};
+      if (container.groupBy === 'phase') {
+        const name = wr.status ? `${wr.status} Tasks` : 'General Tasks';
+        groups[name] = filteredTasks;
+      } else if (container.groupBy === 'assignee') {
+        filteredTasks.forEach(t => {
+          const assignee = t.assigneeName
+            ? { name: t.assigneeName }
+            : DB.getById('users', t.assigneeId || t.assignedTo);
+          const name = assignee?.name || 'Unassigned';
+          groups[name] = groups[name] || [];
+          groups[name].push(t);
+        });
+      } else {
+        groups['All Tasks'] = filteredTasks;
+      }
+
+      for (const [groupName, groupTasks] of Object.entries(groups)) {
+        const groupEl = el('div', { class: 'task-group-v2' });
+        const groupHeader = el('div', { class: 'task-group-header' });
+        groupHeader.appendChild(el('span', { text: groupName }));
+
+        const totalCheckDone = groupTasks.reduce((sum, t) => sum + getTaskChecklistCompletion(t).done, 0);
+        const totalCheckTotal = groupTasks.reduce((sum, t) => sum + getTaskChecklistCompletion(t).total, 0);
+        const groupHours = groupTasks.reduce((sum, t) => sum + getTaskTotalHours(t), 0);
+        const statsText = `${groupTasks.length} tasks${totalCheckTotal > 0 ? ` • ${totalCheckDone}/${totalCheckTotal} items done` : ''}${groupHours > 0 ? ` • ${groupHours} hrs` : ''}`;
+        groupHeader.appendChild(el('span', { class: 'task-group-count group-header-stats', text: statsText }));
 
       // Action Buttons: Route + Cancel Work Request
       if (wr) {
@@ -2082,14 +2492,13 @@ const Workflow = {
       const table = el('table', { class: 'task-table-v2' });
       const thead = el('thead');
       const thr = el('tr');
-      ['Task', 'Assigned To', 'Due Date', 'Progress Status', 'Linked Records', 'Priority', 'Est. Amount', 'Hours'].forEach(h => {
+      ['Task', 'Assigned To', 'Due Date', 'Status', 'Checklist', 'Linked Records', 'Time', 'Actions'].forEach(h => {
         thr.appendChild(el('th', { text: h }));
       });
       thead.appendChild(thr);
       table.appendChild(thead);
 
       const tbody = el('tbody');
-      let totalAmount = 0;
       let totalHours = 0;
 
       groupTasks.forEach(t => {
@@ -2097,20 +2506,38 @@ const Workflow = {
           ? { name: t.assigneeName }
           : DB.getById('users', t.assigneeId || t.assignedTo);
         const tr = el('tr', { class: 'task-row-v2 task-expand' });
-        
-        // Totals calculation
-        const hours = (t.timeLogs || []).reduce((acc, l) => acc + (l.hours || 0), 0);
-        totalHours += hours;
-        totalAmount += 1200; // Mock amount per task
 
-        // Task Title Cell (With collapsible indicator)
+        // Totals calculation
+        const hours = getTaskTotalHours(t);
+        totalHours += hours;
+
+        // Task Title Cell (With collapsible indicator + selection checkbox)
         const tdTitle = el('td');
         const titleWrap = el('div', { class: 'task-v2-title-cell', style: 'display: flex; align-items: flex-start; gap: 8px;' });
+
+        // Row selection checkbox
+        const rowCheckbox = el('input', {
+          type: 'checkbox',
+          class: 'task-row-checkbox',
+          title: 'Select task'
+        });
+        rowCheckbox.checked = container.selectedTaskIds.has(t.id);
+        rowCheckbox.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (rowCheckbox.checked) {
+            container.selectedTaskIds.add(t.id);
+          } else {
+            container.selectedTaskIds.delete(t.id);
+          }
+          updateBulkBar();
+        });
+        titleWrap.appendChild(rowCheckbox);
+
         titleWrap.appendChild(el('span', { class: 'task-v2-row-caret', text: '›', style: 'margin-top: 2px;' }));
-        
+
         const titleAndDeps = el('div', { style: 'display: flex; flex-direction: column;' });
         titleAndDeps.appendChild(el('div', { class: 'task-v2-title' + (t.status === 'Completed' ? ' completed' : ''), text: t.title }));
-        
+
         // Show dependencies if they exist
         const preds = t.predecessors || [];
         if (preds.length > 0) {
@@ -2119,34 +2546,14 @@ const Workflow = {
             return pt ? pt.title : null;
           }).filter(Boolean);
           if (predTitles.length > 0) {
-            const depLabel = el('span', { 
-              text: 'Blocking dependencies: ' + predTitles.join(', '), 
-              style: 'font-size: 11px; color: var(--color-text-muted, #7c7c8a); margin-top: 2px; font-style: italic;' 
+            const depLabel = el('span', {
+              text: 'Blocking dependencies: ' + predTitles.join(', '),
+              style: 'font-size: 11px; color: var(--color-text-muted, #7c7c8a); margin-top: 2px; font-style: italic;'
             });
             titleAndDeps.appendChild(depLabel);
           }
         }
         titleWrap.appendChild(titleAndDeps);
-
-        // Request Log button for ground worker assignments
-        if (t.assigneeName && !t.assigneeId) {
-          const requestLogBtn = el('button', {
-            type: 'button',
-            class: 'btn btn-ghost btn-xs',
-            html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Request Log',
-            style: 'margin-left:auto;white-space:nowrap;font-size:11px;padding:2px 8px;'
-          });
-          requestLogBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const text = `Subject: Time Log Request: ${t.title}\n\nHi ${t.assigneeName},\n\nPlease reply with your time log for today for the task: ${t.title} (Work Request: ${wr.title}).\n\nPlease include:\n- Start Time:\n- End Time:\n- Brief description of what you accomplished:\n\nThank you!`;
-            navigator.clipboard.writeText(text).then(() => {
-              this.showMessage('Copied', `Time log request copied for ${t.assigneeName}.`, 'success');
-            }).catch(() => {
-              this.showMessage('Error', 'Could not copy to clipboard.', 'danger');
-            });
-          });
-          titleWrap.appendChild(requestLogBtn);
-        }
 
         tdTitle.appendChild(titleWrap);
         tr.appendChild(tdTitle);
@@ -2154,7 +2561,9 @@ const Workflow = {
         // Assigned To
         const tdAssignee = el('td');
         tdAssignee.addEventListener('click', (e) => e.stopPropagation()); // Prevent accordion toggle
-        
+
+        const allAssigneeNames = getTaskAllAssigneeNames(t);
+
         if (wr.status === 'Draft') {
           // Ground worker assignee — typable dropdown like the filter tray
           const gwDropdown = this.createGroundWorkerDropdown({
@@ -2175,13 +2584,33 @@ const Workflow = {
 
           const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
           assigneeWrap.appendChild(gwDropdown);
+          if ((t.coAssignees || []).length > 0) {
+            const coChipWrap = el('div', { class: 'co-assignee-chips', style: 'margin-top:4px;' });
+            (t.coAssignees || []).forEach(name => {
+              coChipWrap.appendChild(el('span', { class: 'co-assignee-chip', text: name }));
+            });
+            assigneeWrap.appendChild(coChipWrap);
+          }
           tdAssignee.appendChild(assigneeWrap);
         } else {
-          const assigneeWrap = el('div', { style: 'display:flex; align-items:center; gap:var(--spacing-xs);' });
-          const av = el('div', { class: 'avatar-xs' });
-          if (assignee?.avatarUrl) av.style.backgroundImage = `url('${assignee.avatarUrl}')`;
-          assigneeWrap.appendChild(av);
-          assigneeWrap.appendChild(el('span', { text: assignee?.name || 'Unassigned', style: !assignee ? 'color:var(--color-text-muted);font-style:italic;' : '' }));
+          const assigneeWrap = el('div', { class: 'assignee-avatars' });
+          const displayNames = allAssigneeNames.slice(0, 3);
+          displayNames.forEach(name => {
+            const user = DB.getWhere('users', u => u.name === name)[0];
+            const av = el('div', { class: 'avatar-xs', title: name });
+            if (user?.avatarUrl) av.style.backgroundImage = `url('${user.avatarUrl}')`;
+            else if (!user) av.textContent = name.charAt(0).toUpperCase();
+            assigneeWrap.appendChild(av);
+            const label = el('span', { class: 'assignee-name', text: name });
+            assigneeWrap.appendChild(label);
+          });
+          if (allAssigneeNames.length > 3) {
+            const overflow = el('span', { class: 'assignee-overflow', text: `+${allAssigneeNames.length - 3}`, title: allAssigneeNames.slice(3).join(', ') });
+            assigneeWrap.appendChild(overflow);
+          }
+          if (allAssigneeNames.length === 0) {
+            assigneeWrap.appendChild(el('span', { text: 'Unassigned', style: 'color:var(--color-text-muted);font-style:italic;' }));
+          }
           tdAssignee.appendChild(assigneeWrap);
         }
         tr.appendChild(tdAssignee);
@@ -2197,11 +2626,21 @@ const Workflow = {
 
         const validStatuses = this.getValidNextStatuses(t);
         const flow = ['Draft', 'Assigned', 'In Progress', 'For Review', 'Completed', 'Cancelled'];
+        const checklistCompletion = getTaskChecklistCompletion(t);
+        const hasIncompleteChecklist = checklistCompletion.total > 0 && checklistCompletion.done < checklistCompletion.total;
         flow.forEach(s => {
           const opt = el('option', { value: s, text: s });
           if (s === t.status) opt.selected = true;
-          if (!validStatuses.includes(s) || isArchived) {
+          const blockedByChecklist = hasIncompleteChecklist && (s === 'Completed' || s === 'For Review');
+          if (isArchived) {
             opt.disabled = true;
+            opt.title = 'Work request is archived';
+          } else if (blockedByChecklist) {
+            opt.disabled = true;
+            opt.title = `${checklistCompletion.total - checklistCompletion.done} of ${checklistCompletion.total} requirement items incomplete`;
+          } else if (!validStatuses.includes(s)) {
+            opt.disabled = true;
+            opt.title = `Cannot change to ${s} in this phase`;
           }
           statusSel.appendChild(opt);
         });
@@ -2300,18 +2739,66 @@ const Workflow = {
         tdLinked.appendChild(linkedWrap);
         tr.appendChild(tdLinked);
 
-        // Priority
-        const tdPriority = el('td');
-        const pColors = { 'Urgent': '#ef4444', 'Priority': '#f59e0b', 'Low Priority': '#10b981', 'Normal': '#94a3b8' };
-        const pText = t.priority === 'Urgent' ? '● Critical' : t.priority === 'Priority' ? '↑ High' : t.priority || 'Normal';
-        tdPriority.appendChild(el('span', { class: 'priority-badge-v2', style: `color:${pColors[t.priority] || '#94a3b8'}`, text: pText }));
-        tr.appendChild(tdPriority);
+        // Checklist column
+        const tdChecklist = el('td');
+        const checklistComp = getTaskChecklistCompletion(t);
+        if (checklistComp.total === 0) {
+          tdChecklist.appendChild(el('span', { text: 'N/A', style: 'color:var(--color-text-muted);' }));
+        } else {
+          const checklistMini = el('div', { class: 'checklist-progress-mini' });
+          const radius = 10;
+          const circumference = 2 * Math.PI * radius;
+          const offset = circumference - (checklistComp.percent / 100) * circumference;
+          const ring = el('div', {
+            class: 'checklist-progress-ring',
+            html: `<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="${radius}" fill="none" stroke="#e2e8f0" stroke-width="3" /><circle cx="12" cy="12" r="${radius}" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" stroke-linecap="round" transform="rotate(-90 12 12)" /></svg>`
+          });
+          const progressText = el('span', { class: 'checklist-progress-text', text: `${checklistComp.done}/${checklistComp.total} ✓` });
+          const incompleteNames = getIncompleteChecklistNames(t);
+          checklistMini.title = incompleteNames.length > 0 ? `Remaining: ${incompleteNames.join(', ')}` : 'All checklist items complete';
+          checklistMini.appendChild(ring);
+          checklistMini.appendChild(progressText);
+          tdChecklist.appendChild(checklistMini);
+        }
+        tr.appendChild(tdChecklist);
 
-        // Financials (Aligned)
-        tr.appendChild(el('td', { text: formatPHP(1200) }));
-
-        // Hours (Aligned)
+        // Time column
         tr.appendChild(el('td', { text: hours > 0 ? `${hours}h` : 'N/A' }));
+
+        // Actions column
+        const tdActions = el('td');
+        const actionsWrap = el('div', { class: 'task-actions-cell' });
+        if (t.assigneeName && !t.assigneeId) {
+          const requestLogBtn = el('button', {
+            type: 'button',
+            class: 'btn btn-ghost btn-xs',
+            html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Request Log',
+            style: 'font-size:11px;padding:2px 8px;'
+          });
+          requestLogBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = `Subject: Time Log Request: ${t.title}\n\nHi ${t.assigneeName},\n\nPlease reply with your time log for today for the task: ${t.title} (Work Request: ${wr.title}).\n\nPlease include:\n- Start Time:\n- End Time:\n- Brief description of what you accomplished:\n\nThank you!`;
+            navigator.clipboard.writeText(text).then(() => {
+              this.showMessage('Copied', `Time log request copied for ${t.assigneeName}.`, 'success');
+            }).catch(() => {
+              this.showMessage('Error', 'Could not copy to clipboard.', 'danger');
+            });
+          });
+          actionsWrap.appendChild(requestLogBtn);
+        }
+        const logTimeBtn = el('button', {
+          type: 'button',
+          class: 'btn btn-secondary btn-xs',
+          text: 'Log Time',
+          style: 'font-size:11px;padding:2px 8px;'
+        });
+        logTimeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.showAddTimeLogModal(t.id);
+        });
+        actionsWrap.appendChild(logTimeBtn);
+        tdActions.appendChild(actionsWrap);
+        tr.appendChild(tdActions);
 
         tbody.appendChild(tr);
 
@@ -2320,23 +2807,177 @@ const Workflow = {
         const detailsTd = el('td', { colspan: 8 });
         const detailsContainer = el('div', { class: 'task-details-container' });
         
-        const detailsGrid = el('div', { class: 'task-details-grid' });
-        
-        // Attached Documents Section
+        const detailsPanes = el('div', { class: 'task-details-panes' });
+        const leftPane = el('div', { class: 'task-details-left' });
+        const rightPane = el('div', { class: 'task-details-right' });
+
+        // --- Left Pane: Requirements Checklist ---
+        const checklistSection = el('div', { class: 'task-details-col' });
+        const checklistHeader = el('div', { class: 'details-section-title' });
+        checklistHeader.appendChild(el('span', { text: 'Requirements Checklist' }));
+        checklistSection.appendChild(checklistHeader);
+
+        const checklistList = el('div', { class: 'details-content-list' });
+        const normalizedChecklist = (t.checklist || []).map(item => {
+          if (typeof item === 'string') return { id: generateId('chk'), text: item, completed: false, assigneeId: null, assigneeName: null, dependsOn: null, timeLogs: [] };
+          return item;
+        });
+
+        const renderChecklist = () => {
+          checklistList.innerHTML = '';
+          if (normalizedChecklist.length === 0) {
+            checklistList.appendChild(el('div', { class: 'empty-state', text: 'No checklist items.' }));
+          } else {
+            normalizedChecklist.forEach((item, idx) => {
+              const blocked = isChecklistBlocked(item, normalizedChecklist);
+              const prereq = normalizedChecklist.find(c => c.id === item.dependsOn);
+              const row = el('div', { class: 'checklist-item-row' + (blocked ? ' blocked' : '') });
+              const cb = el('input', { type: 'checkbox', class: 'checklist-item-checkbox' });
+              cb.checked = !!item.completed;
+              cb.disabled = blocked;
+              const textClass = 'checklist-item-text' + (item.completed ? ' completed' : '');
+              const textValue = blocked ? ('🔒 Waiting for: ' + (prereq ? prereq.text : 'Unknown')) : item.text;
+              const text = el('span', { class: textClass, text: textValue });
+              cb.addEventListener('change', (e) => {
+                e.stopPropagation();
+                const now = new Date().toISOString();
+                if (cb.checked) {
+                  item.completed = true;
+                } else {
+                  item.completed = false;
+                  normalizedChecklist.forEach(other => {
+                    if (other.dependsOn === item.id) other.completed = false;
+                  });
+                }
+                DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: now });
+                renderChecklist();
+              });
+              row.appendChild(cb);
+              row.appendChild(text);
+
+              const assigneeDropdown = this.createGroundWorkerDropdown({
+                selectedGroundWorkerName: item.assigneeName,
+                placeholder: 'Assign...',
+                maxWidth: '160px',
+                className: 'checklist-assignee-dropdown',
+                priorityNames: getTaskAllAssigneeNames(t),
+                onChange: ({ assigneeName }) => {
+                  item.assigneeId = null;
+                  item.assigneeName = assigneeName || null;
+                  DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                }
+              });
+              row.appendChild(assigneeDropdown);
+
+              const hours = getChecklistItemTotalHours(item);
+              const timePill = el('span', { class: 'checklist-time-pill', text: hours + 'h' });
+              row.appendChild(timePill);
+
+              const logBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Log Time' });
+              logBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showAddTimeLogModal(t.id, item.id);
+              });
+              row.appendChild(logBtn);
+
+              const delBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×' });
+              delBtn.title = 'Delete checklist item';
+              delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!item.timeLogs || item.timeLogs.length === 0) {
+                  normalizedChecklist.splice(idx, 1);
+                  DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  renderChecklist();
+                  populatePrereqSelect();
+                } else {
+                  const content = el('div');
+                  content.appendChild(el('p', { text: `This item has ${item.timeLogs.length} logged time record(s). Choose how to proceed:` }));
+                  const actions = el('div', { class: 'checklist-delete-modal-actions' });
+                  const reassignBtn = el('button', { type: 'button', class: 'btn btn-primary', text: 'Reassign to task' });
+                  const deleteAllBtn = el('button', { type: 'button', class: 'btn btn-danger', text: 'Delete logs & item' });
+                  actions.appendChild(reassignBtn);
+                  actions.appendChild(deleteAllBtn);
+                  content.appendChild(actions);
+                  const overlay = this.showModal('Delete Checklist Item', content, null);
+                  reassignBtn.addEventListener('click', () => {
+                    overlay.remove();
+                    const task = DB.getById('tasks', t.id) || t;
+                    const logsToMove = (item.timeLogs || []).map(l => ({ ...l, checklistItemId: null }));
+                    task.timeLogs = [...(task.timeLogs || []), ...logsToMove];
+                    task.checklist = (task.checklist || []).filter(c => c.id !== item.id);
+                    DB.update('tasks', task.id, { checklist: task.checklist, timeLogs: task.timeLogs, updatedAt: new Date().toISOString() });
+                    App.handleRoute();
+                  });
+                  deleteAllBtn.addEventListener('click', () => {
+                    overlay.remove();
+                    const task = DB.getById('tasks', t.id) || t;
+                    task.checklist = (task.checklist || []).filter(c => c.id !== item.id);
+                    DB.update('tasks', task.id, { checklist: task.checklist, updatedAt: new Date().toISOString() });
+                    App.handleRoute();
+                  });
+                }
+              });
+              row.appendChild(delBtn);
+
+              checklistList.appendChild(row);
+            });
+          }
+        };
+
+        const addChecklistRow = el('div', { class: 'checklist-add-row' });
+        const newItemInput = el('input', { type: 'text', placeholder: 'Add checklist item...', style: 'flex:1; font-size:0.85rem;' });
+        const prereqSelect = el('select', { style: 'font-size:0.85rem;' });
+        const populatePrereqSelect = () => {
+          prereqSelect.innerHTML = '';
+          prereqSelect.appendChild(el('option', { value: '', text: '— None —' }));
+          normalizedChecklist.forEach(item => {
+            prereqSelect.appendChild(el('option', { value: item.id, text: item.text }));
+          });
+        };
+        populatePrereqSelect();
+        const addItemBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Add' });
+        addItemBtn.addEventListener('click', () => {
+          const val = newItemInput.value.trim();
+          if (!val) return;
+          const prereqId = prereqSelect.value || null;
+          normalizedChecklist.push({ id: generateId('chk'), text: val, completed: false, assigneeId: null, assigneeName: null, dependsOn: prereqId, timeLogs: [] });
+          DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+          newItemInput.value = '';
+          populatePrereqSelect();
+          prereqSelect.value = '';
+          renderChecklist();
+        });
+        newItemInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            addItemBtn.click();
+          }
+        });
+        addChecklistRow.appendChild(newItemInput);
+        addChecklistRow.appendChild(prereqSelect);
+        addChecklistRow.appendChild(addItemBtn);
+
+        checklistSection.appendChild(checklistList);
+        checklistSection.appendChild(addChecklistRow);
+        leftPane.appendChild(checklistSection);
+        renderChecklist();
+
+        // --- Right Pane: Attached Documents, Time Logs, Dependencies ---
         const isAdmin = Auth.user.role === 'Admin';
         const isDocStaff = Auth.user.role === 'Staff' && Auth.can('dms:handover');
-        
+
+        // Attached Documents Section (preserved with per-document comments)
         const docsSection = el('div', { class: 'task-details-col' });
         const docsHeader = el('div', { class: 'details-section-title' });
         docsHeader.appendChild(el('span', { text: 'Attached Documents' }));
-        
+
         // Only Documentation Staff can upload (disabled in archive)
         if (isDocStaff && !isArchived) {
           const addDocBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Upload Scanned' });
           addDocBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showAddDocumentModal(t.id); });
           docsHeader.appendChild(addDocBtn);
         }
-        
+
         docsSection.appendChild(docsHeader);
 
         const docsList = el('div', { class: 'details-content-list' });
@@ -2346,20 +2987,20 @@ const Workflow = {
           t.taskDocuments.forEach((d, dIdx) => {
             const item = el('div', { class: 'detail-item-v2', style: 'display:flex; justify-content:space-between; align-items:center;' });
             const leftSide = el('div', { style: 'display:flex; flex-direction:column;' });
-            
+
             const fName = d.fileName || d.filename;
 
             // Only Admin can click to view actual file
             if (isAdmin) {
-              const dmsDoc = DB.getWhere('documents', doc => 
+              const dmsDoc = DB.getWhere('documents', doc =>
                 (doc.fileName === fName) && doc.workRequestId === wr.id
               )[0];
 
               if (dmsDoc && dmsDoc.dataUrl) {
-                const link = el('a', { 
-                  href: '#', 
-                  text: fName, 
-                  style: 'color:#2563eb; font-weight:600; text-decoration:underline; cursor:pointer;' 
+                const link = el('a', {
+                  href: '#',
+                  text: fName,
+                  style: 'color:#2563eb; font-weight:600; text-decoration:underline; cursor:pointer;'
                 });
                 link.addEventListener('click', (e) => {
                   e.preventDefault();
@@ -2377,16 +3018,16 @@ const Workflow = {
               // Non-admins see the name but cannot click/view
               leftSide.appendChild(el('span', { text: fName }));
             }
-            
+
             leftSide.appendChild(el('span', { class: 'kpi-label', text: formatDate(d.uploadDate) }));
             item.appendChild(leftSide);
 
             // Delete Button: Documentation Staff and Admin can remove
             if (isDocStaff || isAdmin) {
-              const delBtn = el('button', { 
-                class: 'btn btn-ghost btn-xs', 
-                text: '×', 
-                style: 'color:var(--color-danger); font-size:1.2rem; padding:0 4px; line-height:1;' 
+              const delBtn = el('button', {
+                class: 'btn btn-ghost btn-xs',
+                text: '×',
+                style: 'color:var(--color-danger); font-size:1.2rem; padding:0 4px; line-height:1;'
               });
               delBtn.title = 'Remove Attachment';
               delBtn.addEventListener('click', (e) => {
@@ -2394,7 +3035,7 @@ const Workflow = {
                 this.showConfirm('Confirm Removal', `Are you sure you want to remove "${fName}" from this task?`, () => {
                   const updatedTaskDocs = t.taskDocuments.filter((_, i) => i !== dIdx);
                   DB.update('tasks', t.id, { taskDocuments: updatedTaskDocs });
-                  const dmsMatch = DB.getWhere('documents', doc => 
+                  const dmsMatch = DB.getWhere('documents', doc =>
                     doc.fileName === fName && doc.workRequestId === wr.id
                   )[0];
                   if (dmsMatch) DB.delete('documents', dmsMatch.id);
@@ -2407,29 +3048,29 @@ const Workflow = {
             docsList.appendChild(item);
 
             // --- Start of Comment Section ---
-            const commentToggle = el('button', { 
-              class: 'btn btn-ghost btn-xs', 
-              text: '💬 Comments' + (d.comments?.length ? ` (${d.comments.length})` : ''), 
-              style: 'margin-left: 10px; font-size: 0.75rem; color: var(--color-text-muted);' 
+            const commentToggle = el('button', {
+              class: 'btn btn-ghost btn-xs',
+              text: '💬 Comments' + (d.comments?.length ? ` (${d.comments.length})` : ''),
+              style: 'margin-left: 10px; font-size: 0.75rem; color: var(--color-text-muted);'
             });
             const commentContainer = el('div', { class: 'doc-comments-container hidden', style: 'margin: 8px 0 16px 20px; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #cbd5e1;' });
-            
+
             commentToggle.addEventListener('click', (e) => {
               e.stopPropagation();
               commentContainer.classList.toggle('hidden');
             });
-            
+
             const renderComments = () => {
               commentContainer.innerHTML = '';
               const list = el('div', { style: 'display:flex; flex-direction:column; gap:8px;' });
-              
+
               if (!d.comments || d.comments.length === 0) {
                 list.appendChild(el('div', { class: 'empty-state', text: 'No comments for this document.', style: 'padding: 4px 0;' }));
               } else {
                 d.comments.forEach((c, cIdx) => {
                   const commentRow = el('div', { style: 'background:white; padding:8px 12px; border-radius:6px; border: 1px solid #e2e8f0; position:relative;' });
                   const cUser = DB.getById('users', c.userId);
-                  
+
                   const header = el('div', { style: 'display:flex; justify-content:space-between; margin-bottom:4px; font-size:0.75rem;' });
                   header.appendChild(el('span', { text: cUser?.name || 'Unknown', style: 'font-weight:600; color:var(--color-primary);' }));
                   header.appendChild(el('span', { text: formatDate(c.date), style: 'color:var(--color-text-muted);' }));
@@ -2442,7 +3083,7 @@ const Workflow = {
                   // Admin Actions: Edit/Delete (disabled in archive)
                   if (isAdmin && !isArchived) {
                     const cActions = el('div', { style: 'display:flex; gap:8px; margin-top:8px; border-top:1px solid #f1f5f9; padding-top:4px;' });
-                    
+
                     const editBtn = el('button', { class: 'btn btn-link btn-xs', text: 'Edit', style: 'padding:0; font-size:0.7rem;' });
                     editBtn.addEventListener('click', (e) => {
                       e.stopPropagation();
@@ -2450,12 +3091,12 @@ const Workflow = {
                       contentArea.innerHTML = '';
                       const editInput = el('textarea', { class: 'form-control', style: 'width:100%; min-height:40px; font-size:0.875rem;', text: originalText });
                       contentArea.appendChild(editInput);
-                      
+
                       cActions.classList.add('hidden');
                       const editActions = el('div', { style: 'display:flex; gap:8px; margin-top:4px;' });
                       const saveEditBtn = el('button', { class: 'btn btn-primary btn-xs', text: 'Save' });
                       const cancelEditBtn = el('button', { class: 'btn btn-secondary btn-xs', text: 'Cancel' });
-                      
+
                       saveEditBtn.addEventListener('click', (ev) => {
                         ev.stopPropagation();
                         const newText = editInput.value.trim();
@@ -2466,17 +3107,17 @@ const Workflow = {
                           renderComments();
                         }
                       });
-                      
+
                       cancelEditBtn.addEventListener('click', (ev) => {
                         ev.stopPropagation();
                         renderComments();
                       });
-                      
+
                       editActions.appendChild(saveEditBtn);
                       editActions.appendChild(cancelEditBtn);
                       contentArea.appendChild(editActions);
                     });
-                    
+
                     const delBtn = el('button', { class: 'btn btn-link btn-xs', text: 'Delete', style: 'padding:0; font-size:0.7rem; color:var(--color-danger);' });
                     delBtn.addEventListener('click', (e) => {
                       e.stopPropagation();
@@ -2487,7 +3128,7 @@ const Workflow = {
                         commentToggle.textContent = '💬 Comments' + (d.comments?.length ? ` (${d.comments.length})` : '');
                       }, 'danger');
                     });
-                    
+
                     cActions.appendChild(editBtn);
                     cActions.appendChild(delBtn);
                     commentRow.appendChild(cActions);
@@ -2502,7 +3143,7 @@ const Workflow = {
                 const addInput = el('textarea', { placeholder: 'Write a comment...', class: 'form-control', style: 'width:100%; min-height:50px; font-size:0.875rem;' });
                 const addBtnRow = el('div', { style: 'display:flex; gap:8px; margin-top:8px;' });
                 const saveNewBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Save Comment' });
-                
+
                 saveNewBtn.addEventListener('click', (e) => {
                   e.stopPropagation();
                   const text = addInput.value.trim();
@@ -2515,14 +3156,14 @@ const Workflow = {
                     commentToggle.textContent = '💬 Comments' + (d.comments?.length ? ` (${d.comments.length})` : '');
                   }
                 });
-                
+
                 addBtnRow.appendChild(saveNewBtn);
                 addForm.appendChild(addInput);
                 addForm.appendChild(addBtnRow);
                 commentContainer.appendChild(addForm);
               }
             };
-            
+
             renderComments();
             docsList.appendChild(commentToggle);
             docsList.appendChild(commentContainer);
@@ -2530,144 +3171,89 @@ const Workflow = {
           });
         }
         docsSection.appendChild(docsList);
-        detailsGrid.appendChild(docsSection);
+        rightPane.appendChild(docsSection);
 
-        // Time Log Section
+        // Time Log History Section
         const timeSection = el('div', { class: 'task-details-col' });
         const timeHeader = el('div', { class: 'details-section-title' });
-        timeHeader.appendChild(el('span', { text: 'Time Logs' }));
-        const canLogTime = ((t.assigneeId || t.assignedTo) === Auth.user.id) && !isArchived;
-        if (canLogTime) {
-          const addTimeBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Add Log' });
-          addTimeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showAddTimeLogModal(t.id); });
-          timeHeader.appendChild(addTimeBtn);
-        }
+        timeHeader.appendChild(el('span', { text: 'Time Log History' }));
+        const logTimeTopBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Log Time' });
+        logTimeTopBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showAddTimeLogModal(t.id); });
+        timeHeader.appendChild(logTimeTopBtn);
         timeSection.appendChild(timeHeader);
 
         const timeList = el('div', { class: 'details-content-list' });
         const logs = t.timeLogs || [];
-        if (logs.length === 0) {
+        const checklistLogGroups = [];
+        (t.checklist || []).forEach(item => {
+          if (item.timeLogs && item.timeLogs.length > 0) {
+            checklistLogGroups.push({ item, logs: item.timeLogs });
+          }
+        });
+        if (logs.length === 0 && checklistLogGroups.length === 0) {
           const emptyText = isArchived ? 'Archived — time logging disabled.' : 'No logs recorded.';
           timeList.appendChild(el('div', { class: 'empty-state', text: emptyText }));
         } else {
-          // Sort logs: latest date first, then latest start time first
-          const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
-          sortedLogs.forEach(l => {
+          const buildTimeLogEntry = (l) => {
             const [y, m, d] = l.date.split('-').map(Number);
             const logDate = new Date(y, m - 1, d);
-            const dateStr = logDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', weekday: 'short' });
-            
-            const item = el('div', { class: 'detail-item-v2', style: 'display:flex; flex-direction:column; gap:4px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #e2e8f0;' });
-
-            const mainRow = el('div', { style: 'display:flex; justify-content:space-between; align-items:center; width:100%;' });
-            mainRow.appendChild(el('span', { text: `${dateStr} • ${l.startTime} - ${l.endTime}`, style: 'font-weight:600;' }));
-            mainRow.appendChild(el('span', { class: 'kpi-label', text: `${l.hours}h`, style: 'font-size:11px;' }));
-
-            item.appendChild(mainRow);
-
+            const dateStr = logDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
             const workerLabel = l.workerName || (DB.getById('users', l.userId)?.name || l.userId || 'Unknown');
-            item.appendChild(el('span', { text: `Worker: ${workerLabel}`, style: 'font-size:11px; color:var(--color-text-muted);' }));
+            const noteText = l.note ? ` — ${l.note}` : '';
+            return el('div', { class: 'time-log-entry' }, [
+              el('span', { text: `${workerLabel} • ${dateStr} • ${l.startTime}–${l.endTime}${noteText}` }),
+              el('span', { text: `${l.hours}h` })
+            ]);
+          };
 
-            if (l.note) {
-              item.appendChild(el('span', { text: l.note, style: 'font-size:11px; color:var(--color-text-muted); font-style:italic;' }));
-            }
-            timeList.appendChild(item);
+          const taskLevelLogs = logs.filter(l => !l.checklistItemId);
+          if (taskLevelLogs.length > 0) {
+            const taskGroup = el('div', { class: 'time-log-group' });
+            taskGroup.appendChild(el('div', { class: 'time-log-group-title', text: 'Task-level logs' }));
+            const sorted = [...taskLevelLogs].sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
+            sorted.forEach(l => taskGroup.appendChild(buildTimeLogEntry(l)));
+            timeList.appendChild(taskGroup);
+          }
+
+          checklistLogGroups.forEach(({ item, logs: itemLogs }) => {
+            const group = el('div', { class: 'time-log-group' });
+            group.appendChild(el('div', { class: 'time-log-group-title', text: item.text }));
+            const sorted = [...itemLogs].sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
+            sorted.forEach(l => group.appendChild(buildTimeLogEntry(l)));
+            timeList.appendChild(group);
           });
         }
         timeSection.appendChild(timeList);
-        detailsGrid.appendChild(timeSection);
+        rightPane.appendChild(timeSection);
 
-        // Requirements Checklist Section
-        const checklistSection = el('div', { class: 'task-details-col' });
-        const checklistHeader = el('div', { class: 'details-section-title' });
-        checklistHeader.appendChild(el('span', { text: 'Requirements Checklist' }));
-        checklistSection.appendChild(checklistHeader);
+        // Dependency Mini-Map Section
+        const depSection = el('div', { class: 'task-details-col' });
+        const depHeader = el('div', { class: 'details-section-title' });
+        depHeader.appendChild(el('span', { text: 'Dependencies' }));
+        depSection.appendChild(depHeader);
 
-        const checklistList = el('div', { class: 'details-content-list' });
-        const normalizedChecklist = (t.checklist || []).map(item => {
-          if (typeof item === 'string') return { id: generateId('chk'), text: item, completed: false };
-          return item;
-        });
+        const depContent = el('div', { class: 'dependency-mini-map' });
+        const taskPreds = t.predecessors || [];
+        const checklistDeps = (t.checklist || []).filter(item => item.dependsOn);
+        if (taskPreds.length === 0 && checklistDeps.length === 0) {
+          depContent.appendChild(el('div', { text: 'No dependencies' }));
+        } else {
+          taskPreds.forEach(pid => {
+            const pTask = DB.getById('tasks', pid);
+            depContent.appendChild(el('div', { class: 'dep-chain', text: 'Task depends on: ' + (pTask ? pTask.title : 'Unknown') }));
+          });
+          checklistDeps.forEach(item => {
+            const prereq = (t.checklist || []).find(c => c.id === item.dependsOn);
+            depContent.appendChild(el('div', { class: 'dep-chain', text: `${item.text} depends on ${prereq ? prereq.text : 'Unknown'}` }));
+          });
+        }
+        depSection.appendChild(depContent);
+        rightPane.appendChild(depSection);
 
-        const renderChecklist = () => {
-          checklistList.innerHTML = '';
-          if (normalizedChecklist.length === 0) {
-            checklistList.appendChild(el('div', { class: 'empty-state', text: 'No checklist items.' }));
-          } else {
-            normalizedChecklist.forEach((item, idx) => {
-              const row = el('div', { class: 'detail-item-v2 checklist-item-row', style: 'display:flex; align-items:center; gap:8px; padding:4px 0;' });
-              const cb = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
-              cb.checked = !!item.completed;
-              const text = el('span', { text: item.text, style: item.completed ? 'text-decoration:line-through; color:var(--color-text-muted);' : '' });
-              cb.addEventListener('change', (e) => {
-                e.stopPropagation();
-                item.completed = cb.checked;
-                text.style.textDecoration = item.completed ? 'line-through' : '';
-                text.style.color = item.completed ? 'var(--color-text-muted)' : '';
-                DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-              });
-              row.appendChild(cb);
-              row.appendChild(text);
+        detailsPanes.appendChild(leftPane);
+        detailsPanes.appendChild(rightPane);
+        detailsContainer.appendChild(detailsPanes);
 
-              const assigneeDropdown = this.createGroundWorkerDropdown({
-                selectedGroundWorkerName: item.assigneeName,
-                placeholder: 'Assign...',
-                maxWidth: '150px',
-                className: 'checklist-assignee-dropdown',
-                onChange: ({ assigneeName }) => {
-                  item.assigneeId = null;
-                  item.assigneeName = assigneeName || null;
-                  DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                }
-              });
-              row.appendChild(assigneeDropdown);
-
-              const delBtn = el('button', {
-                type: 'button',
-                class: 'btn btn-ghost btn-xs',
-                text: '×',
-                style: 'color:var(--color-danger); font-size:1.2rem; padding:0 4px; line-height:1;'
-              });
-              delBtn.title = 'Delete checklist item';
-              delBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                normalizedChecklist.splice(idx, 1);
-                DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                renderChecklist();
-              });
-              row.appendChild(delBtn);
-              checklistList.appendChild(row);
-            });
-          }
-        };
-
-        const addChecklistRow = el('div', { style: 'display:flex; gap:8px; margin-top:8px;' });
-        const newItemInput = el('input', { type: 'text', placeholder: 'Add checklist item...', style: 'flex:1; font-size:0.85rem;' });
-        const addItemBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Add Item' });
-        addItemBtn.addEventListener('click', () => {
-          const val = newItemInput.value.trim();
-          if (!val) return;
-          normalizedChecklist.push({ id: generateId('chk'), text: val, completed: false, assigneeId: null, assigneeName: null });
-          DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-          newItemInput.value = '';
-          renderChecklist();
-        });
-        newItemInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            addItemBtn.click();
-          }
-        });
-        addChecklistRow.appendChild(newItemInput);
-        addChecklistRow.appendChild(addItemBtn);
-
-        checklistSection.appendChild(checklistList);
-        checklistSection.appendChild(addChecklistRow);
-        detailsGrid.appendChild(checklistSection);
-
-        renderChecklist();
-
-        detailsContainer.appendChild(detailsGrid);
         detailsTd.appendChild(detailsContainer);
         detailsTr.appendChild(detailsTd);
         tbody.appendChild(detailsTr);
@@ -2684,15 +3270,20 @@ const Workflow = {
       const tfoot = el('tfoot');
       const footTr = el('tr', { style: 'font-weight: bold;' });
       for(let i=0; i<6; i++) footTr.appendChild(el('td')); // Empty placeholders (columns 1 to 6)
-      footTr.appendChild(el('td', { text: formatPHP(totalAmount) })); // Est. Amount (column 7)
-      footTr.appendChild(el('td', { text: `${totalHours} hrs` })); // Hours (column 8)
+      footTr.appendChild(el('td', { text: `${totalHours} hrs` })); // Time column total
+      footTr.appendChild(el('td')); // Actions column empty
       tfoot.appendChild(footTr);
       table.appendChild(tfoot);
 
       groupEl.appendChild(table);
       listWrapper.appendChild(groupEl);
     }
-    
+
+    updateBulkBar();
+    };
+
+    renderGroups();
+
     container.appendChild(listWrapper);
 
     // Related Records Panel (Section 3B.7)
@@ -2995,13 +3586,25 @@ const Workflow = {
     });
   },
 
-  showAddTimeLogModal(taskId) {
+  showAddTimeLogModal(taskId, checklistItemId = null) {
     const task = DB.getById('tasks', taskId);
-    const defaultWorkerName = task?.assigneeName
-      ? task.assigneeName
-      : (task?.assigneeId || task?.assignedTo)
-        ? (DB.getById('users', task.assigneeId || task.assignedTo)?.name || '')
-        : '';
+    let defaultWorkerName = '';
+    if (checklistItemId) {
+      const item = (task?.checklist || []).find(c => c.id === checklistItemId);
+      defaultWorkerName = item?.assigneeName || task?.assigneeName || '';
+    } else {
+      defaultWorkerName = task?.assigneeName
+        ? task.assigneeName
+        : (task?.assigneeId || task?.assignedTo)
+          ? (DB.getById('users', task.assigneeId || task.assignedTo)?.name || '')
+          : '';
+    }
+
+    function nextManilaDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().slice(0, 10);
+    }
 
     const form = el('form', { class: 'form-stacked' });
 
@@ -3013,7 +3616,7 @@ const Workflow = {
     ]));
 
     // Date field
-    const dateInput = el('input', { type: 'date', name: 'date', required: true, value: new Date().toISOString().slice(0, 10) });
+    const dateInput = el('input', { type: 'date', name: 'date', required: true, value: manilaToday() });
     form.appendChild(el('div', { class: 'form-group' }, [
       el('label', { text: 'Date *' }),
       dateInput
@@ -3054,12 +3657,11 @@ const Workflow = {
       if (start && end) {
         const [sh, sm] = start.split(':').map(Number);
         const [eh, em] = end.split(':').map(Number);
-        if (eh > sh || (eh === sh && em > sm)) {
-          const hours = Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 60 * 4) / 4;
-          hoursInput.value = hours.toFixed(2);
-        } else {
-          hoursInput.value = '0.00';
-        }
+        const startMin = sh * 60 + sm;
+        const endMin = eh * 60 + em;
+        const totalMin = endMin > startMin ? endMin - startMin : endMin + 1440 - startMin;
+        const hours = Math.round(totalMin / 60 * 4) / 4;
+        hoursInput.value = hours.toFixed(2);
       } else {
         hoursInput.value = '0.00';
       }
@@ -3077,37 +3679,68 @@ const Workflow = {
       const start = startInput.value;
       const end = endInput.value;
       const noteVal = noteInput.value;
-      
+
+      if (!dateVal || !start || !end) return;
+
       const [sh, sm] = start.split(':').map(Number);
       const [eh, em] = end.split(':').map(Number);
-      if (eh < sh || (eh === sh && em <= sm)) {
-        this.showMessage('Routing Error', 'End time must be after start time.', 'danger');
+      const startMin = sh * 60 + sm;
+      const endMin = eh * 60 + em;
+      const workerName = workerInput.value.trim() || (DB.getById('users', Auth.user.id)?.name || '');
+
+      let entries = [];
+      if (endMin > startMin) {
+        const hours = Math.round((endMin - startMin) / 60 * 4) / 4;
+        if (hours > 0) entries.push({ date: dateVal, startTime: start, endTime: end, hours });
+      } else {
+        const hours1 = Math.round((1440 - startMin) / 60 * 4) / 4;
+        const nextDate = nextManilaDate(dateVal);
+        const hours2 = Math.round(endMin / 60 * 4) / 4;
+        if (hours1 > 0) entries.push({ date: dateVal, startTime: start, endTime: '23:59', hours: hours1 });
+        if (hours2 > 0) entries.push({ date: nextDate, startTime: '00:00', endTime: end, hours: hours2 });
+      }
+
+      if (entries.length === 0) {
+        this.showMessage('Log too short', 'Log too short to record.', 'warning');
         return;
       }
-      const hours = Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 60 * 4) / 4;
-      const workerName = workerInput.value.trim() || (DB.getById('users', Auth.user.id)?.name || '');
-      const entry = {
+
+      const currentTask = DB.getById('tasks', taskId);
+      const checklist = currentTask.checklist || [];
+      const item = checklistItemId ? checklist.find(c => c.id === checklistItemId) : null;
+
+      // Guard: prevent the same worker from logging twice on the same day for the same scope.
+      // Scope is either a checklist item or the task itself.
+      const scopeLogs = item ? (item.timeLogs || []) : (currentTask.timeLogs || []);
+      const alreadyLogged = entries.some(entry => scopeLogs.some(l =>
+        l.date === entry.date &&
+        (l.workerName || '') === workerName
+      ));
+      if (alreadyLogged) {
+        this.showMessage('Warning', `${workerName} has already logged time for this scope on one of the selected dates.`, 'warning');
+        return;
+      }
+
+      const newEntries = entries.map(entry => ({
         userId: Auth.user.id,
         loggedByUserId: Auth.user.id,
         workerName,
-        startTime: start,
-        endTime: end,
-        date: dateVal,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        date: entry.date,
         note: noteVal,
-        hours
-      };
-      const task = DB.getById('tasks', taskId);
+        hours: entry.hours,
+        checklistItemId: checklistItemId || null
+      }));
 
-      // Guard: prevent the same worker from logging twice on the same day for this task.
-      // Different workers may each log once per day.
-      const alreadyLogged = (task.timeLogs || []).some(l => l.date === entry.date && (l.workerName || '') === workerName);
-      if (alreadyLogged) {
-        this.showMessage('Warning', `${workerName} has already logged time for this task on ${dateVal}.`, 'warning');
-        return;
+      const updates = { updatedAt: new Date().toISOString() };
+      if (item) {
+        item.timeLogs = [...(item.timeLogs || []), ...newEntries];
+        updates.checklist = checklist;
+      } else {
+        updates.timeLogs = [...(currentTask.timeLogs || []), ...newEntries];
       }
-
-      const updatedLogs = [...(task.timeLogs || []), entry];
-      DB.update('tasks', taskId, { timeLogs: updatedLogs, updatedAt: new Date().toISOString() });
+      DB.update('tasks', taskId, updates);
       overlay.remove();
       App.handleRoute();
     });
@@ -3163,6 +3796,19 @@ const Workflow = {
         const row = el('div', { style: 'display:flex; align-items:center; gap:8px; padding:6px 8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px;' });
         row.appendChild(el('span', { text: item.text, style: 'flex:1; font-size:0.85rem;' }));
 
+        const prereqSelect = el('select', { style: 'font-size:0.8rem; max-width:140px;' });
+        prereqSelect.appendChild(el('option', { value: '', text: '— None —' }));
+        checklistItems.slice(0, idx).forEach((prev, pIdx) => {
+          if (!prev.id) prev.id = generateId('chk');
+          prereqSelect.appendChild(el('option', { value: prev.id, text: `${pIdx + 1}. ${prev.text}` }));
+        });
+        if (idx === 0) prereqSelect.disabled = true;
+        prereqSelect.value = item.dependsOn || '';
+        prereqSelect.addEventListener('change', () => {
+          item.dependsOn = prereqSelect.value || null;
+        });
+        row.appendChild(prereqSelect);
+
         const assigneeDropdown = this.createGroundWorkerDropdown({
           selectedGroundWorkerName: item.assigneeName,
           placeholder: 'Assign...',
@@ -3190,7 +3836,7 @@ const Workflow = {
     const addChecklistItem = () => {
       const val = checklistInput.value.trim();
       if (!val) return;
-      checklistItems.push({ text: val, assigneeId: null, assigneeName: null });
+      checklistItems.push({ id: generateId('chk'), text: val, assigneeId: null, assigneeName: null, dependsOn: null, timeLogs: [] });
       checklistFromTemplate = false;
       checklistInput.value = '';
       renderChecklist();
@@ -3208,7 +3854,7 @@ const Workflow = {
       if (!isNaN(idx) && this.standardTaskTemplates[idx]) {
         const tmpl = this.standardTaskTemplates[idx];
         titleInput.value = tmpl.title;
-        checklistItems = tmpl.defaultChecklist.map(text => ({ text, assigneeId: null, assigneeName: null }));
+        checklistItems = tmpl.defaultChecklist.map(text => ({ id: generateId('chk'), text, assigneeId: null, assigneeName: null, dependsOn: null, timeLogs: [] }));
         checklistFromTemplate = true;
       } else {
         if (checklistFromTemplate) {
@@ -3233,6 +3879,53 @@ const Workflow = {
     assigneeWrapper.appendChild(gwDropdown);
     assigneeGroup.appendChild(assigneeWrapper);
     form.appendChild(assigneeGroup);
+
+    // Co-assignees
+    const coAssignees = [];
+    const coAssigneeGroup = el('div', { class: 'form-group' });
+    coAssigneeGroup.appendChild(el('label', { text: 'Co-assignees' }));
+
+    const coAssigneeChips = el('div', { class: 'co-assignee-chips' });
+    const coAssigneeDropdown = this.createGroundWorkerDropdown({
+      placeholder: 'Add co-assignee...',
+      className: 'modal-co-assignee',
+      onChange: ({ assigneeName }) => {
+        const name = assigneeName?.trim();
+        if (!name) return;
+        const primaryName = (gwDropdown.searchText || '').trim();
+        if (name === primaryName) {
+          coAssigneeDropdown.value = '';
+          return;
+        }
+        if (!coAssignees.includes(name)) {
+          coAssignees.push(name);
+          const existing = (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase());
+          if (!existing) {
+            DB.insert('groundWorkers', { id: generateId('gw'), name });
+          }
+          renderCoAssigneeChips();
+        }
+        coAssigneeDropdown.value = '';
+      }
+    });
+
+    const renderCoAssigneeChips = () => {
+      coAssigneeChips.innerHTML = '';
+      coAssignees.forEach((name, idx) => {
+        const chip = el('span', { class: 'co-assignee-chip', text: name });
+        const remove = el('span', { class: 'co-assignee-chip-remove', text: '×' });
+        remove.addEventListener('click', () => {
+          coAssignees.splice(idx, 1);
+          renderCoAssigneeChips();
+        });
+        chip.appendChild(remove);
+        coAssigneeChips.appendChild(chip);
+      });
+    };
+
+    coAssigneeGroup.appendChild(coAssigneeChips);
+    coAssigneeGroup.appendChild(coAssigneeDropdown);
+    form.appendChild(coAssigneeGroup);
 
     form.appendChild(el('div', { class: 'form-group' }, [
       el('label', { text: 'Due Date' }),
@@ -3363,18 +4056,21 @@ const Workflow = {
         title: data.title.trim(),
         assigneeId: null,
         assigneeName: groundWorkerName || null,
-        status: groundWorkerName ? 'Assigned' : 'Draft',
+        coAssignees: coAssignees.filter(Boolean),
+        status: (groundWorkerName || coAssignees.length > 0) ? 'Assigned' : 'Draft',
         priority: data.priority || 'Normal',
         dueDate: data.dueDate || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         predecessors,
         checklist: checklistItems.map(item => ({
-          id: generateId('chk'),
+          id: item.id || generateId('chk'),
           text: item.text,
           completed: false,
           assigneeId: item.assigneeId || null,
-          assigneeName: item.assigneeName || null
+          assigneeName: item.assigneeName || null,
+          dependsOn: item.dependsOn || null,
+          timeLogs: []
         })),
         timeLogs: [],
         taskDocuments: [],
@@ -3551,6 +4247,7 @@ const Workflow = {
 
     // Retrieve associated Work Request, if any
     const wr = task.workRequestId ? DB.getById('workRequests', task.workRequestId) : null;
+    let result;
     if (wr) {
       if (wr.status === 'Completed' || wr.status === 'Cancelled') {
         return [task.status];
@@ -3581,12 +4278,24 @@ const Workflow = {
               filtered.add(status);
             }
           });
-          return Array.from(filtered);
+          result = Array.from(filtered);
         }
       }
     }
 
-    return Array.from(allowed);
+    if (!result) result = Array.from(allowed);
+
+    // Block terminal statuses if checklist has incomplete items
+    const checklist = task.checklist || [];
+    const hasIncomplete = checklist.some(item => {
+      if (typeof item === 'string') return true;
+      return !item.completed;
+    });
+    if (hasIncomplete) {
+      result = result.filter(s => s !== 'Completed' && s !== 'For Review');
+    }
+
+    return result;
   },
 
   // ============================================================

@@ -382,6 +382,54 @@ function wrapFilterFieldWithClear(element, onClear) {
       updateClearVisibility();
     }
   });
-  
+
   return wrapper;
+}
+
+function getChecklistItemTotalHours(item) {
+  return (item.timeLogs || []).reduce((sum, log) => sum + (log.hours || 0), 0);
+}
+
+function getTaskTotalHours(task) {
+  const taskLogs = (task.timeLogs || []).reduce((sum, log) => sum + (log.hours || 0), 0);
+  const checklistLogs = (task.checklist || []).reduce((sum, item) => sum + getChecklistItemTotalHours(item), 0);
+  return taskLogs + checklistLogs;
+}
+
+function isChecklistBlocked(item, checklist) {
+  if (!item.dependsOn) return false;
+  const prereq = checklist.find(c => c.id === item.dependsOn);
+  return !prereq || !prereq.completed;
+}
+
+function getIncompleteChecklistNames(task) {
+  return (task.checklist || [])
+    .filter(item => !item.completed && !isChecklistBlocked(item, task.checklist))
+    .map(item => item.text);
+}
+
+function getTaskChecklistCompletion(task) {
+  const list = task.checklist || [];
+  const done = list.filter(i => i.completed).length;
+  return { done, total: list.length, percent: list.length ? Math.round((done / list.length) * 100) : 0 };
+}
+
+/**
+ * Return all distinct assignee names for a task: primary assigneeName plus
+ * any coAssignees, falling back to resolving the registered user name from
+ * assigneeId / assignedTo when no explicit name is stored.
+ */
+function getTaskAllAssigneeNames(task) {
+  const names = new Set();
+  if (task.assigneeName) names.add(task.assigneeName);
+  (task.coAssignees || []).forEach(n => { if (n) names.add(n); });
+  if (!task.assigneeName && (task.assigneeId || task.assignedTo)) {
+    const u = DB.getById('users', task.assigneeId || task.assignedTo);
+    if (u?.name) names.add(u.name);
+  }
+  return Array.from(names);
+}
+
+function manilaToday() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })).toISOString().slice(0, 10);
 }

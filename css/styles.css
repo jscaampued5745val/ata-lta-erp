@@ -1173,6 +1173,78 @@ tbody tr:hover {
   min-width: 160px;
 }
 
+/* Co-assignee chips */
+.co-assignee-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.co-assignee-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.co-assignee-chip-remove {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0 2px;
+  color: #3b82f6;
+}
+
+.co-assignee-chip-remove:hover {
+  color: #1d4ed8;
+}
+
+/* Task-row multi-avatar assignee display */
+.assignee-avatars {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.assignee-avatars .avatar-xs {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e2e8f0 center/cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #475569;
+  border: 1px solid #fff;
+}
+
+.assignee-avatars .assignee-name {
+  font-size: 0.8125rem;
+  color: #334155;
+}
+
+.assignee-overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #1e293b;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: help;
+}
+
 /* Custom Multi-select Dropdown styling */
 .multi-select-dropdown {
   position: relative;
@@ -5660,4 +5732,235 @@ tbody tr:hover {
 
 .checklist-item-row {
   flex-wrap: nowrap;
+}
+
+/* WR task detail — two-pane accordion */
+.task-details-panes { display: flex; gap: 16px; align-items: flex-start; }
+.task-details-left, .task-details-right { flex: 1; min-width: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+.task-details-left { flex: 1.1; }
+.task-details-right { flex: 0.9; }
+.task-details-left .task-details-col,
+.task-details-right .task-details-col { border-right: none; padding-right: 0; margin-bottom: 24px; }
+.task-details-left .task-details-col:last-child,
+.task-details-right .task-details-col:last-child { margin-bottom: 0; }
+.checklist-item-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #f1f5f9; }
+.checklist-item-row:last-child { border-bottom: none; }
+.checklist-item-row.blocked { opacity: 0.6; background: #f8fafc; }
+.checklist-item-checkbox { flex-shrink: 0; }
+.checklist-item-text { flex: 1; font-size: 0.9rem; }
+.checklist-item-text.completed { text-decoration: line-through; color: #10b981; }
+.checklist-time-pill { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.checklist-assignee-dropdown { max-width: 160px; }
+.checklist-add-row { display: flex; gap: 8px; margin-top: 12px; }
+.time-log-group { margin-bottom: 12px; }
+.time-log-group-title { font-weight: 600; font-size: 0.85rem; color: #475569; margin-bottom: 4px; }
+.time-log-entry { display: flex; justify-content: space-between; font-size: 0.85rem; color: #334155; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+.dependency-mini-map { font-size: 0.85rem; color: #475569; }
+.dependency-mini-map .dep-chain { margin-bottom: 6px; }
+@media (max-width: 768px) {
+  .task-details-panes { flex-direction: column; }
+}
+
+/* Phase C: task table checklist, actions, and row selection styles */
+.checklist-progress-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist-progress-text {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.checklist-progress-ring {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.checklist-progress-ring svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.task-actions-cell {
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.task-row-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.status-dropdown-v2 option:disabled {
+  color: #94a3b8;
+}
+
+/* ─── Task View Toolbar & Bulk Actions (Phase D) ───────────────────────── */
+.task-view-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  margin: 0 var(--spacing-lg) var(--spacing-md);
+}
+
+.task-view-toolbar .btn-primary {
+  margin-left: auto;
+}
+
+.group-toggle {
+  display: flex;
+  gap: 2px;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.group-toggle button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.group-toggle button.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: #f1f5f9;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-chip.active {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.bulk-action-bar {
+  display: none;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin: 0 var(--spacing-lg) var(--spacing-md);
+}
+
+.bulk-selection-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  margin-right: auto;
+}
+
+.bulk-clear-link {
+  font-size: 0.8125rem;
+  color: var(--color-danger);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.bulk-clear-link:hover {
+  text-decoration: underline;
+}
+
+.bulk-assign-wrap .searchable-dropdown-input {
+  height: 32px;
+  font-size: 0.8125rem;
+}
+
+.group-header-stats {
+  font-weight: 500;
+  color: #64748b;
+}
+
+/* ─── Phase E: EOD reminder, checklist soft-delete, empty state ──────────── */
+.eod-banner {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.eod-request-link {
+  font-size: 0.75rem;
+  color: #b45309;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 12px;
+  font-weight: 500;
+}
+
+.eod-request-link:hover {
+  color: #92400e;
+}
+
+.checklist-delete-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.task-empty-state {
+  text-align: center;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  max-width: 480px;
+  margin: var(--spacing-md) auto;
+}
+
+.task-empty-state svg {
+  color: #94a3b8;
+  margin-bottom: var(--spacing-sm);
+}
+
+.task-empty-state p {
+  color: #475569;
+  margin-bottom: var(--spacing-md);
+  font-size: 0.9rem;
 }
