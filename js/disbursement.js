@@ -592,7 +592,11 @@ const Disbursement = {
 
     const amtGroup = el('div', { class: 'form-group' });
     amtGroup.appendChild(el('label', { text: 'Amount (₱) *' }));
-    amtGroup.appendChild(el('input', { type: 'number', name: 'amount', min: 0, step: 0.01, required: true, value: existing ? String(existing.amount) : '' }));
+    const amtIn = el('input', { type: 'text', inputmode: 'decimal', name: 'amount', placeholder: '0.00', required: true, value: existing ? String(existing.amount) : '' });
+    amtIn.addEventListener('input', () => { amtIn.value = amtIn.value.replace(/[^0-9.,]/g, ''); });
+    amtIn.addEventListener('focus', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? String(n) : ''; });
+    amtIn.addEventListener('blur', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''; });
+    amtGroup.appendChild(amtIn);
     form.appendChild(amtGroup);
 
     const receiptGroup = el('div', { class: 'form-group' });
@@ -697,7 +701,7 @@ const Disbursement = {
     const record = {
       category: data.category,
       description: data.description.trim(),
-      amount: parseFloat(data.amount) || 0,
+      amount: parseFloat(String(data.amount).replace(/[₱$,\s]/g, '')) || 0,
       fundSource: data.fundSource,
       linkedInvoiceId: data.linkedInvoiceId || null,
       linkedWorkRequestId: data.linkedWorkRequestId || null,
@@ -1472,7 +1476,11 @@ const Disbursement = {
 
     const amtGroup = el('div', { class: 'form-group' });
     amtGroup.appendChild(el('label', { text: 'Amount (₱) *' }));
-    amtGroup.appendChild(el('input', { type: 'number', name: 'amount', min: 0, step: 0.01, required: true }));
+    const amtIn2 = el('input', { type: 'text', inputmode: 'decimal', name: 'amount', placeholder: '0.00', required: true });
+    amtIn2.addEventListener('input', () => { amtIn2.value = amtIn2.value.replace(/[^0-9.,]/g, ''); });
+    amtIn2.addEventListener('focus', () => { const n = parseFloat(String(amtIn2.value).replace(/[₱$,\s]/g, '')) || 0; amtIn2.value = n > 0 ? String(n) : ''; });
+    amtIn2.addEventListener('blur', () => { const n = parseFloat(String(amtIn2.value).replace(/[₱$,\s]/g, '')) || 0; amtIn2.value = n > 0 ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''; });
+    amtGroup.appendChild(amtIn2);
     form.appendChild(amtGroup);
 
     const fundGroup = el('div', { class: 'form-group' });
@@ -1533,7 +1541,7 @@ const Disbursement = {
         entity: entity,
         name: data.name.trim(),
         category: data.category,
-        amount: parseFloat(data.amount) || 0,
+        amount: parseFloat(String(data.amount).replace(/[₱$,\s]/g, '')) || 0,
         fundSource: data.fundSource,
         schedule: data.schedule || '',
         description: data.description || '',

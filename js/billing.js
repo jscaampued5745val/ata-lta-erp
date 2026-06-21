@@ -684,6 +684,16 @@ const Billing = {
     // Line Items
     const itemsSection = el('div', { class: 'form-section' });
     itemsSection.appendChild(el('h3', { text: 'Line Items' }));
+
+    // Column headers
+    const headerBase = 'font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; padding-left: 13px;';
+    const colHeaders = el('div', { class: 'line-item-row', style: 'margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;' });
+    colHeaders.appendChild(el('span', { text: 'Type', class: 'item-type', style: headerBase }));
+    colHeaders.appendChild(el('span', { text: 'Description', class: 'item-desc', style: headerBase + ' flex: 1;' }));
+    colHeaders.appendChild(el('span', { text: 'Amount (PHP)', class: 'item-amt', style: headerBase + ' flex: 1;' }));
+    colHeaders.appendChild(el('span', { class: 'btn btn-sm', style: 'visibility: hidden;', text: '×' }));
+    itemsSection.appendChild(colHeaders);
+
     const itemsList = el('div', { id: 'line-item-rows' });
     itemsSection.appendChild(itemsList);
 
@@ -738,6 +748,18 @@ const Billing = {
     return container;
   },
 
+  parseAmountValue(val) {
+    if (!val) return 0;
+    const cleaned = String(val).replace(/[₱$,\s]/g, '');
+    return parseFloat(cleaned) || 0;
+  },
+
+  formatAmountValue(val) {
+    const num = this.parseAmountValue(val);
+    if (num === 0 && !val) return '';
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  },
+
   addLineItemRow(container, item) {
     const row = el('div', { class: 'line-item-row' });
 
@@ -752,7 +774,26 @@ const Billing = {
     const descIn = el('input', { type: 'text', placeholder: 'Description', class: 'item-desc', value: item?.description || '' });
     row.appendChild(descIn);
 
-    const amtIn = el('input', { type: 'number', placeholder: 'Amount', class: 'item-amt', value: item?.amount || '', min: 0, step: 0.01 });
+    // Amount field: right-aligned, placeholder 0.00, auto-format on blur
+    const initialVal = item?.amount ? this.formatAmountValue(item.amount) : '';
+    const amtIn = el('input', {
+      type: 'text', inputmode: 'decimal',
+      placeholder: '0.00', class: 'item-amt',
+      value: initialVal,
+    });
+    amtIn.addEventListener('input', () => {
+      amtIn.value = amtIn.value.replace(/[^0-9.,]/g, '');
+    });
+    amtIn.addEventListener('focus', () => {
+      const num = this.parseAmountValue(amtIn.value);
+      amtIn.value = num > 0 ? String(num) : '';
+    });
+    amtIn.addEventListener('blur', () => {
+      const num = this.parseAmountValue(amtIn.value);
+      amtIn.value = num > 0 ? this.formatAmountValue(num) : '';
+      const form = container.closest('form');
+      if (form) this.recalcTotals(form);
+    });
     row.appendChild(amtIn);
 
     const removeBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×' });
@@ -767,10 +808,10 @@ const Billing = {
   },
 
   recalcTotals(form) {
-    const rows = form.querySelectorAll('.line-item-row');
+    const rows = form.querySelectorAll('#line-item-rows .line-item-row');
     let subtotal = 0;
     rows.forEach(row => {
-      const amt = parseFloat(row.querySelector('.item-amt').value) || 0;
+      const amt = this.parseAmountValue(row.querySelector('.item-amt').value);
       subtotal += amt;
     });
 
@@ -797,11 +838,11 @@ const Billing = {
     const data = Object.fromEntries(new FormData(form).entries());
     const entity = Auth.activeEntity;
 
-    const rows = form.querySelectorAll('.line-item-row');
+    const rows = form.querySelectorAll('#line-item-rows .line-item-row');
     const lineItems = [];
     let subtotal = 0;
     rows.forEach(row => {
-      const amt = parseFloat(row.querySelector('.item-amt').value) || 0;
+      const amt = this.parseAmountValue(row.querySelector('.item-amt').value);
       subtotal += amt;
       lineItems.push({
         type: row.querySelector('.item-type').value,

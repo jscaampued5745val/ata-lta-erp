@@ -366,14 +366,38 @@ const Workflow = {
     // ---------- Line Items ----------
     const itemsSection = el('div', { class: 'form-section', style: 'margin-top: 4px;' });
     itemsSection.appendChild(el('h4', { text: 'Line Items', style: 'margin-bottom: 8px; font-size: 0.9rem;' }));
+
+    // Column headers
+    const headerLabelStyle = 'font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; padding-left: 13px;';
+    const colHeaders = el('div', { class: 'line-item-row', style: 'margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;' });
+    colHeaders.appendChild(el('span', { text: 'Type', class: 'item-type', style: headerLabelStyle }));
+    colHeaders.appendChild(el('span', { text: 'Description', class: 'item-desc', style: headerLabelStyle }));
+    colHeaders.appendChild(el('span', { text: 'Amount (PHP)', class: 'item-amt', style: headerLabelStyle }));
+    colHeaders.appendChild(el('span', { class: 'btn btn-sm', style: 'visibility: hidden;', text: '×' })); // invisible spacer matching remove btn
+    itemsSection.appendChild(colHeaders);
+
     const itemsList = el('div', { id: 'modal-line-item-rows' });
     itemsSection.appendChild(itemsList);
+
+    // --- Amount formatting helpers ---
+    const parseAmount = (val) => {
+      if (!val) return 0;
+      // Strip currency symbols, spaces, commas
+      const cleaned = String(val).replace(/[₱$,\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
+
+    const formatAmount = (val) => {
+      const num = parseAmount(val);
+      if (num === 0 && !val) return '';
+      return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
 
     const recalcModalTotals = () => {
       const rows = itemsList.querySelectorAll('.line-item-row');
       let subtotal = 0;
       rows.forEach(row => {
-        subtotal += parseFloat(row.querySelector('.item-amt').value) || 0;
+        subtotal += parseAmount(row.querySelector('.item-amt').value);
       });
       const subEl = form.querySelector('#modal-inv-subtotal');
       const totEl = form.querySelector('#modal-inv-total');
@@ -391,7 +415,32 @@ const Workflow = {
       });
       row.appendChild(typeSel);
       row.appendChild(el('input', { type: 'text', placeholder: 'Description', class: 'item-desc', value: item?.description || '' }));
-      row.appendChild(el('input', { type: 'number', placeholder: 'Amount', class: 'item-amt', value: item?.amount || '', min: 0, step: 0.01 }));
+
+      // Amount field: placeholder 0.00, auto-format on blur
+      const initialVal = item?.amount ? formatAmount(item.amount) : '';
+      const amtIn = el('input', {
+        type: 'text', inputmode: 'decimal',
+        placeholder: '0.00', class: 'item-amt',
+        value: initialVal,
+      });
+      // On input: allow only digits, dots, commas (for paste support)
+      amtIn.addEventListener('input', () => {
+        amtIn.value = amtIn.value.replace(/[^0-9.,]/g, '');
+        recalcModalTotals();
+      });
+      // On focus: strip formatting so user edits raw number
+      amtIn.addEventListener('focus', () => {
+        const num = parseAmount(amtIn.value);
+        amtIn.value = num > 0 ? String(num) : '';
+      });
+      // On blur: auto-format with commas and 2 decimal places
+      amtIn.addEventListener('blur', () => {
+        const num = parseAmount(amtIn.value);
+        amtIn.value = num > 0 ? formatAmount(num) : '';
+        recalcModalTotals();
+      });
+      row.appendChild(amtIn);
+
       const removeBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×' });
       removeBtn.addEventListener('click', () => { row.remove(); recalcModalTotals(); });
       row.appendChild(removeBtn);
@@ -448,11 +497,11 @@ const Workflow = {
       }
 
       const data = Object.fromEntries(new FormData(form).entries());
-      const rows = form.querySelectorAll('.line-item-row');
+      const rows = itemsList.querySelectorAll('.line-item-row');
       const lineItems = [];
       let subtotal = 0;
       rows.forEach(row => {
-        const amt = parseFloat(row.querySelector('.item-amt').value) || 0;
+        const amt = parseAmount(row.querySelector('.item-amt').value);
         subtotal += amt;
         lineItems.push({
           type: row.querySelector('.item-type').value,
@@ -496,6 +545,373 @@ const Workflow = {
       this.showMessage(
         'Invoice Created',
         'Invoice ' + record.invoiceNumber + ' has been created successfully and linked to "' + wr.title + '".',
+        'success'
+      );
+
+      // Refresh WR detail
+      App.handleRoute();
+    });
+  },
+
+  /**
+   * Open a modal with the disbursement/expense creation form,
+   * pre-populated from the given work request.
+   */
+  openGenerateDisbursementModal(wr) {
+    const entity = Auth.activeEntity;
+    const client = DB.getById('clients', wr.clientId);
+    const tasks = DB.getWhere('tasks', t => t.workRequestId === wr.id);
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
+    const form = el('form', { id: 'gen-disbursement-form' });
+
+    // ---------- Client (read-only, auto-filled) ----------
+    const clientGroup = el('div', { class: 'form-group' });
+    clientGroup.appendChild(el('label', { text: 'Client' }));
+    clientGroup.appendChild(el('input', {
+      type: 'text',
+      value: client ? client.name : '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    form.appendChild(clientGroup);
+
+    // ---------- Work Request (read-only, auto-filled) ----------
+    const wrGroup = el('div', { class: 'form-group' });
+    wrGroup.appendChild(el('label', { text: 'Work Request' }));
+    wrGroup.appendChild(el('input', {
+      type: 'text',
+      value: wr.title || '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    wrGroup.appendChild(el('input', { type: 'hidden', name: 'linkedWorkRequestId', value: wr.id }));
+    form.appendChild(wrGroup);
+
+    // ---------- Task link (optional) ----------
+    if (tasks.length > 0) {
+      const taskGroup = el('div', { class: 'form-group' });
+      taskGroup.appendChild(el('label', { text: 'Link to Specific Task' }));
+      const taskSel = el('select', { name: 'linkedTaskId' });
+      taskSel.appendChild(el('option', { value: '', text: '— Whole Project —' }));
+      tasks.forEach(t => {
+        taskSel.appendChild(el('option', { value: t.id, text: t.title }));
+      });
+      taskGroup.appendChild(taskSel);
+      form.appendChild(taskGroup);
+    }
+
+    // ---------- Category ----------
+    const catGroup = el('div', { class: 'form-group' });
+    catGroup.appendChild(el('label', { text: 'Category *' }));
+    const catSel = el('select', { name: 'category', required: true, class: 'form-select' });
+    ['Transportation', 'Notary', 'Meals', 'Government Fee', 'Other'].forEach(c => {
+      catSel.appendChild(el('option', { value: c, text: c }));
+    });
+    catGroup.appendChild(catSel);
+    form.appendChild(catGroup);
+
+    // ---------- Description ----------
+    const descGroup = el('div', { class: 'form-group' });
+    descGroup.appendChild(el('label', { text: 'Description *' }));
+    descGroup.appendChild(el('input', { type: 'text', name: 'description', required: true, placeholder: 'e.g. BIR filing fee' }));
+    form.appendChild(descGroup);
+
+    // ---------- Amount ----------
+    const amtGroup = el('div', { class: 'form-group' });
+    amtGroup.appendChild(el('label', { text: 'Amount (₱) *' }));
+    const amtIn = el('input', { type: 'text', inputmode: 'decimal', name: 'amount', placeholder: '0.00', required: true });
+    amtIn.addEventListener('input', () => { amtIn.value = amtIn.value.replace(/[^0-9.,]/g, ''); });
+    amtIn.addEventListener('focus', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? String(n) : ''; });
+    amtIn.addEventListener('blur', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''; });
+    amtGroup.appendChild(amtIn);
+    form.appendChild(amtGroup);
+
+    // ---------- Fund Source ----------
+    const fundGroup = el('div', { class: 'form-group' });
+    fundGroup.appendChild(el('label', { text: 'Fund Source *' }));
+    const fundWrap = el('div', { class: 'radio-group' });
+    ['Firm Fund', 'Client Fund'].forEach(f => {
+      const label = el('label', { class: 'radio-label' });
+      const radio = el('input', { type: 'radio', name: 'fundSource', value: f, required: true });
+      if (f === 'Firm Fund') radio.checked = true;
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(' ' + f));
+      fundWrap.appendChild(label);
+    });
+    fundGroup.appendChild(fundWrap);
+    form.appendChild(fundGroup);
+
+    // ---------- Linked Invoice (visible only for Client Fund) ----------
+    const invGroup = el('div', { class: 'form-group hidden', id: 'modal-linked-invoice-group' });
+    invGroup.appendChild(el('label', { text: 'Linked Billing Invoice' }));
+    const invSel = el('select', { name: 'linkedInvoiceId', class: 'form-select' });
+    invSel.appendChild(el('option', { value: '', text: '— Select Invoice —' }));
+    DB.getWhere('invoices', inv => inv.entity === entity && inv.status !== 'Cancelled').forEach(inv => {
+      const invClient = DB.getById('clients', inv.clientId);
+      invSel.appendChild(el('option', { value: inv.id, text: inv.invoiceNumber + ' — ' + (invClient?.name || '—') }));
+    });
+    invGroup.appendChild(invSel);
+    form.appendChild(invGroup);
+
+    // Toggle linked invoice visibility
+    form.querySelectorAll('input[name="fundSource"]').forEach(r => {
+      r.addEventListener('change', () => {
+        const isClient = form.querySelector('input[name="fundSource"]:checked')?.value === 'Client Fund';
+        invGroup.classList.toggle('hidden', !isClient);
+      });
+    });
+
+    // ---------- Receipt (optional) ----------
+    const receiptGroup = el('div', { class: 'form-group' });
+    receiptGroup.appendChild(el('label', { text: 'Receipt (optional)' }));
+    receiptGroup.appendChild(el('input', { type: 'file', name: 'receipt' }));
+    form.appendChild(receiptGroup);
+
+    wrapper.appendChild(form);
+
+    // ---------- Footer buttons ----------
+    const footer = el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const saveBtn = el('button', { type: 'button', class: 'btn btn-primary', text: 'Submit Expense' });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    wrapper.appendChild(footer);
+
+    // Open modal
+    const overlay = this.showModal('Generate Disbursement', wrapper);
+
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    saveBtn.addEventListener('click', () => {
+      // Validation
+      const desc = form.querySelector('[name="description"]').value.trim();
+      const amtVal = form.querySelector('[name="amount"]').value;
+      if (!desc) {
+        this.showMessage('Validation Error', 'Please enter a description.', 'warning');
+        return;
+      }
+      const amount = parseFloat(String(amtVal).replace(/[₱$,\s]/g, '')) || 0;
+      if (amount <= 0) {
+        this.showMessage('Validation Error', 'Please enter a valid amount.', 'warning');
+        return;
+      }
+
+      const data = Object.fromEntries(new FormData(form).entries());
+      const receiptInput = form.querySelector('input[name="receipt"]');
+      const receiptFile = receiptInput?.files?.[0];
+
+      const record = {
+        id: generateId('d'),
+        category: data.category,
+        description: desc,
+        amount: amount,
+        fundSource: data.fundSource,
+        linkedInvoiceId: data.linkedInvoiceId || null,
+        linkedWorkRequestId: data.linkedWorkRequestId || null,
+        linkedTaskId: data.linkedTaskId || null,
+        entity: entity,
+        employeeId: Auth.user.id,
+        requestedBy: Auth.user.id,
+        status: 'Submitted',
+        submittedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        receiptFilename: receiptFile ? receiptFile.name : null
+      };
+
+      DB.insert('disbursements', record);
+
+      // Link disbursement back to WR
+      if (record.linkedWorkRequestId) {
+        const linkedWr = DB.getById('workRequests', record.linkedWorkRequestId);
+        if (linkedWr) {
+          const linkedIds = new Set(linkedWr.linkedDisbursementIds || []);
+          linkedIds.add(record.id);
+          DB.update('workRequests', linkedWr.id, { linkedDisbursementIds: Array.from(linkedIds) });
+        }
+      }
+
+      overlay.remove();
+
+      this.showMessage(
+        'Expense Filed',
+        'Disbursement for ' + data.category + ' (₱' + amount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ') has been submitted and linked to "' + wr.title + '".',
+        'success'
+      );
+
+      // Refresh WR detail
+      App.handleRoute();
+    });
+  },
+
+  /**
+   * Open a modal with the transmittal creation form,
+   * pre-populated from the given work request.
+   */
+  openGenerateTransmittalModal(wr) {
+    const entity = Auth.activeEntity;
+    const client = DB.getById('clients', wr.clientId);
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
+    const form = el('form', { id: 'gen-transmittal-form' });
+
+    // ---------- Client (read-only, auto-filled) ----------
+    const clientGroup = el('div', { class: 'form-group' });
+    clientGroup.appendChild(el('label', { text: 'Client' }));
+    clientGroup.appendChild(el('input', {
+      type: 'text',
+      value: client ? client.name : '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    clientGroup.appendChild(el('input', { type: 'hidden', name: 'clientId', value: wr.clientId || '' }));
+    form.appendChild(clientGroup);
+
+    // ---------- Work Request (read-only, auto-filled) ----------
+    const wrGroup = el('div', { class: 'form-group' });
+    wrGroup.appendChild(el('label', { text: 'Work Request' }));
+    wrGroup.appendChild(el('input', {
+      type: 'text',
+      value: wr.title || '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    wrGroup.appendChild(el('input', { type: 'hidden', name: 'workRequestId', value: wr.id }));
+    form.appendChild(wrGroup);
+
+    // ---------- Tracking Number (auto-generated, read-only) ----------
+    const tnGroup = el('div', { class: 'form-group' });
+    tnGroup.appendChild(el('label', { text: 'Tracking Number' }));
+    tnGroup.appendChild(el('input', {
+      type: 'text', name: 'trackingNumber',
+      value: Transmittal.generateTrackingNumber(entity),
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    form.appendChild(tnGroup);
+
+    // ---------- Itemized Document List ----------
+    const itemsSection = el('div', { class: 'form-section', style: 'margin-top: 4px;' });
+    itemsSection.appendChild(el('h4', { text: 'Document Items', style: 'margin-bottom: 8px; font-size: 0.9rem;' }));
+
+    // Column headers
+    const headerLabelStyle = 'font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; padding-left: 13px;';
+    const colHeaders = el('div', { class: 'line-item-row', style: 'margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;' });
+    colHeaders.appendChild(el('span', { text: 'Document Type', class: 'item-type', style: headerLabelStyle }));
+    colHeaders.appendChild(el('span', { text: 'Description', class: 'item-desc', style: headerLabelStyle }));
+    colHeaders.appendChild(el('span', { class: 'btn btn-sm', style: 'visibility: hidden;', text: '×' }));
+    itemsSection.appendChild(colHeaders);
+
+    const itemsList = el('div', { id: 'modal-transmittal-item-rows' });
+    itemsSection.appendChild(itemsList);
+
+    const addTransmittalItem = (item) => {
+      const row = el('div', { class: 'line-item-row' });
+
+      const typeSel = el('select', { class: 'item-type' });
+      ['Original Scan', 'Generated Copy', 'Government Receipt', 'Final Deliverable', 'Other'].forEach(t => {
+        const opt = el('option', { value: t, text: t });
+        if (item?.documentType === t) opt.selected = true;
+        typeSel.appendChild(opt);
+      });
+      row.appendChild(typeSel);
+
+      row.appendChild(el('input', { type: 'text', placeholder: 'Description', class: 'item-desc', value: item?.description || '' }));
+
+      const removeBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×' });
+      removeBtn.addEventListener('click', () => {
+        if (itemsList.querySelectorAll('.line-item-row').length > 1) {
+          row.remove();
+        }
+      });
+      row.appendChild(removeBtn);
+
+      itemsList.appendChild(row);
+    };
+
+    // Default items
+    addTransmittalItem();
+
+    const addItemBtn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: '+ Add Item', style: 'margin-top: 6px;' });
+    addItemBtn.addEventListener('click', () => addTransmittalItem());
+    itemsSection.appendChild(addItemBtn);
+    form.appendChild(itemsSection);
+
+    // ---------- Notes ----------
+    const notesGroup = el('div', { class: 'form-group' });
+    notesGroup.appendChild(el('label', { text: 'Notes' }));
+    notesGroup.appendChild(el('textarea', { name: 'notes', rows: 3, placeholder: 'Optional notes for the recipient...' }));
+    form.appendChild(notesGroup);
+
+    wrapper.appendChild(form);
+
+    // ---------- Footer buttons ----------
+    const footer = el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const saveBtn = el('button', { type: 'button', class: 'btn btn-primary', text: 'Create Transmittal' });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    wrapper.appendChild(footer);
+
+    // Open modal
+    const overlay = this.showModal('Generate Transmittal', wrapper);
+    overlay.querySelector('.modal').classList.add('modal-wide');
+
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    saveBtn.addEventListener('click', () => {
+      // Collect items
+      const rows = itemsList.querySelectorAll('.line-item-row');
+      const items = [];
+      rows.forEach(row => {
+        const desc = row.querySelector('.item-desc')?.value?.trim();
+        const docType = row.querySelector('.item-type')?.value;
+        if (desc && docType) {
+          items.push({ description: desc, documentType: docType });
+        }
+      });
+
+      if (items.length === 0) {
+        this.showMessage('Validation Error', 'Please add at least one document item with a description.', 'warning');
+        return;
+      }
+
+      const data = Object.fromEntries(new FormData(form).entries());
+
+      const record = {
+        id: generateId('tx'),
+        workRequestId: data.workRequestId,
+        clientId: data.clientId,
+        trackingNumber: data.trackingNumber || Transmittal.generateTrackingNumber(entity),
+        status: 'Draft',
+        items,
+        notes: data.notes || '',
+        entity,
+        sentAt: '',
+        acknowledgedAt: '',
+        sentBy: '',
+        acknowledgedBy: '',
+        createdAt: new Date().toISOString(),
+        createdBy: Auth.user.id
+      };
+
+      DB.insert('transmittals', record);
+
+      // Link transmittal back to WR
+      if (record.workRequestId) {
+        const linkedWr = DB.getById('workRequests', record.workRequestId);
+        if (linkedWr) {
+          const linkedIds = new Set(linkedWr.linkedTransmittalIds || []);
+          linkedIds.add(record.id);
+          DB.update('workRequests', linkedWr.id, { linkedTransmittalIds: Array.from(linkedIds) });
+        }
+      }
+
+      overlay.remove();
+
+      this.showMessage(
+        'Transmittal Created',
+        'Transmittal ' + record.trackingNumber + ' has been created and linked to "' + wr.title + '".',
         'success'
       );
 
@@ -2626,6 +3042,41 @@ const Workflow = {
     
     container.appendChild(listWrapper);
 
+    // Generate buttons bar (below task list)
+    const generateBar = el('div', { style: 'display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap;' });
+
+    const genBillingBtn = el('button', {
+      class: 'btn btn-primary btn-sm',
+      text: '📄 + Generate Billing',
+      style: 'flex: 1; min-width: 180px;'
+    });
+    genBillingBtn.addEventListener('click', () => {
+      this.openGenerateBillingModal(wr);
+    });
+    generateBar.appendChild(genBillingBtn);
+
+    const genDisbBtn = el('button', {
+      class: 'btn btn-primary btn-sm',
+      text: '💸 + Generate Disbursement',
+      style: 'flex: 1; min-width: 180px;'
+    });
+    genDisbBtn.addEventListener('click', () => {
+      this.openGenerateDisbursementModal(wr);
+    });
+    generateBar.appendChild(genDisbBtn);
+
+    const genTransBtn = el('button', {
+      class: 'btn btn-primary btn-sm',
+      text: '📦 + Generate Transmittal',
+      style: 'flex: 1; min-width: 180px;'
+    });
+    genTransBtn.addEventListener('click', () => {
+      this.openGenerateTransmittalModal(wr);
+    });
+    generateBar.appendChild(genTransBtn);
+
+    container.appendChild(generateBar);
+
     // Related Records Panel (Section 3B.7)
     const relatedSection = el('div', { class: 'form-section', style: 'margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 24px;' });
     relatedSection.appendChild(el('h3', { text: 'Related Financials & Documents' }));
@@ -2702,16 +3153,7 @@ const Workflow = {
       invCol.appendChild(invList);
     }
 
-    // Generate Billing button
-    const genBillingBtn = el('button', {
-      class: 'btn btn-primary btn-sm',
-      text: '+ Generate Billing',
-      style: 'margin-top: 12px; width: 100%;'
-    });
-    genBillingBtn.addEventListener('click', () => {
-      this.openGenerateBillingModal(wr);
-    });
-    invCol.appendChild(genBillingBtn);
+
 
     grid.appendChild(invCol);
 
@@ -2750,6 +3192,9 @@ const Workflow = {
       });
       disbCol.appendChild(disbList);
     }
+
+
+
     grid.appendChild(disbCol);
 
     // Transmittals Column
@@ -2780,6 +3225,9 @@ const Workflow = {
       });
       transCol.appendChild(transList);
     }
+
+
+
     grid.appendChild(transCol);
 
     relatedSection.appendChild(grid);
