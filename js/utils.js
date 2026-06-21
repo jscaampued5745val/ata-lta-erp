@@ -473,7 +473,7 @@ class SidePane {
     // Close when clicking outside (since overlay is hidden/non-blocking)
     document.addEventListener('click', (e) => {
       if (this.isOpen()) {
-        const clickedTrigger = e.target.closest('.board-card') || e.target.closest('.list-item') || e.target.closest('.task-row') || e.target.closest('.status-select') || e.target.closest('.modal-overlay') || e.target.closest('.modal') || e.target.closest('.searchable-dropdown') || e.target.closest('.mdp-wrapper') || e.target.closest('.mtp-wrapper');
+        const clickedTrigger = e.target.closest('.board-card') || e.target.closest('.list-item') || e.target.closest('.task-row') || e.target.closest('.status-select') || e.target.closest('.modal-overlay') || e.target.closest('.modal') || e.target.closest('.searchable-dropdown') || e.target.closest('.mdp-wrapper') || e.target.closest('.mtp-wrapper') || e.target.closest('.sidebar') || e.target.closest('.sidebar-collapse-btn');
         if (!this.pane.contains(e.target) && !clickedTrigger) {
           this.close();
         }
