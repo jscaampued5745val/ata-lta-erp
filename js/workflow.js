@@ -2859,7 +2859,6 @@ const Workflow = {
     container.activeFilters = new Set();
     container.searchQuery = '';
     container.employeeFilter = null;
-    container.statusFilter = null;
 
     // Lifecycle Card Redesign
     const lifecycleCard = el('div', { class: 'lifecycle-card' });
@@ -3104,32 +3103,7 @@ const Workflow = {
     empFilter.addEventListener('input', updateEmpFilter);
     toolbar.appendChild(empFilter);
 
-    // Status Filter Dropdown
-    const statusFilter = el('select', { 
-      class: 'form-select', 
-      style: 'width: 100%; height: 36px; font-size: 0.875rem; padding: 4px 28px 4px 12px;' 
-    });
-    const statusOptions = [
-      { value: '', text: 'All Statuses' },
-      { value: 'Draft', text: 'Draft' },
-      { value: 'Assigned', text: 'Assigned' },
-      { value: 'In Progress', text: 'In Progress' },
-      { value: 'For Review', text: 'For Review' },
-      { value: 'Completed', text: 'Completed' },
-      { value: 'Cancelled', text: 'Cancelled' }
-    ];
-    statusOptions.forEach(opt => {
-      const o = el('option', { value: opt.value, text: opt.text });
-      if (container.statusFilter === opt.value) o.selected = true;
-      statusFilter.appendChild(o);
-    });
-    statusFilter.addEventListener('change', () => {
-      container.statusFilter = statusFilter.value || null;
-      renderGroups();
-    });
-    const statusFilterWrapped = wrapFilterFieldWithClear(statusFilter);
-    statusFilterWrapped.style.maxWidth = '150px';
-    toolbar.appendChild(statusFilterWrapped);
+
 
     // Compute filter counts from tasks
     const todayStrChip = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })).toISOString().slice(0, 10);
@@ -3493,10 +3467,7 @@ const Workflow = {
           if (!matchPrimary && !matchCo && !matchChecklist) return false;
         }
 
-        // Status filter
-        if (container.statusFilter) {
-          if (t.status !== container.statusFilter) return false;
-        }
+
 
         if (activeFilters.length === 0) return true;
 
