@@ -1351,7 +1351,7 @@ const Workflow = {
           normalizedChecklist.forEach((item, idx) => {
             const blocked = isChecklistBlocked(item, normalizedChecklist);
             const prereq = item.dependsOn === '*' ? null : normalizedChecklist.find(c => c.id === item.dependsOn);
-            const row = el('div', { class: 'checklist-item' + (blocked ? ' locked' : '') });
+            const row = el('div', { class: 'checklist-item' + (blocked ? ' locked' : '') + (item.completed ? ' completed' : '') });
             
             const cb = el('input', { type: 'checkbox' });
             cb.checked = !!item.completed;
@@ -4097,7 +4097,7 @@ const Workflow = {
             normalizedChecklist.forEach((item, idx) => {
               const blocked = isChecklistBlocked(item, normalizedChecklist);
               const prereq = item.dependsOn === '*' ? null : normalizedChecklist.find(c => c.id === item.dependsOn);
-              const row = el('div', { class: 'checklist-item' + (blocked ? ' locked' : '') });
+              const row = el('div', { class: 'checklist-item' + (blocked ? ' locked' : '') + (item.completed ? ' completed' : '') });
               const cb = el('input', { type: 'checkbox' });
               cb.checked = !!item.completed;
               cb.disabled = blocked;

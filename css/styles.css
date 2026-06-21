@@ -6719,8 +6719,29 @@ tbody tr:hover {
   grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) auto 75px;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
+  padding: var(--space-2) var(--space-2);
   border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, border-left-color 0.2s ease;
+}
+
+.detail-panel .checklist-item.completed,
+.side-pane-toggle-content .checklist-item.completed {
+  background-color: color-mix(in srgb, var(--color-success) 6%, transparent);
+  border-left-color: var(--color-success);
+}
+
+.detail-panel .checklist-item.completed .checklist-text span,
+.side-pane-toggle-content .checklist-item.completed .checklist-text span {
+  text-decoration: line-through;
+  color: var(--muted);
+  opacity: 0.65;
+}
+
+.detail-panel .checklist-item input[type="checkbox"]:checked,
+.side-pane-toggle-content .checklist-item input[type="checkbox"]:checked {
+  accent-color: var(--color-success);
 }
 
 .detail-panel .checklist-item > *,
