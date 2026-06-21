@@ -3477,7 +3477,7 @@ const Workflow = {
       // Footer totals row
       const footerRow = el('div', {
         class: 'task-row-footer',
-        style: 'display: grid; grid-template-columns: 36px 1.6fr 1.3fr 110px 120px 120px 90px 110px 110px; font-weight: bold; border-top: 2px solid var(--border); padding: 12px 16px;'
+        style: 'display: grid; grid-template-columns: 36px minmax(180px, 2fr) minmax(160px, 1.5fr) 110px 120px 100px 110px 80px 100px; font-weight: bold; border-top: 2px solid var(--border); padding: 12px 16px;'
       });
       for (let i = 0; i < 7; i++) {
         footerRow.appendChild(el('div'));

@@ -6335,7 +6335,8 @@ tbody tr:hover {
 
 .task-list .table-header {
   display: grid;
-  grid-template-columns: 36px 1.6fr 1.3fr 110px 120px 120px 90px 110px 110px;
+  grid-template-columns: 36px minmax(180px, 2fr) minmax(160px, 1.5fr) 110px 120px 100px 110px 80px 100px;
+  gap: 0;
   padding: var(--space-3) var(--space-5);
   color: var(--muted);
   font-size: var(--text-xs);
@@ -6349,6 +6350,8 @@ tbody tr:hover {
 .task-list .table-header span {
   padding: 0 var(--space-2);
   min-width: 0;
+  display: flex;
+  align-items: center;
 }
 .task-list .table-header span:first-child {
   padding-left: 0;
@@ -6362,7 +6365,8 @@ tbody tr:hover {
 
 .task-list .task-row {
   display: grid;
-  grid-template-columns: 36px 1.6fr 1.3fr 110px 120px 120px 90px 110px 110px;
+  grid-template-columns: 36px minmax(180px, 2fr) minmax(160px, 1.5fr) 110px 120px 100px 110px 80px 100px;
+  gap: 0;
   align-items: center;
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border);
@@ -6529,8 +6533,9 @@ tbody tr:hover {
 .task-list .actions-cell {
   display: flex;
   gap: var(--space-1);
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
+  padding-right: 0;
 }
 
 .task-list .action-icon {
@@ -7263,4 +7268,30 @@ tbody tr:hover {
   .project-detail-v2 .title-bar-actions .identity-badges {
     flex-wrap: wrap;
   }
+}
+
+/* Force assignee dropdowns to fit inside the table cell */
+.project-detail-v2 .task-list .assignee-cell {
+  min-width: 0;
+  overflow: visible;
+}
+.project-detail-v2 .task-list .assignee-cell .task-assignee-wrapper {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  gap: var(--space-1);
+}
+.project-detail-v2 .task-list .assignee-cell .task-assignee-wrapper .searchable-dropdown {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+.project-detail-v2 .task-list .assignee-cell .task-assignee-wrapper .searchable-dropdown-input {
+  min-width: 0 !important;
+  width: 100%;
+}
+.project-detail-v2 .task-list .assignee-cell .inline-coassignee-dropdown {
+  min-width: 80px;
+  max-width: 120px;
+  flex-shrink: 0;
 }
