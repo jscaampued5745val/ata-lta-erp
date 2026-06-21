@@ -1943,6 +1943,14 @@ const Workflow = {
   /**
    * Renders an editable co-assignee chip list + dropdown for a saved task row.
    */
+  clearDropdown(dd) {
+    dd.value = '';
+    const input = dd.querySelector('input');
+    if (input) { input.value = ''; input.title = ''; }
+    const clear = dd.querySelector('.searchable-dropdown-clear');
+    if (clear) clear.style.display = 'none';
+  },
+
   renderTaskCoAssigneePicker(t, { primaryName = '', className = 'inline-coassignee-dropdown' } = {}, editable = false) {
     const wrap = el('div', { class: 'task-coassignee-wrap', style: 'margin-top:4px;' });
     const chipsWrap = el('div', { class: 'co-assignee-chips' });
@@ -1975,8 +1983,8 @@ const Workflow = {
           const name = assigneeName?.trim();
           if (!name) return;
           const coAssignees = t.coAssignees || [];
-          if (coAssignees.includes(name)) { addDropdown.value = ''; return; }
-          if (name === primaryName) { addDropdown.value = ''; return; }
+          if (coAssignees.includes(name)) { this.clearDropdown(addDropdown); return; }
+          if (name === primaryName) { this.clearDropdown(addDropdown); return; }
           const existing = (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase());
           if (!existing) DB.insert('groundWorkers', { id: generateId('gw'), name });
           const updated = [...coAssignees, name];
@@ -2769,12 +2777,16 @@ const Workflow = {
           const opt = el('option', { value: s, text: s });
           if (s === t.status) opt.selected = true;
           const blockedByChecklist = hasIncompleteChecklist && (s === 'Completed' || s === 'For Review');
+          const noAssignee = !(t.assigneeId || t.assignedTo || t.assigneeName);
           if (isArchived) {
             opt.disabled = true;
             opt.title = 'Work request is archived';
           } else if (blockedByChecklist) {
             opt.disabled = true;
             opt.title = `${checklistCompletion.total - checklistCompletion.done} of ${checklistCompletion.total} requirement items incomplete`;
+          } else if (s === 'Assigned' && noAssignee) {
+            opt.disabled = true;
+            opt.title = 'Assign an employee first';
           } else if (!validStatuses.includes(s)) {
             opt.disabled = true;
             opt.title = `Cannot change to ${s} in this phase`;
@@ -4529,6 +4541,9 @@ const Workflow = {
     }
     if ((newStatus === 'In Progress' || newStatus === 'Completed') && !this.canStart(taskId)) {
       return { error: 'Dependency tasks must be completed first.' };
+    }
+    if (newStatus === 'Assigned' && !(task.assigneeId || task.assignedTo || task.assigneeName)) {
+      return { error: 'A task cannot be marked Assigned without an assignee.' };
     }
 
     if (newStatus === 'Completed' || newStatus === 'For Review') {
