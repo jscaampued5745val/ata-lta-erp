@@ -215,6 +215,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
       selectedText = selectedValue;
     }
     input.value = selectedValue ? selectedText : '';
+    clearBtn.style.display = input.value ? 'flex' : 'none';
   }
 
   input.addEventListener('focus', () => {
@@ -226,6 +227,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
     highlightIdx = -1;
     if (!isOpen) open();
     renderList(input.value);
+    clearBtn.style.display = input.value ? 'flex' : 'none';
     wrapper.dispatchEvent(new Event('input', { bubbles: true }));
   });
 

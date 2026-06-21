@@ -3096,16 +3096,18 @@ const Workflow = {
       maxWidth: '180px'
     });
     empFilter.value = container.employeeFilter || '';
-    empFilter.addEventListener('change', () => {
-      container.employeeFilter = empFilter.value || null;
+    const updateEmpFilter = () => {
+      container.employeeFilter = (empFilter.searchText || '').trim() || empFilter.value || null;
       renderGroups();
-    });
+    };
+    empFilter.addEventListener('change', updateEmpFilter);
+    empFilter.addEventListener('input', updateEmpFilter);
     toolbar.appendChild(empFilter);
 
     // Status Filter Dropdown
     const statusFilter = el('select', { 
       class: 'form-select', 
-      style: 'width: auto; max-width: 150px; height: 36px; font-size: 0.875rem; padding: 4px 12px; margin-right: 8px;' 
+      style: 'width: 100%; height: 36px; font-size: 0.875rem; padding: 4px 28px 4px 12px;' 
     });
     const statusOptions = [
       { value: '', text: 'All Statuses' },
@@ -3125,7 +3127,9 @@ const Workflow = {
       container.statusFilter = statusFilter.value || null;
       renderGroups();
     });
-    toolbar.appendChild(statusFilter);
+    const statusFilterWrapped = wrapFilterFieldWithClear(statusFilter);
+    statusFilterWrapped.style.maxWidth = '150px';
+    toolbar.appendChild(statusFilterWrapped);
 
     // Compute filter counts from tasks
     const todayStrChip = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })).toISOString().slice(0, 10);
@@ -3483,9 +3487,9 @@ const Workflow = {
             return names;
           });
           
-          const matchPrimary = primaryName === emp;
-          const matchCo = coAssignees.includes(emp);
-          const matchChecklist = checklistAssignees.includes(emp);
+          const matchPrimary = primaryName.includes(emp);
+          const matchCo = coAssignees.some(name => name.includes(emp));
+          const matchChecklist = checklistAssignees.some(name => name.includes(emp));
           if (!matchPrimary && !matchCo && !matchChecklist) return false;
         }
 

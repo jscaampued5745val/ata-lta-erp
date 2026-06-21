@@ -5645,7 +5645,8 @@ tbody tr:hover {
 }
 
 .filters-bar .filter-field-wrapper.has-value select.form-select,
-.audit-filters .filter-field-wrapper.has-value select.form-select {
+.audit-filters .filter-field-wrapper.has-value select.form-select,
+.task-view-toolbar .filter-field-wrapper.has-value select.form-select {
   padding-right: 44px !important;
 }
 
