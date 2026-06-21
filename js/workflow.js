@@ -1285,12 +1285,11 @@ const Workflow = {
       return [header, content];
     };
 
-    // 1. Task Description Collapsible Section
-    const [descHeader, descContent] = createCollapsibleSection('Task Description', true, (cont) => {
-      cont.appendChild(el('div', { class: 'side-pane-description', text: task.description || 'Provide an overview of the task and related details.' }));
-    });
-    paneContent.appendChild(descHeader);
-    paneContent.appendChild(descContent);
+    // 1. Task Description Section (Non-collapsible)
+    const descSection = el('div', { class: 'side-pane-section' });
+    descSection.appendChild(el('h3', { class: 'side-pane-section-title', text: 'Task description' }));
+    descSection.appendChild(el('div', { class: 'side-pane-description', text: task.description || 'Provide an overview of the task and related details.' }));
+    paneContent.appendChild(descSection);
 
     // 2. Requirements Checklist Collapsible Section
     const [checklistHeaderToggle, checklistContentToggle] = createCollapsibleSection('Sub-tasks / Requirements Checklist', true, (cont) => {

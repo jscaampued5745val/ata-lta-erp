@@ -499,32 +499,52 @@ class SidePane {
     this.pane.innerHTML = '';
     
     // Header
-    const headerLeft = el('div', { class: 'side-pane-header-left' }, [
-      el('h3', { text: title, style: 'margin: 0; font-size: 1rem; font-weight: 700; color: var(--color-text);' })
-    ]);
+    const headerLeft = el('div', { class: 'side-pane-header-left', style: 'display: flex; align-items: center; gap: 4px;' });
     
-    const headerRight = el('div', { class: 'side-pane-header-right' });
+    // Close button (Notion-style double chevron right >>)
+    const closeBtn = el('button', { 
+      class: 'side-pane-close-btn', 
+      title: 'Close',
+      html: '<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 4.5l7.5 7.5-7.5 7.5m-6-15l7.5 7.5-7.5 7.5"/></svg>'
+    });
+    closeBtn.addEventListener('click', () => this.close());
+    headerLeft.appendChild(closeBtn);
     
+    // Expand button (diagonal resize icon next to Close)
     if (onExpand) {
       const expandBtn = el('button', { 
         class: 'side-pane-expand-btn', 
         title: 'Open as full page',
-        html: '<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>'
+        html: '<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>'
       });
       expandBtn.addEventListener('click', () => {
         this.close();
         onExpand();
       });
-      headerRight.appendChild(expandBtn);
+      headerLeft.appendChild(expandBtn);
     }
     
-    const closeBtn = el('button', { 
-      class: 'side-pane-close-btn', 
-      title: 'Close',
-      html: '<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>'
+    // Mock Notion-style actions on the right header
+    const headerRight = el('div', { class: 'side-pane-header-right', style: 'display: flex; align-items: center; gap: 8px;' });
+    
+    const shareBtn = el('button', { class: 'side-pane-mock-btn', text: 'Share' });
+    shareBtn.style.cssText = 'padding: 4px 10px; font-size: 0.75rem; border: 1px solid var(--color-border); border-radius: 4px; background: transparent; cursor: pointer; color: var(--color-text-muted); font-weight: 500; height: 28px; line-height: 1;';
+    
+    const linkBtn = el('button', { class: 'side-pane-mock-btn', html: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>' });
+    const starBtn = el('button', { class: 'side-pane-mock-btn', html: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499c.15-.36.69-.36.84 0l2.3 4.697 5.181.753c.4.058.562.56.271.847l-3.748 3.654.885 5.161c.07.41-.363.725-.726.53L12 16.732l-4.638 2.433c-.363.195-.796-.12-.726-.53l.885-5.161-3.748-3.654c-.29-.287-.128-.789.27-.847l5.183-.753 2.3-4.697z"/></svg>' });
+    const dotBtn = el('button', { class: 'side-pane-mock-btn', html: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/></svg>' });
+    
+    const mockStyles = 'background: transparent; border: none; cursor: pointer; color: var(--color-text-muted); display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 4px; transition: background 0.15s;';
+    [linkBtn, starBtn, dotBtn].forEach(btn => {
+      btn.style.cssText = mockStyles;
+      btn.addEventListener('mouseenter', () => btn.style.background = 'var(--color-bg)');
+      btn.addEventListener('mouseleave', () => btn.style.background = 'transparent');
     });
-    closeBtn.addEventListener('click', () => this.close());
-    headerRight.appendChild(closeBtn);
+    
+    headerRight.appendChild(shareBtn);
+    headerRight.appendChild(linkBtn);
+    headerRight.appendChild(starBtn);
+    headerRight.appendChild(dotBtn);
     
     const header = el('div', { class: 'side-pane-header' }, [headerLeft, headerRight]);
     this.pane.appendChild(header);
