@@ -1190,13 +1190,8 @@ const Workflow = {
     const hasIncompleteChecklist = checklistCompletion.total > 0 && checklistCompletion.done < checklistCompletion.total;
     const isArchived = wr && (wr.status === 'Completed' || wr.status === 'Cancelled');
     const isDraft = wr && wr.status === 'Draft';
-    const isPreprocessingTask = wr && wr.status === 'Pre-processing' && (
-      (task.title || '').toLowerCase().includes('requirement') ||
-      (task.title || '').toLowerCase().includes('gather') ||
-      (task.title || '').toLowerCase().includes('preprocessing')
-    );
-    const allowAssignChecklist = isDraft || isPreprocessingTask;
-    const allowAddRequirements = !wr || wr.status === 'Draft' || wr.status === 'Pre-processing';
+    const allowAssignChecklist = !wr || wr.status === 'Draft' || wr.status === 'Pre-processing';
+    const allowAddRequirements = allowAssignChecklist;
 
     flow.forEach(s => {
       const opt = el('option', { value: s, text: s });
@@ -4065,13 +4060,8 @@ const Workflow = {
 
         const checklistList = el('div', { class: 'details-content-list' });
         let populatePrereqSelect = () => {};
-        const isPreprocessingTask = wr && wr.status === 'Pre-processing' && (
-          (t.title || '').toLowerCase().includes('requirement') ||
-          (t.title || '').toLowerCase().includes('gather') ||
-          (t.title || '').toLowerCase().includes('preprocessing')
-        );
-        const allowAssignChecklist = isDraft || isPreprocessingTask;
-        const allowAddRequirements = !wr || wr.status === 'Draft' || wr.status === 'Pre-processing';
+        const allowAssignChecklist = !wr || wr.status === 'Draft' || wr.status === 'Pre-processing';
+        const allowAddRequirements = allowAssignChecklist;
         const normalizedChecklist = (t.checklist || []).map(item => {
           if (typeof item === 'string') return { id: generateId('chk'), text: item, completed: false, assigneeId: null, assigneeName: null, dependsOn: null, timeLogs: [] };
           return item;
