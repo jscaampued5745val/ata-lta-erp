@@ -538,6 +538,11 @@ a:hover {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
   -webkit-overflow-scrolling: touch;
+  scroll-padding-top: 120px;
+}
+.content:has(.detail-sub-header-v2),
+.content:has(.detail-sub-header) {
+  scroll-padding-top: 160px;
 }
 
 .content::-webkit-scrollbar {
@@ -2235,7 +2240,7 @@ tbody tr:hover {
   border-radius: var(--radius-md);
   min-height: calc(100vh - 280px);
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .board-column-v2 {
@@ -2256,6 +2261,15 @@ tbody tr:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: sticky;
+  top: 104px;
+  z-index: 20;
+  background: #fcfdfe; /* match .board-column-v2 bg */
+}
+
+.page:has(.detail-sub-header-v2) .board-column-header-v2,
+.page:has(.detail-sub-header) .board-column-header-v2 {
+  top: 140px;
 }
 
 .board-column-title {
@@ -2657,8 +2671,9 @@ tbody tr:hover {
   font-weight: 700;
 }
 
-/* Breadcrumb Title Bar */
-.page-title-bar-v2 {
+/* Breadcrumb Title Bar & Page Headings */
+.page-title-bar-v2,
+.page > h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2699,6 +2714,10 @@ tbody tr:hover {
   font-size: 0.875rem;
   display: flex;
   gap: var(--spacing-lg);
+  position: sticky;
+  top: 48px;
+  z-index: 29;
+  background: var(--color-bg);
 }
 
 /* ─── Identity Bar (WR detail header redesign) ────────────────── */
@@ -2763,6 +2782,10 @@ tbody tr:hover {
   font-size: 0.875rem;
   color: #64748b;
   border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 48px;
+  z-index: 29;
+  background: var(--color-bg);
 }
 
 .detail-info-item {
@@ -5891,6 +5914,13 @@ tbody tr:hover {
   flex-wrap: wrap;
 }
 
+.page:has(.detail-sub-header-v2) .filters-bar,
+.page:has(.detail-sub-header-v2) .task-view-toolbar,
+.page:has(.detail-sub-header) .filters-bar,
+.page:has(.detail-sub-header) .task-view-toolbar {
+  top: 84px;
+}
+
 .group-toggle {
   display: inline-flex;
   background: var(--color-surface);
@@ -7303,7 +7333,7 @@ tbody tr:hover {
 }
 
 .project-detail-v2 .task-view-toolbar {
-  background: transparent;
+  background: var(--bg);
   border-bottom-color: var(--border);
 }
 
@@ -7328,6 +7358,7 @@ tbody tr:hover {
   margin-bottom: var(--space-5);
   color: var(--muted);
   font-size: var(--text-sm);
+  background: var(--bg);
 }
 .project-detail-v2 .detail-sub-header-v2 .detail-info-label {
   color: var(--muted);
@@ -7335,8 +7366,10 @@ tbody tr:hover {
 .project-detail-v2 .detail-sub-header-v2 .detail-info-value {
   color: var(--fg);
 }
-.project-detail-v2 .page-title-bar-v2 {
+.project-detail-v2 .page-title-bar-v2,
+.project-detail-v2 .page > h1 {
   margin-bottom: var(--space-3);
+  background: var(--bg);
 }
 
 .title-bar-actions {
@@ -7959,4 +7992,18 @@ tbody tr:hover {
 .notion-popover-file-item:hover {
   border-color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary), transparent 95%);
+}
+
+/* Ensure scrolled-to cards and rows remain visible below sticky headers */
+.board-card-v2,
+.board-card-v2 *,
+.board-card,
+.board-card *,
+.list-item,
+.list-item *,
+.task-row,
+.task-row *,
+tbody tr,
+tbody tr * {
+  scroll-margin-top: 160px;
 }
