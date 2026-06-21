@@ -49,11 +49,11 @@ async function runVerification() {
       DB.insert('workRequests', { id: wrCompletedId, title: 'Completed WR', status: 'Completed' });
 
       // Insert Tasks
-      DB.insert('tasks', { id: taskDraftWrId, workRequestId: wrDraftId, title: 'Standard Task in Draft WR', status: 'Draft' });
-      DB.insert('tasks', { id: taskReqPreprocId, workRequestId: wrPreprocId, title: 'Requirement gathering task', status: 'Draft' });
-      DB.insert('tasks', { id: taskNonReqPreprocId, workRequestId: wrPreprocId, title: 'Regular coding task', status: 'Draft' });
-      DB.insert('tasks', { id: taskBillingId, workRequestId: wrBillingId, title: 'Billing task', status: 'In Progress' });
-      DB.insert('tasks', { id: taskCompletedId, workRequestId: wrCompletedId, title: 'Completed WR task', status: 'In Progress' });
+      DB.insert('tasks', { id: taskDraftWrId, workRequestId: wrDraftId, title: 'Standard Task in Draft WR', status: 'Draft', assigneeId: 'u-0004' });
+      DB.insert('tasks', { id: taskReqPreprocId, workRequestId: wrPreprocId, title: 'Requirement gathering task', status: 'Draft', assigneeId: 'u-0004' });
+      DB.insert('tasks', { id: taskNonReqPreprocId, workRequestId: wrPreprocId, title: 'Regular coding task', status: 'Draft', assigneeId: 'u-0004' });
+      DB.insert('tasks', { id: taskBillingId, workRequestId: wrBillingId, title: 'Billing task', status: 'In Progress', assigneeId: 'u-0004' });
+      DB.insert('tasks', { id: taskCompletedId, workRequestId: wrCompletedId, title: 'Completed WR task', status: 'In Progress', assigneeId: 'u-0004' });
 
       // Case 1: Work Request is in Draft
       const taskDraft = DB.getById('tasks', taskDraftWrId);

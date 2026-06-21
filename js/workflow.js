@@ -1190,6 +1190,13 @@ const Workflow = {
     const hasIncompleteChecklist = checklistCompletion.total > 0 && checklistCompletion.done < checklistCompletion.total;
     const isArchived = wr && (wr.status === 'Completed' || wr.status === 'Cancelled');
     const isDraft = wr && wr.status === 'Draft';
+    const isPreprocessingTask = wr && wr.status === 'Pre-processing' && (
+      (task.title || '').toLowerCase().includes('requirement') ||
+      (task.title || '').toLowerCase().includes('gather') ||
+      (task.title || '').toLowerCase().includes('preprocessing')
+    );
+    const allowAssignChecklist = isDraft || isPreprocessingTask;
+    const allowAddRequirements = !wr || wr.status === 'Draft' || wr.status === 'Pre-processing';
 
     flow.forEach(s => {
       const opt = el('option', { value: s, text: s });
@@ -1332,9 +1339,9 @@ const Workflow = {
     descSection.appendChild(el('div', { class: 'side-pane-description', text: task.description || 'Provide an overview of the task and related details.' }));
     paneContent.appendChild(descSection);
 
-    // 2. Requirements Checklist Collapsible Section
     const [checklistHeaderToggle, checklistContentToggle] = createCollapsibleSection('Sub-tasks / Requirements Checklist', true, (cont) => {
       const listContainer = el('div', { class: 'details-content-list' });
+      let populatePrereqSelect = () => {};
       
       const normalizedChecklist = (task.checklist || []).map(item => {
         if (typeof item === 'string') return { id: generateId('chk'), text: item, completed: false, assigneeId: null, assigneeName: null, dependsOn: null, timeLogs: [] };
@@ -1376,7 +1383,7 @@ const Workflow = {
             row.appendChild(cb);
             row.appendChild(textWrap);
 
-            if (isDraft) {
+            if (allowAssignChecklist) {
               const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
               const assigneeDropdown = this.createGroundWorkerDropdown({
                 selectedGroundWorkerName: item.assigneeName,
@@ -1488,85 +1495,87 @@ const Workflow = {
 
       cont.appendChild(listContainer);
 
-      const addChecklistRow = el('div', { class: 'add-checklist', style: 'margin-top: 12px; display: flex; gap: 8px; align-items: center;' });
-      const newItemInput = el('input', { type: 'text', placeholder: 'Add sub-task...', class: 'form-control', style: 'flex: 1;' });
-      
-      // Custom single-select styled as dependency selector
-      const predWrapper = el('div', { class: 'multi-select-dropdown', style: 'width: 160px;' });
-      const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— Dependency —', style: 'width: 100%; height: 32px;' });
-      const predMenu = el('div', { class: 'multi-select-menu', style: 'width: 100%;' });
-      predWrapper.appendChild(predBtn);
-      predWrapper.appendChild(predMenu);
-
-      predBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        document.querySelectorAll('.multi-select-menu.show').forEach(m => {
-          if (m !== predMenu) m.classList.remove('show');
-        });
-        predMenu.classList.toggle('show');
-      });
-      predMenu.addEventListener('click', (e) => e.stopPropagation());
-
-      let selectedPrereqId = null;
-
-      const populatePrereqSelect = () => {
-        predMenu.innerHTML = '';
+      if (allowAddRequirements) {
+        const addChecklistRow = el('div', { class: 'add-checklist', style: 'margin-top: 12px; display: flex; gap: 8px; align-items: center;' });
+        const newItemInput = el('input', { type: 'text', placeholder: 'Add sub-task...', class: 'form-control', style: 'flex: 1;' });
         
-        // Option for None
-        const noneOption = el('label', { class: 'multi-select-option' });
-        const noneCheckbox = el('input', { type: 'checkbox', value: '' });
-        if (!selectedPrereqId) noneCheckbox.checked = true;
-        noneCheckbox.addEventListener('change', () => {
-          selectedPrereqId = null;
-          predBtn.textContent = '— Dependency —';
-          predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
-            if (input !== noneCheckbox) input.checked = false;
-          });
-          predMenu.classList.remove('show');
-        });
-        noneOption.appendChild(noneCheckbox);
-        noneOption.appendChild(document.createTextNode('— Dependency —'));
-        predMenu.appendChild(noneOption);
+        // Custom single-select styled as dependency selector
+        const predWrapper = el('div', { class: 'multi-select-dropdown', style: 'width: 160px;' });
+        const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— Dependency —', style: 'width: 100%; height: 32px;' });
+        const predMenu = el('div', { class: 'multi-select-menu', style: 'width: 100%;' });
+        predWrapper.appendChild(predBtn);
+        predWrapper.appendChild(predMenu);
 
-        normalizedChecklist.forEach(item => {
-          const option = el('label', { class: 'multi-select-option' });
-          const checkbox = el('input', { type: 'checkbox', value: item.id });
-          if (selectedPrereqId === item.id) checkbox.checked = true;
-          checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-              selectedPrereqId = item.id;
-              predBtn.textContent = item.text;
-              predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
-                if (input !== checkbox) input.checked = false;
-              });
-            } else {
-              selectedPrereqId = null;
-              predBtn.textContent = '— Dependency —';
-            }
+        predBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          document.querySelectorAll('.multi-select-menu.show').forEach(m => {
+            if (m !== predMenu) m.classList.remove('show');
+          });
+          predMenu.classList.toggle('show');
+        });
+        predMenu.addEventListener('click', (e) => e.stopPropagation());
+
+        let selectedPrereqId = null;
+
+        populatePrereqSelect = () => {
+          predMenu.innerHTML = '';
+          
+          // Option for None
+          const noneOption = el('label', { class: 'multi-select-option' });
+          const noneCheckbox = el('input', { type: 'checkbox', value: '' });
+          if (!selectedPrereqId) noneCheckbox.checked = true;
+          noneCheckbox.addEventListener('change', () => {
+            selectedPrereqId = null;
+            predBtn.textContent = '— Dependency —';
+            predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+              if (input !== noneCheckbox) input.checked = false;
+            });
             predMenu.classList.remove('show');
           });
-          option.appendChild(checkbox);
-          option.appendChild(document.createTextNode(item.text));
-          predMenu.appendChild(option);
+          noneOption.appendChild(noneCheckbox);
+          noneOption.appendChild(document.createTextNode('— Dependency —'));
+          predMenu.appendChild(noneOption);
+
+          normalizedChecklist.forEach(item => {
+            const option = el('label', { class: 'multi-select-option' });
+            const checkbox = el('input', { type: 'checkbox', value: item.id });
+            if (selectedPrereqId === item.id) checkbox.checked = true;
+            checkbox.addEventListener('change', () => {
+              if (checkbox.checked) {
+                selectedPrereqId = item.id;
+                predBtn.textContent = item.text;
+                predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+                  if (input !== checkbox) input.checked = false;
+                });
+              } else {
+                selectedPrereqId = null;
+                predBtn.textContent = '— Dependency —';
+              }
+              predMenu.classList.remove('show');
+            });
+            option.appendChild(checkbox);
+            option.appendChild(document.createTextNode(item.text));
+            predMenu.appendChild(option);
+          });
+        };
+        populatePrereqSelect();
+
+        const addItemBtn = el('button', { type: 'button', class: 'btn btn-primary btn-sm', text: 'Add' });
+        addItemBtn.addEventListener('click', () => {
+          const val = newItemInput.value.trim();
+          if (!val) return;
+          const prereqId = selectedPrereqId || null;
+          normalizedChecklist.push({ id: generateId('chk'), text: val, completed: false, assigneeId: null, assigneeName: null, dependsOn: prereqId, timeLogs: [] });
+          DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+          this.showTaskSidePane(taskId, triggerElement);
+          App.handleRoute();
         });
-      };
-      populatePrereqSelect();
 
-      const addItemBtn = el('button', { type: 'button', class: 'btn btn-primary btn-sm', text: 'Add' });
-      addItemBtn.addEventListener('click', () => {
-        const val = newItemInput.value.trim();
-        if (!val) return;
-        const prereqId = selectedPrereqId || null;
-        normalizedChecklist.push({ id: generateId('chk'), text: val, completed: false, assigneeId: null, assigneeName: null, dependsOn: prereqId, timeLogs: [] });
-        DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-        this.showTaskSidePane(taskId, triggerElement);
-        App.handleRoute();
-      });
-
-      addChecklistRow.appendChild(newItemInput);
-      addChecklistRow.appendChild(predWrapper);
-      addChecklistRow.appendChild(addItemBtn);
-      cont.appendChild(addChecklistRow);
+        addChecklistRow.appendChild(newItemInput);
+        addChecklistRow.appendChild(predWrapper);
+        addChecklistRow.appendChild(addItemBtn);
+        cont.appendChild(addChecklistRow);
+      }
 
       renderChecklist();
     });
@@ -4055,6 +4064,14 @@ const Workflow = {
         checklistSection.appendChild(checklistHeader);
 
         const checklistList = el('div', { class: 'details-content-list' });
+        let populatePrereqSelect = () => {};
+        const isPreprocessingTask = wr && wr.status === 'Pre-processing' && (
+          (t.title || '').toLowerCase().includes('requirement') ||
+          (t.title || '').toLowerCase().includes('gather') ||
+          (t.title || '').toLowerCase().includes('preprocessing')
+        );
+        const allowAssignChecklist = isDraft || isPreprocessingTask;
+        const allowAddRequirements = !wr || wr.status === 'Draft' || wr.status === 'Pre-processing';
         const normalizedChecklist = (t.checklist || []).map(item => {
           if (typeof item === 'string') return { id: generateId('chk'), text: item, completed: false, assigneeId: null, assigneeName: null, dependsOn: null, timeLogs: [] };
           return item;
@@ -4096,7 +4113,7 @@ const Workflow = {
               row.appendChild(cb);
               row.appendChild(textWrap);
 
-              if (isDraft) {
+              if (allowAssignChecklist) {
                 const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
                 const assigneeDropdown = this.createGroundWorkerDropdown({
                   selectedGroundWorkerName: item.assigneeName,
@@ -4202,91 +4219,93 @@ const Workflow = {
           }
         };
 
-        const addChecklistRow = el('div', { class: 'add-checklist', style: 'display: flex; gap: 8px; align-items: center;' });
-        const newItemInput = el('input', { type: 'text', placeholder: 'Add checklist item...', id: 'newCheckInput', style: 'flex: 1;' });
-        
-        // Custom single-select styled as dependency selector
-        const predWrapper = el('div', { class: 'multi-select-dropdown', style: 'width: 160px;' });
-        const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— Dependency —', style: 'width: 100%; height: 32px;' });
-        const predMenu = el('div', { class: 'multi-select-menu', style: 'width: 100%;' });
-        predWrapper.appendChild(predBtn);
-        predWrapper.appendChild(predMenu);
-
-        predBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          document.querySelectorAll('.multi-select-menu.show').forEach(m => {
-            if (m !== predMenu) m.classList.remove('show');
-          });
-          predMenu.classList.toggle('show');
-        });
-        predMenu.addEventListener('click', (e) => e.stopPropagation());
-
-        let selectedPrereqId = null;
-
-        const populatePrereqSelect = () => {
-          predMenu.innerHTML = '';
-          
-          // Option for None
-          const noneOption = el('label', { class: 'multi-select-option' });
-          const noneCheckbox = el('input', { type: 'checkbox', value: '' });
-          if (!selectedPrereqId) noneCheckbox.checked = true;
-          noneCheckbox.addEventListener('change', () => {
-            selectedPrereqId = null;
-            predBtn.textContent = '— Dependency —';
-            predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
-              if (input !== noneCheckbox) input.checked = false;
-            });
-            predMenu.classList.remove('show');
-          });
-          noneOption.appendChild(noneCheckbox);
-          noneOption.appendChild(document.createTextNode('— Dependency —'));
-          predMenu.appendChild(noneOption);
-
-          normalizedChecklist.forEach(item => {
-            const option = el('label', { class: 'multi-select-option' });
-            const checkbox = el('input', { type: 'checkbox', value: item.id });
-            if (selectedPrereqId === item.id) checkbox.checked = true;
-            checkbox.addEventListener('change', () => {
-              if (checkbox.checked) {
-                selectedPrereqId = item.id;
-                predBtn.textContent = item.text;
-                predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
-                  if (input !== checkbox) input.checked = false;
-                });
-              } else {
-                selectedPrereqId = null;
-                predBtn.textContent = '— Dependency —';
-              }
-              predMenu.classList.remove('show');
-            });
-            option.appendChild(checkbox);
-            option.appendChild(document.createTextNode(item.text));
-            predMenu.appendChild(option);
-          });
-        };
-        populatePrereqSelect();
-
-        const addItemBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Add' });
-        addItemBtn.addEventListener('click', () => {
-          const val = newItemInput.value.trim();
-          if (!val) return;
-          const prereqId = selectedPrereqId || null;
-          normalizedChecklist.push({ id: generateId('chk'), text: val, completed: false, assigneeId: null, assigneeName: null, dependsOn: prereqId, timeLogs: [] });
-          DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-          newItemInput.value = '';
-          selectedPrereqId = null;
-          predBtn.textContent = '— Dependency —';
-          populatePrereqSelect();
-          renderChecklist();
-        });
-        addChecklistRow.appendChild(newItemInput);
-        addChecklistRow.appendChild(predWrapper);
-        addChecklistRow.appendChild(addItemBtn);
-
         const checklistCard = el('div', { class: 'card card-compact', style: 'padding:0;' });
         checklistCard.appendChild(checklistList);
         checklistSection.appendChild(checklistCard);
-        checklistSection.appendChild(addChecklistRow);
+
+        if (allowAddRequirements) {
+          const addChecklistRow = el('div', { class: 'add-checklist', style: 'display: flex; gap: 8px; align-items: center;' });
+          const newItemInput = el('input', { type: 'text', placeholder: 'Add checklist item...', id: 'newCheckInput', style: 'flex: 1;' });
+          
+          // Custom single-select styled as dependency selector
+          const predWrapper = el('div', { class: 'multi-select-dropdown', style: 'width: 160px;' });
+          const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— Dependency —', style: 'width: 100%; height: 32px;' });
+          const predMenu = el('div', { class: 'multi-select-menu', style: 'width: 100%;' });
+          predWrapper.appendChild(predBtn);
+          predWrapper.appendChild(predMenu);
+
+          predBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.multi-select-menu.show').forEach(m => {
+              if (m !== predMenu) m.classList.remove('show');
+            });
+            predMenu.classList.toggle('show');
+          });
+          predMenu.addEventListener('click', (e) => e.stopPropagation());
+
+          let selectedPrereqId = null;
+
+          populatePrereqSelect = () => {
+            predMenu.innerHTML = '';
+            
+            // Option for None
+            const noneOption = el('label', { class: 'multi-select-option' });
+            const noneCheckbox = el('input', { type: 'checkbox', value: '' });
+            if (!selectedPrereqId) noneCheckbox.checked = true;
+            noneCheckbox.addEventListener('change', () => {
+              selectedPrereqId = null;
+              predBtn.textContent = '— Dependency —';
+              predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+                if (input !== noneCheckbox) input.checked = false;
+              });
+              predMenu.classList.remove('show');
+            });
+            noneOption.appendChild(noneCheckbox);
+            noneOption.appendChild(document.createTextNode('— Dependency —'));
+            predMenu.appendChild(noneOption);
+
+            normalizedChecklist.forEach(item => {
+              const option = el('label', { class: 'multi-select-option' });
+              const checkbox = el('input', { type: 'checkbox', value: item.id });
+              if (selectedPrereqId === item.id) checkbox.checked = true;
+              checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                  selectedPrereqId = item.id;
+                  predBtn.textContent = item.text;
+                  predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+                    if (input !== checkbox) input.checked = false;
+                  });
+                } else {
+                  selectedPrereqId = null;
+                  predBtn.textContent = '— Dependency —';
+                }
+                predMenu.classList.remove('show');
+              });
+              option.appendChild(checkbox);
+              option.appendChild(document.createTextNode(item.text));
+              predMenu.appendChild(option);
+            });
+          };
+          populatePrereqSelect();
+
+          const addItemBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Add' });
+          addItemBtn.addEventListener('click', () => {
+            const val = newItemInput.value.trim();
+            if (!val) return;
+            const prereqId = selectedPrereqId || null;
+            normalizedChecklist.push({ id: generateId('chk'), text: val, completed: false, assigneeId: null, assigneeName: null, dependsOn: prereqId, timeLogs: [] });
+            DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+            newItemInput.value = '';
+            selectedPrereqId = null;
+            predBtn.textContent = '— Dependency —';
+            populatePrereqSelect();
+            renderChecklist();
+          });
+          addChecklistRow.appendChild(newItemInput);
+          addChecklistRow.appendChild(predWrapper);
+          addChecklistRow.appendChild(addItemBtn);
+          checklistSection.appendChild(addChecklistRow);
+        }
         leftPane.appendChild(checklistSection);
         renderChecklist();
 
