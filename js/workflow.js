@@ -2730,41 +2730,37 @@ const Workflow = {
 
           const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
           assigneeWrap.appendChild(gwDropdown);
-          // Show existing co-assignee chips above the add dropdown
-          const coNames = t.coAssignees || [];
-          if (coNames.length > 0) {
-            const chipsWrap = el('div', { class: 'co-assignee-chips', style: 'margin-bottom:4px;' });
-            coNames.forEach((name, idx) => {
-              const chip = el('span', { class: 'co-assignee-chip' + (isDraft ? '' : ' readonly'), text: name });
-              if (isDraft) {
-                const remove = el('span', { class: 'co-assignee-chip-remove', text: '×' });
-                remove.addEventListener('click', () => {
-                  const updated = coNames.filter((_, i) => i !== idx);
-                  DB.update('tasks', t.id, { coAssignees: updated, updatedAt: new Date().toISOString() });
-                  App.handleRoute();
-                });
-                chip.appendChild(remove);
-              }
-              chipsWrap.appendChild(chip);
-            });
-            assigneeWrap.appendChild(chipsWrap);
-          }
-          assigneeWrap.appendChild(this.renderTaskCoAssigneePicker(t, { primaryName: t.assigneeName || '', className: 'inline-coassignee-dropdown' }, isDraft, false));
+          assigneeWrap.appendChild(this.renderTaskCoAssigneePicker(t, { primaryName: t.assigneeName || '', className: 'inline-coassignee-dropdown' }, isDraft, true));
           cellAssignee.appendChild(assigneeWrap);
         } else {
-          const assigneeWrap = el('div', { class: 'assignee-avatars' });
-          const displayNames = allAssigneeNames.slice(0, 3);
-          displayNames.forEach(name => {
+          const assigneeWrap = el('div', { class: 'assignee-avatars-list' });
+          const displayNames = allAssigneeNames.slice(0, 5);
+          const avatarColors = [
+            { bg: 'color-mix(in oklab, var(--accent), transparent 80%)', fg: 'var(--accent)' },
+            { bg: 'color-mix(in oklab, var(--success), transparent 80%)', fg: 'var(--success)' },
+            { bg: 'color-mix(in oklab, var(--warn), transparent 80%)', fg: 'color-mix(in oklab, var(--warn), black 30%)' },
+            { bg: 'color-mix(in oklab, var(--danger), transparent 80%)', fg: 'var(--danger)' },
+            { bg: '#e5e5e5', fg: '#6b6b6b' }
+          ];
+          displayNames.forEach((name, idx) => {
             const user = DB.getWhere('users', u => u.name === name)[0];
+            const row = el('div', { class: 'assignee-avatar-row' });
             const av = el('div', { class: 'avatar-xs', title: name });
+            const theme = avatarColors[idx % avatarColors.length];
+            av.style.background = theme.bg;
+            av.style.color = theme.fg;
             if (user?.avatarUrl) av.style.backgroundImage = `url('${user.avatarUrl}')`;
-            else if (!user) av.textContent = name.charAt(0).toUpperCase();
-            assigneeWrap.appendChild(av);
-            const label = el('span', { class: 'assignee-name', text: name });
-            assigneeWrap.appendChild(label);
+            else av.textContent = name.charAt(0).toUpperCase();
+            row.appendChild(av);
+            row.appendChild(el('span', { class: 'assignee-name', text: name }));
+            assigneeWrap.appendChild(row);
           });
-          if (allAssigneeNames.length > 3) {
-            const overflow = el('span', { class: 'assignee-overflow', text: `+${allAssigneeNames.length - 3}`, title: allAssigneeNames.slice(3).join(', ') });
+          if (allAssigneeNames.length > 5) {
+            const overflow = el('span', {
+              class: 'assignee-overflow',
+              text: `+${allAssigneeNames.length - 5}`,
+              title: allAssigneeNames.slice(5).join(', ')
+            });
             assigneeWrap.appendChild(overflow);
           }
           if (allAssigneeNames.length === 0) {
