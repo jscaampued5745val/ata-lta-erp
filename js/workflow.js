@@ -1758,7 +1758,7 @@ const Workflow = {
       },
       triggerElement: triggerElement
     });
-  }
+  },
 
   statusBadge(status) {
     const map = {
