@@ -1683,7 +1683,7 @@ const Workflow = {
         `;
         pdfOpt.addEventListener('click', (e) => {
           e.stopPropagation();
-          this.showAddDocumentModal(task.id);
+          this.showAttachmentPopover(task.id, pdfOpt, 'upload');
         });
         
         // 2. Link GDrive File
@@ -1696,7 +1696,7 @@ const Workflow = {
         `;
         gdOpt.addEventListener('click', (e) => {
           e.stopPropagation();
-          this.showGoogleDriveChooser(task.id);
+          this.showAttachmentPopover(task.id, gdOpt, 'gdrive');
         });
 
         embedContainer.appendChild(pdfOpt);
@@ -4910,6 +4910,341 @@ const Workflow = {
       };
       reader.readAsDataURL(file);
     });
+  },
+
+  showAttachmentPopover(taskId, triggerEl, mode) {
+    const task = DB.getById('tasks', taskId);
+    if (!task) return;
+    const wr = DB.getById('workRequests', task.workRequestId);
+
+    // Remove any existing popover
+    const existing = document.querySelector('.notion-embed-popover');
+    if (existing) existing.remove();
+
+    const popover = el('div', { class: 'notion-embed-popover' });
+    
+    // Create tabs header
+    const tabsHeader = el('div', { class: 'notion-popover-tabs' });
+    const contentArea = el('div', { class: 'notion-popover-content' });
+    
+    let activeTab = 'tab1';
+    
+    const renderContent = () => {
+      contentArea.innerHTML = '';
+      if (mode === 'upload') {
+        if (activeTab === 'tab1') {
+          // Upload panel
+          const panel = el('div', { class: 'notion-popover-panel' });
+          const fileInput = el('input', { type: 'file', style: 'display: none;' });
+          const chooseBtn = el('button', { class: 'notion-popover-submit', text: 'Choose a file' });
+          
+          chooseBtn.addEventListener('click', () => fileInput.click());
+          fileInput.addEventListener('change', () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const dataUrl = ev.target.result;
+              const now = new Date().toISOString();
+              
+              const entry = {
+                fileName: file.name,
+                uploadDate: now.slice(0, 10),
+                uploaderId: Auth.user.id
+              };
+              const updatedDocs = [...(task.taskDocuments || []), entry];
+              DB.update('tasks', taskId, { taskDocuments: updatedDocs, updatedAt: now });
+
+              const dmsRecord = {
+                id: generateId('doc'),
+                fileName: file.name,
+                workRequestId: task.workRequestId,
+                document_type: 'original_scan',
+                category: 'Requirement Docs',
+                uploader: Auth.user.id,
+                uploadDate: now,
+                description: `Uploaded via task: ${task.title}`,
+                handover_log: [],
+                entity: wr?.entity || Auth.activeEntity,
+                dataUrl: dataUrl,
+                versions: [],
+                comments: [],
+                documentLifecycle: 'collected',
+                scannedBy: '',
+                envelopeId: '',
+                storedLocation: ''
+              };
+              DB.insert('documents', dmsRecord);
+              
+              popover.remove();
+              this.showTaskSidePane(taskId, null); // Refresh side pane!
+              App.handleRoute();
+            };
+            reader.readAsDataURL(file);
+          });
+          
+          panel.appendChild(fileInput);
+          panel.appendChild(chooseBtn);
+          contentArea.appendChild(panel);
+        } else {
+          // Link panel
+          const panel = el('div', { class: 'notion-popover-panel' });
+          const linkInput = el('input', { type: 'text', class: 'notion-popover-input', placeholder: 'Paste in link...' });
+          const submitBtn = el('button', { class: 'notion-popover-submit', text: 'Link file' });
+          
+          submitBtn.addEventListener('click', () => {
+            const val = linkInput.value.trim();
+            if (!val) return;
+            
+            let fileName = 'Linked Document';
+            try {
+              const url = new URL(val);
+              const pathParts = url.pathname.split('/');
+              const lastPart = pathParts[pathParts.length - 1];
+              if (lastPart && lastPart.includes('.')) {
+                fileName = lastPart;
+              }
+            } catch(e) {}
+
+            const now = new Date().toISOString();
+            const entry = {
+              fileName: fileName,
+              uploadDate: now.slice(0, 10),
+              uploaderId: Auth.user.id,
+              linkUrl: val
+            };
+            const updatedDocs = [...(task.taskDocuments || []), entry];
+            DB.update('tasks', taskId, { taskDocuments: updatedDocs, updatedAt: now });
+
+            const dmsRecord = {
+              id: generateId('doc'),
+              fileName: fileName,
+              workRequestId: task.workRequestId,
+              document_type: 'original_scan',
+              category: 'Requirement Docs',
+              uploader: Auth.user.id,
+              uploadDate: now,
+              description: `Linked via task: ${task.title}`,
+              handover_log: [],
+              entity: wr?.entity || Auth.activeEntity,
+              dataUrl: val,
+              versions: [],
+              comments: [],
+              documentLifecycle: 'collected',
+              scannedBy: '',
+              envelopeId: '',
+              storedLocation: ''
+            };
+            DB.insert('documents', dmsRecord);
+            
+            popover.remove();
+            this.showTaskSidePane(taskId, null);
+            App.handleRoute();
+          });
+          
+          panel.appendChild(linkInput);
+          panel.appendChild(submitBtn);
+          contentArea.appendChild(panel);
+        }
+      } else {
+        // GDrive mode
+        if (activeTab === 'tab1') {
+          // Link GDrive panel
+          const panel = el('div', { class: 'notion-popover-panel' });
+          const linkInput = el('input', { type: 'text', class: 'notion-popover-input', placeholder: 'Paste in https://...' });
+          const submitBtn = el('button', { class: 'notion-popover-submit', text: 'Embed Google Drive file' });
+          const hint = el('div', { class: 'notion-popover-hint', text: 'Works with any file in your Google Drive' });
+          
+          submitBtn.addEventListener('click', () => {
+            const val = linkInput.value.trim();
+            if (!val) return;
+            
+            let fileName = 'GDrive Document';
+            try {
+              const url = new URL(val);
+              const pathParts = url.pathname.split('/');
+              const lastPart = pathParts[pathParts.length - 1];
+              if (lastPart && lastPart.includes('.')) {
+                fileName = lastPart;
+              }
+            } catch(e) {}
+
+            const now = new Date().toISOString();
+            const entry = {
+              fileName: fileName,
+              uploadDate: now.slice(0, 10),
+              uploaderId: Auth.user.id,
+              isGoogleDrive: true,
+              linkUrl: val
+            };
+            const updatedDocs = [...(task.taskDocuments || []), entry];
+            DB.update('tasks', taskId, { taskDocuments: updatedDocs, updatedAt: now });
+
+            const dmsRecord = {
+              id: generateId('doc'),
+              fileName: fileName,
+              workRequestId: task.workRequestId,
+              document_type: 'original_scan',
+              category: 'Requirement Docs',
+              uploader: Auth.user.id,
+              uploadDate: now,
+              description: `GDrive link via task: ${task.title}`,
+              handover_log: [],
+              entity: wr?.entity || Auth.activeEntity,
+              dataUrl: val,
+              versions: [],
+              comments: [],
+              documentLifecycle: 'collected',
+              scannedBy: '',
+              envelopeId: '',
+              storedLocation: ''
+            };
+            DB.insert('documents', dmsRecord);
+            
+            popover.remove();
+            this.showTaskSidePane(taskId, null);
+            App.handleRoute();
+          });
+          
+          panel.appendChild(linkInput);
+          panel.appendChild(submitBtn);
+          panel.appendChild(hint);
+          contentArea.appendChild(panel);
+        } else {
+          // Browse Google Drive panel
+          const panel = el('div', { class: 'notion-popover-panel' });
+          const fileList = el('div', { class: 'notion-popover-file-list' });
+          
+          const driveFiles = [
+            { name: 'Operations_Handbook.pdf', size: '2.4 MB' },
+            { name: 'Q2_Strategy_Presentation.pdf', size: '5.1 MB' },
+            { name: 'WR_Vendor_Contracts.xlsx', size: '1.2 MB' },
+            { name: 'Client_Receipts_Archive.zip', size: '15.8 MB' }
+          ];
+          
+          driveFiles.forEach(f => {
+            const item = el('div', { class: 'notion-popover-file-item' });
+            item.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="color: #22c55e;"><path d="M2.5 17h19M4.5 14l3.5-6h8l3.5 6M9 9h6M12 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span style="font-weight: 500;">${f.name}</span>
+              </div>
+              <span style="font-size: 0.75rem; color: var(--color-text-muted);">${f.size}</span>
+            `;
+            item.addEventListener('click', () => {
+              const now = new Date().toISOString();
+              const entry = {
+                fileName: f.name,
+                uploadDate: now.slice(0, 10),
+                uploaderId: Auth.user.id,
+                isGoogleDrive: true
+              };
+              const updatedDocs = [...(task.taskDocuments || []), entry];
+              DB.update('tasks', taskId, { taskDocuments: updatedDocs, updatedAt: now });
+
+              const dmsRecord = {
+                id: generateId('doc'),
+                fileName: f.name,
+                workRequestId: task.workRequestId,
+                document_type: 'original_scan',
+                category: 'Requirement Docs',
+                uploader: Auth.user.id,
+                uploadDate: now,
+                description: `Embedded via Google Drive: ${f.name}`,
+                handover_log: [],
+                entity: wr?.entity || Auth.activeEntity,
+                dataUrl: 'mock-google-drive-data-url',
+                versions: [],
+                comments: [],
+                documentLifecycle: 'collected',
+                scannedBy: '',
+                envelopeId: '',
+                storedLocation: ''
+              };
+              DB.insert('documents', dmsRecord);
+              
+              popover.remove();
+              this.showTaskSidePane(taskId, null);
+              App.handleRoute();
+            });
+            fileList.appendChild(item);
+          });
+          panel.appendChild(fileList);
+          contentArea.appendChild(panel);
+        }
+      }
+    };
+
+    // Build tabs
+    const tab1Label = mode === 'upload' ? 'Upload' : 'Link';
+    const tab2Label = mode === 'upload' ? 'Link' : 'Browse Google Drive';
+    
+    const tab1Btn = el('button', { class: 'notion-tab-btn active', text: tab1Label });
+    const tab2Btn = el('button', { class: 'notion-tab-btn', text: tab2Label });
+    
+    tab1Btn.addEventListener('click', () => {
+      if (activeTab === 'tab1') return;
+      activeTab = 'tab1';
+      tab1Btn.classList.add('active');
+      tab2Btn.classList.remove('active');
+      renderContent();
+    });
+    
+    tab2Btn.addEventListener('click', () => {
+      if (activeTab === 'tab2') return;
+      activeTab = 'tab2';
+      tab2Btn.classList.add('active');
+      tab1Btn.classList.remove('active');
+      renderContent();
+    });
+    
+    tabsHeader.appendChild(tab1Btn);
+    tabsHeader.appendChild(tab2Btn);
+    
+    popover.appendChild(tabsHeader);
+    popover.appendChild(contentArea);
+    
+    document.body.appendChild(popover);
+    renderContent();
+    
+    // Position popover with edge awareness
+    const position = () => {
+      const triggerRect = triggerEl.getBoundingClientRect();
+      const popoverWidth = 360;
+      
+      let left = triggerRect.left + window.scrollX;
+      let top = triggerRect.bottom + window.scrollY + 6;
+      
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      if (left + popoverWidth > viewportWidth - 16) {
+        left = viewportWidth - popoverWidth - 16;
+      }
+      if (left < 16) {
+        left = 16;
+      }
+      
+      const popoverHeight = popover.offsetHeight || 150;
+      if (triggerRect.bottom + popoverHeight > viewportHeight - 16) {
+        top = triggerRect.top + window.scrollY - popoverHeight - 6;
+      }
+      
+      popover.style.left = `${left}px`;
+      popover.style.top = `${top}px`;
+    };
+    
+    position();
+    requestAnimationFrame(position);
+    
+    // Click outside handler
+    const onMouseDown = (e) => {
+      if (!popover.contains(e.target) && !triggerEl.contains(e.target)) {
+        popover.remove();
+        document.removeEventListener('mousedown', onMouseDown);
+      }
+    };
+    document.addEventListener('mousedown', onMouseDown);
   },
 
   showGoogleDriveChooser(taskId) {
