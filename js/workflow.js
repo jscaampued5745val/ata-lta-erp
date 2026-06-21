@@ -1335,6 +1335,7 @@ const Workflow = {
             row.appendChild(cb);
             row.appendChild(textWrap);
 
+            const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
             const assigneeDropdown = this.createGroundWorkerDropdown({
               selectedGroundWorkerName: item.assigneeName,
               placeholder: 'Assign...',
@@ -1349,7 +1350,22 @@ const Workflow = {
                 App.handleRoute();
               }
             });
-            row.appendChild(assigneeDropdown);
+            assigneeWrap.appendChild(assigneeDropdown);
+
+            const coAssigneePicker = this.renderChecklistCoAssigneePicker(
+              task,
+              item,
+              { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
+              !isArchived,
+              true,
+              () => {
+                DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                this.showTaskSidePane(taskId, triggerElement);
+                App.handleRoute();
+              }
+            );
+            assigneeWrap.appendChild(coAssigneePicker);
+            row.appendChild(assigneeWrap);
 
             const itemHours = getChecklistItemTotalHours(item);
             const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
@@ -2676,6 +2692,52 @@ const Workflow = {
     return wrap;
   },
 
+  renderChecklistCoAssigneePicker(task, item, { primaryName = '', className = 'inline-coassignee-dropdown' } = {}, editable = false, showChips = true, onUpdate) {
+    const wrap = el('div', { class: 'task-coassignee-wrap', style: 'margin-top:4px;' });
+    const chipsWrap = el('div', { class: 'co-assignee-chips' });
+
+    const renderChips = () => {
+      chipsWrap.innerHTML = '';
+      const coAssignees = item.coAssignees || [];
+      coAssignees.forEach((name, idx) => {
+        const chip = el('span', { class: 'co-assignee-chip' + (editable ? '' : ' readonly'), text: name });
+        if (editable) {
+          const remove = el('span', { class: 'co-assignee-chip-remove', text: '×' });
+          remove.addEventListener('click', () => {
+            const updated = coAssignees.filter((_, i) => i !== idx);
+            item.coAssignees = updated;
+            onUpdate();
+          });
+          chip.appendChild(remove);
+        }
+        chipsWrap.appendChild(chip);
+      });
+    };
+    renderChips();
+
+    if (showChips) wrap.appendChild(chipsWrap);
+    if (editable) {
+      const addDropdown = this.createGroundWorkerDropdown({
+        placeholder: '+ Co-assignee',
+        className,
+        onChange: ({ assigneeName }) => {
+          const name = assigneeName?.trim();
+          if (!name) return;
+          const coAssignees = item.coAssignees || [];
+          if (coAssignees.includes(name)) { this.clearDropdown(addDropdown); return; }
+          if (name === primaryName) { this.clearDropdown(addDropdown); return; }
+          const existing = (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase());
+          if (!existing) DB.insert('groundWorkers', { id: generateId('gw'), name });
+          const updated = [...coAssignees, name];
+          item.coAssignees = updated;
+          onUpdate();
+        }
+      });
+      wrap.appendChild(addDropdown);
+    }
+    return wrap;
+  },
+
   renderDetail() {
     const wr = DB.getById('workRequests', this.detailWrId);
     if (!wr) {
@@ -3950,6 +4012,7 @@ const Workflow = {
               row.appendChild(cb);
               row.appendChild(textWrap);
 
+              const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
               const assigneeDropdown = this.createGroundWorkerDropdown({
                 selectedGroundWorkerName: item.assigneeName,
                 placeholder: 'Assign...',
@@ -3960,9 +4023,24 @@ const Workflow = {
                   item.assigneeId = null;
                   item.assigneeName = assigneeName || null;
                   DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  App.handleRoute();
                 }
               });
-              row.appendChild(assigneeDropdown);
+              assigneeWrap.appendChild(assigneeDropdown);
+
+              const coAssigneePicker = this.renderChecklistCoAssigneePicker(
+                t,
+                item,
+                { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
+                !isArchived,
+                true,
+                () => {
+                  DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  App.handleRoute();
+                }
+              );
+              assigneeWrap.appendChild(coAssigneePicker);
+              row.appendChild(assigneeWrap);
 
               const itemHours = getChecklistItemTotalHours(item);
               const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });

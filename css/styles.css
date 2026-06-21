@@ -6687,11 +6687,21 @@ tbody tr:hover {
 .detail-panel .checklist-item,
 .side-pane-toggle-content .checklist-item {
   display: grid;
-  grid-template-columns: 28px 1fr auto auto auto;
+  grid-template-columns: 28px 1fr minmax(150px, 1.2fr) 60px 80px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border);
+}
+
+.detail-panel .checklist-item .hours-pill,
+.side-pane-toggle-content .checklist-item .hours-pill {
+  justify-self: center;
+}
+
+.detail-panel .checklist-item > div:last-child,
+.side-pane-toggle-content .checklist-item > div:last-child {
+  justify-self: end;
 }
 
 .detail-panel .checklist-item:last-child,
