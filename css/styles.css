@@ -1908,6 +1908,12 @@ tbody tr:hover {
   align-items: center;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
+  position: sticky;
+  top: 48px;
+  z-index: 25;
+  background: var(--color-bg);
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .filters-bar .form-select,
