@@ -1350,7 +1350,7 @@ const Workflow = {
         } else {
           normalizedChecklist.forEach((item, idx) => {
             const blocked = isChecklistBlocked(item, normalizedChecklist);
-            const prereq = normalizedChecklist.find(c => c.id === item.dependsOn);
+            const prereq = item.dependsOn === '*' ? null : normalizedChecklist.find(c => c.id === item.dependsOn);
             const row = el('div', { class: 'checklist-item' + (blocked ? ' locked' : '') });
             
             const cb = el('input', { type: 'checkbox' });
@@ -1364,7 +1364,7 @@ const Workflow = {
               } else {
                 item.completed = false;
                 normalizedChecklist.forEach(other => {
-                  if (other.dependsOn === item.id) other.completed = false;
+                  if (other.dependsOn === item.id || other.dependsOn === '*') other.completed = false;
                 });
               }
               DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: now });
@@ -1372,7 +1372,7 @@ const Workflow = {
               App.handleRoute(); // Refresh background
             });
 
-            const textValue = blocked ? ('🔒 Waiting for: ' + (prereq ? prereq.text : 'Unknown')) : item.text;
+            const textValue = blocked ? ('🔒 Waiting for: ' + (item.dependsOn === '*' ? 'All Task (*)' : (prereq ? prereq.text : 'Unknown'))) : item.text;
             const textWrap = el('div', { class: 'checklist-text' });
             textWrap.appendChild(el('span', { text: textValue, class: item.completed ? 'completed' : '', title: textValue }));
             row.appendChild(cb);
@@ -1530,6 +1530,27 @@ const Workflow = {
           noneOption.appendChild(noneCheckbox);
           noneOption.appendChild(document.createTextNode('— Dependency —'));
           predMenu.appendChild(noneOption);
+
+          // Option for All Task (*)
+          const allOption = el('label', { class: 'multi-select-option' });
+          const allCheckbox = el('input', { type: 'checkbox', value: '*' });
+          if (selectedPrereqId === '*') allCheckbox.checked = true;
+          allCheckbox.addEventListener('change', () => {
+            if (allCheckbox.checked) {
+              selectedPrereqId = '*';
+              predBtn.textContent = 'All Task (*)';
+              predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+                if (input !== allCheckbox) input.checked = false;
+              });
+            } else {
+              selectedPrereqId = null;
+              predBtn.textContent = '— Dependency —';
+            }
+            predMenu.classList.remove('show');
+          });
+          allOption.appendChild(allCheckbox);
+          allOption.appendChild(document.createTextNode('All Task (*)'));
+          predMenu.appendChild(allOption);
 
           normalizedChecklist.forEach(item => {
             const option = el('label', { class: 'multi-select-option' });
@@ -1837,14 +1858,15 @@ const Workflow = {
         });
 
         checklistDeps.forEach(item => {
-          const prereq = (task.checklist || []).find(c => c.id === item.dependsOn);
-          const pStatus = prereq && prereq.completed ? 'Completed' : 'Pending';
+          const isAllCompleted = item.dependsOn === '*' && (task.checklist || []).every(c => c.id === item.id || c.completed);
+          const prereq = item.dependsOn === '*' ? null : (task.checklist || []).find(c => c.id === item.dependsOn);
+          const pStatus = (item.dependsOn === '*' ? isAllCompleted : (prereq && prereq.completed)) ? 'Completed' : 'Pending';
 
           const depItem = el('div', { 
             class: 'dep-item', 
             style: 'display: flex; align-items: center; gap: 8px; font-size: 0.8125rem;' 
           });
-          depItem.appendChild(el('span', { text: prereq ? prereq.text : 'Unknown', style: 'font-weight: 600;' }));
+          depItem.appendChild(el('span', { text: item.dependsOn === '*' ? 'All Task (*)' : (prereq ? prereq.text : 'Unknown'), style: 'font-weight: 600;' }));
           
           const statusBadge = el('span', { 
             text: pStatus, 
@@ -4074,13 +4096,13 @@ const Workflow = {
           } else {
             normalizedChecklist.forEach((item, idx) => {
               const blocked = isChecklistBlocked(item, normalizedChecklist);
-              const prereq = normalizedChecklist.find(c => c.id === item.dependsOn);
+              const prereq = item.dependsOn === '*' ? null : normalizedChecklist.find(c => c.id === item.dependsOn);
               const row = el('div', { class: 'checklist-item' + (blocked ? ' locked' : '') });
               const cb = el('input', { type: 'checkbox' });
               cb.checked = !!item.completed;
               cb.disabled = blocked;
               
-              const textValue = blocked ? ('🔒 Waiting for: ' + (prereq ? prereq.text : 'Unknown')) : item.text;
+              const textValue = blocked ? ('🔒 Waiting for: ' + (item.dependsOn === '*' ? 'All Task (*)' : (prereq ? prereq.text : 'Unknown'))) : item.text;
               
               // Wrapping text in checklist-text span/div structure
               const textWrap = el('div', { class: 'checklist-text' });
@@ -4094,7 +4116,7 @@ const Workflow = {
                 } else {
                   item.completed = false;
                   normalizedChecklist.forEach(other => {
-                    if (other.dependsOn === item.id) other.completed = false;
+                    if (other.dependsOn === item.id || other.dependsOn === '*') other.completed = false;
                   });
                 }
                 DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: now });
@@ -4253,6 +4275,27 @@ const Workflow = {
             noneOption.appendChild(noneCheckbox);
             noneOption.appendChild(document.createTextNode('— Dependency —'));
             predMenu.appendChild(noneOption);
+
+            // Option for All Task (*)
+            const allOption = el('label', { class: 'multi-select-option' });
+            const allCheckbox = el('input', { type: 'checkbox', value: '*' });
+            if (selectedPrereqId === '*') allCheckbox.checked = true;
+            allCheckbox.addEventListener('change', () => {
+              if (allCheckbox.checked) {
+                selectedPrereqId = '*';
+                predBtn.textContent = 'All Task (*)';
+                predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
+                  if (input !== allCheckbox) input.checked = false;
+                });
+              } else {
+                selectedPrereqId = null;
+                predBtn.textContent = '— Dependency —';
+              }
+              predMenu.classList.remove('show');
+            });
+            allOption.appendChild(allCheckbox);
+            allOption.appendChild(document.createTextNode('All Task (*)'));
+            predMenu.appendChild(allOption);
 
             normalizedChecklist.forEach(item => {
               const option = el('label', { class: 'multi-select-option' });
@@ -4567,14 +4610,14 @@ const Workflow = {
             depItem.appendChild(el('span', { class: 'text-muted', text: t.title }));
             depContent.appendChild(depItem);
           });
-          checklistDeps.forEach(item => {
-            const prereq = (t.checklist || []).find(c => c.id === item.dependsOn);
-            const depItem = el('div', { class: 'dep-item' });
-            depItem.appendChild(el('span', { text: prereq ? prereq.text : 'Unknown' }));
-            depItem.appendChild(el('span', { class: 'dep-arrow', text: '→' }));
-            depItem.appendChild(el('span', { class: 'text-muted', text: `${t.title}: ${item.text}` }));
-            depContent.appendChild(depItem);
-          });
+           checklistDeps.forEach(item => {
+             const prereq = item.dependsOn === '*' ? null : (t.checklist || []).find(c => c.id === item.dependsOn);
+             const depItem = el('div', { class: 'dep-item' });
+             depItem.appendChild(el('span', { text: item.dependsOn === '*' ? 'All Task (*)' : (prereq ? prereq.text : 'Unknown') }));
+             depItem.appendChild(el('span', { class: 'dep-arrow', text: '→' }));
+             depItem.appendChild(el('span', { class: 'text-muted', text: `${t.title}: ${item.text}` }));
+             depContent.appendChild(depItem);
+           });
         }
         depSection.appendChild(depContent);
         rightPane.appendChild(depSection);
@@ -5590,11 +5633,14 @@ const Workflow = {
 
         const prereqSelect = el('select', { style: 'font-size:0.8rem; max-width:140px;' });
         prereqSelect.appendChild(el('option', { value: '', text: '— None —' }));
+        prereqSelect.appendChild(el('option', { value: '*', text: 'All Task (*)' }));
         checklistItems.slice(0, idx).forEach((prev, pIdx) => {
           if (!prev.id) prev.id = generateId('chk');
           prereqSelect.appendChild(el('option', { value: prev.id, text: `${pIdx + 1}. ${prev.text}` }));
         });
-        if (idx === 0) prereqSelect.disabled = true;
+        if (checklistItems.length <= 1) {
+          prereqSelect.disabled = true;
+        }
         prereqSelect.value = item.dependsOn || '';
         prereqSelect.addEventListener('change', () => {
           item.dependsOn = prereqSelect.value || null;

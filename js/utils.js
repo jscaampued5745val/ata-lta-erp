@@ -400,7 +400,10 @@ function getTaskTotalHours(task) {
 
 function isChecklistBlocked(item, checklist) {
   if (!item.dependsOn) return false;
-  const prereq = checklist.find(c => c.id === item.dependsOn);
+  if (item.dependsOn === '*') {
+    return (checklist || []).some(c => c.id !== item.id && !c.completed);
+  }
+  const prereq = (checklist || []).find(c => c.id === item.dependsOn);
   return !prereq || !prereq.completed;
 }
 
