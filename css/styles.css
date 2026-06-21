@@ -6218,7 +6218,8 @@ tbody tr:hover {
 /* ─── Work Request Detail Redesign Tokens ───
    Scoped to .project-detail-v2 so they match ERP_Work-Request_Redesign/index.html
    one-to-one without altering the rest of the app theme. */
-.project-detail-v2 {
+.project-detail-v2,
+.side-pane {
   --bg: #fafafa;
   --surface: #ffffff;
   --surface-warm: var(--surface);
@@ -6746,11 +6747,7 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  flex-wrap: nowrap;
-}
-
-.checklist-item .co-assignee-chips {
-  display: none;
+  flex-wrap: wrap;
 }
 
 .detail-panel .checklist-item:last-child,
@@ -7374,20 +7371,20 @@ tbody tr:hover {
 }
 
 /* Stacked assignee display in task table (non-Draft phases) */
-.project-detail-v2 .assignee-avatars-list {
+.assignee-avatars-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   align-items: flex-start;
 }
 
-.project-detail-v2 .assignee-avatar-row {
+.assignee-avatar-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.project-detail-v2 .assignee-avatar-row .avatar-xs {
+.assignee-avatar-row .avatar-xs {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -7400,9 +7397,10 @@ tbody tr:hover {
   background-size: cover;
   background-position: center;
   border: 1px solid var(--border);
+  margin-left: 0;
 }
 
-.project-detail-v2 .assignee-avatar-row .assignee-name {
+.assignee-avatar-row .assignee-name {
   font-size: var(--text-sm);
   color: var(--fg);
   font-weight: 500;
@@ -7411,7 +7409,7 @@ tbody tr:hover {
   text-overflow: ellipsis;
 }
 
-.project-detail-v2 .assignee-overflow {
+.assignee-overflow {
   font-size: var(--text-xs);
   color: var(--muted);
   font-weight: 600;

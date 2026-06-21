@@ -9,6 +9,8 @@ const Workflow = {
   detailWrId: null,
   templateEditingId: null,
   selectedTaskId: null,
+  expandedTaskIds: new Set(),
+  lastRenderedWrId: null,
 
   standardTaskTemplates: [
     { title: 'Gathering requirements and preparing documents for preprocessing', defaultChecklist: ['SEC Certificate', 'Articles of Incorporation', "Mayor's Permit", 'BIR Form 1901/1903'] },
@@ -1187,6 +1189,7 @@ const Workflow = {
     const checklistCompletion = getTaskChecklistCompletion(task);
     const hasIncompleteChecklist = checklistCompletion.total > 0 && checklistCompletion.done < checklistCompletion.total;
     const isArchived = wr && (wr.status === 'Completed' || wr.status === 'Cancelled');
+    const isDraft = wr && wr.status === 'Draft';
 
     flow.forEach(s => {
       const opt = el('option', { value: s, text: s });
@@ -1267,7 +1270,7 @@ const Workflow = {
 
     // Assignee Row
     propsSec.appendChild(propLabel('Assignee', assigneeIcon));
-    const assigneeValEl = el('div', { class: 'side-pane-prop-value', style: 'display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; width: 100%;' });
+    const assigneeValEl = el('div', { class: 'side-pane-prop-value', style: 'display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; width: 100%; align-items: flex-start;' });
 
     if (wr && wr.status === 'Draft') {
       // Editable mode: dropdown for primary assignee + co-assignee picker
@@ -1301,17 +1304,9 @@ const Workflow = {
       );
       assigneeValEl.appendChild(coPicker);
     } else {
-      // Read-only mode: display primary assignee + co-assignees text/chips
+      // Read-only mode: display standard stacked avatars list
       const names = getTaskAllAssigneeNames(task);
-      if (names.length === 0) {
-        assigneeValEl.appendChild(el('span', { text: '—', style: 'color: var(--color-text-muted); font-style: italic;' }));
-      } else {
-        const chipsWrap = el('div', { class: 'co-assignee-chips', style: 'display: flex; flex-wrap: wrap; gap: 4px;' });
-        names.forEach(name => {
-          chipsWrap.appendChild(el('span', { class: 'co-assignee-chip readonly', text: name }));
-        });
-        assigneeValEl.appendChild(chipsWrap);
-      }
+      assigneeValEl.appendChild(this.renderAssigneeAvatarsList(names));
     }
     propsSec.appendChild(assigneeValEl);
 
@@ -1381,38 +1376,54 @@ const Workflow = {
             row.appendChild(cb);
             row.appendChild(textWrap);
 
-            const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
-            const assigneeDropdown = this.createGroundWorkerDropdown({
-              selectedGroundWorkerName: item.assigneeName,
-              placeholder: 'Assign...',
-              className: 'checklist-assignee-dropdown',
-              priorityNames: getTaskAllAssigneeNames(task),
-              onChange: ({ assigneeName }) => {
-                const name = (assigneeName || '').trim();
-                const existing = name ? (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase()) : null;
-                item.assigneeName = name || null;
-                item.assigneeId = existing ? existing.id : null;
-                DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                this.showTaskSidePane(taskId, triggerElement);
-                App.handleRoute();
-              }
-            });
-            assigneeWrap.appendChild(assigneeDropdown);
+            if (isDraft) {
+              const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
+              const assigneeDropdown = this.createGroundWorkerDropdown({
+                selectedGroundWorkerName: item.assigneeName,
+                placeholder: 'Assign...',
+                className: 'checklist-assignee-dropdown',
+                priorityNames: getTaskAllAssigneeNames(task),
+                onChange: ({ assigneeName }) => {
+                  const name = (assigneeName || '').trim();
+                  const existing = name ? (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase()) : null;
+                  item.assigneeName = name || null;
+                  item.assigneeId = existing ? existing.id : null;
+                  DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  this.showTaskSidePane(taskId, triggerElement);
+                  App.handleRoute();
+                }
+              });
+              assigneeWrap.appendChild(assigneeDropdown);
 
-            const coAssigneePicker = this.renderChecklistCoAssigneePicker(
-              task,
-              item,
-              { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
-              !isArchived,
-              false,
-              () => {
-                DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                this.showTaskSidePane(taskId, triggerElement);
-                App.handleRoute();
+              const coAssigneePicker = this.renderChecklistCoAssigneePicker(
+                task,
+                item,
+                { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
+                !isArchived,
+                true,
+                () => {
+                  DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  this.showTaskSidePane(taskId, triggerElement);
+                  App.handleRoute();
+                }
+              );
+              assigneeWrap.appendChild(coAssigneePicker);
+              row.appendChild(assigneeWrap);
+            } else {
+              const itemAssigneeNames = [];
+              if (item.assigneeName) {
+                itemAssigneeNames.push(item.assigneeName);
               }
-            );
-            assigneeWrap.appendChild(coAssigneePicker);
-            row.appendChild(assigneeWrap);
+              if (item.coAssignees && Array.isArray(item.coAssignees)) {
+                item.coAssignees.forEach(name => {
+                  if (name && !itemAssigneeNames.includes(name)) {
+                    itemAssigneeNames.push(name);
+                  }
+                });
+              }
+              const assigneeWrap = this.renderAssigneeAvatarsList(itemAssigneeNames);
+              row.appendChild(assigneeWrap);
+            }
 
             const itemHours = getChecklistItemTotalHours(item);
             const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
@@ -2789,12 +2800,53 @@ const Workflow = {
     return wrap;
   },
 
+  renderAssigneeAvatarsList(allAssigneeNames) {
+    const assigneeWrap = el('div', { class: 'assignee-avatars-list' });
+    const displayNames = allAssigneeNames.slice(0, 5);
+    const avatarColors = [
+      { bg: 'color-mix(in oklab, var(--accent), transparent 80%)', fg: 'var(--accent)' },
+      { bg: 'color-mix(in oklab, var(--success), transparent 80%)', fg: 'var(--success)' },
+      { bg: 'color-mix(in oklab, var(--warn), transparent 80%)', fg: 'color-mix(in oklab, var(--warn), black 30%)' },
+      { bg: 'color-mix(in oklab, var(--danger), transparent 80%)', fg: 'var(--danger)' },
+      { bg: '#e5e5e5', fg: '#6b6b6b' }
+    ];
+    displayNames.forEach((name, idx) => {
+      const user = DB.getWhere('users', u => u.name === name)[0];
+      const row = el('div', { class: 'assignee-avatar-row' });
+      const av = el('div', { class: 'avatar-xs', title: name });
+      const theme = avatarColors[idx % avatarColors.length];
+      av.style.background = theme.bg;
+      av.style.color = theme.fg;
+      if (user?.avatarUrl) av.style.backgroundImage = `url('${user.avatarUrl}')`;
+      else av.textContent = name.charAt(0).toUpperCase();
+      row.appendChild(av);
+      row.appendChild(el('span', { class: 'assignee-name', text: name }));
+      assigneeWrap.appendChild(row);
+    });
+    if (allAssigneeNames.length > 5) {
+      const overflow = el('span', {
+        class: 'assignee-overflow',
+        text: `+${allAssigneeNames.length - 5}`,
+        title: allAssigneeNames.slice(5).join(', ')
+      });
+      assigneeWrap.appendChild(overflow);
+    }
+    if (allAssigneeNames.length === 0) {
+      assigneeWrap.appendChild(el('span', { text: 'Unassigned', style: 'color:var(--muted);font-style:italic;' }));
+    }
+    return assigneeWrap;
+  },
+
   renderDetail() {
     const wr = DB.getById('workRequests', this.detailWrId);
     if (!wr) {
       this.view = 'list';
       App.handleRoute();
       return el('div');
+    }
+    if (this.lastRenderedWrId !== this.detailWrId) {
+      this.lastRenderedWrId = this.detailWrId;
+      this.expandedTaskIds.clear();
     }
     const client = DB.getById('clients', wr.clientId);
     const tasks = DB.getWhere('tasks', t => t.workRequestId === wr.id);
@@ -3610,7 +3662,7 @@ const Workflow = {
         const hours = getTaskTotalHours(t);
         totalHours += hours;
 
-        const expanded = false;
+        const expanded = this.expandedTaskIds.has(t.id);
         const selected = container.selectedTaskIds.has(t.id);
         const rowEl = el('div', { class: 'task-row' + (expanded ? ' expanded' : '') + (selected ? ' selected' : '') });
         rowEl.dataset.id = t.id;
@@ -3697,40 +3749,7 @@ const Workflow = {
           assigneeWrap.appendChild(this.renderTaskCoAssigneePicker(t, { primaryName: t.assigneeName || '', className: 'inline-coassignee-dropdown' }, isDraft, true));
           cellAssignee.appendChild(assigneeWrap);
         } else {
-          const assigneeWrap = el('div', { class: 'assignee-avatars-list' });
-          const displayNames = allAssigneeNames.slice(0, 5);
-          const avatarColors = [
-            { bg: 'color-mix(in oklab, var(--accent), transparent 80%)', fg: 'var(--accent)' },
-            { bg: 'color-mix(in oklab, var(--success), transparent 80%)', fg: 'var(--success)' },
-            { bg: 'color-mix(in oklab, var(--warn), transparent 80%)', fg: 'color-mix(in oklab, var(--warn), black 30%)' },
-            { bg: 'color-mix(in oklab, var(--danger), transparent 80%)', fg: 'var(--danger)' },
-            { bg: '#e5e5e5', fg: '#6b6b6b' }
-          ];
-          displayNames.forEach((name, idx) => {
-            const user = DB.getWhere('users', u => u.name === name)[0];
-            const row = el('div', { class: 'assignee-avatar-row' });
-            const av = el('div', { class: 'avatar-xs', title: name });
-            const theme = avatarColors[idx % avatarColors.length];
-            av.style.background = theme.bg;
-            av.style.color = theme.fg;
-            if (user?.avatarUrl) av.style.backgroundImage = `url('${user.avatarUrl}')`;
-            else av.textContent = name.charAt(0).toUpperCase();
-            row.appendChild(av);
-            row.appendChild(el('span', { class: 'assignee-name', text: name }));
-            assigneeWrap.appendChild(row);
-          });
-          if (allAssigneeNames.length > 5) {
-            const overflow = el('span', {
-              class: 'assignee-overflow',
-              text: `+${allAssigneeNames.length - 5}`,
-              title: allAssigneeNames.slice(5).join(', ')
-            });
-            assigneeWrap.appendChild(overflow);
-          }
-          if (allAssigneeNames.length === 0) {
-            assigneeWrap.appendChild(el('span', { text: 'Unassigned', style: 'color:var(--muted);font-style:italic;' }));
-          }
-          cellAssignee.appendChild(assigneeWrap);
+          cellAssignee.appendChild(this.renderAssigneeAvatarsList(allAssigneeNames));
         }
         rowEl.appendChild(cellAssignee);
 
@@ -4009,7 +4028,7 @@ const Workflow = {
         groupEl.appendChild(rowEl);
 
         // Accordion Details Row (div layout)
-        const detailsDiv = el('div', { class: 'detail-panel hidden accordion-panel collapsed' });
+        const detailsDiv = el('div', { class: 'detail-panel accordion-panel' + (expanded ? '' : ' hidden collapsed') });
         
         // Two-pane layout direct children of detail-panel
         const leftPane = el('div');
@@ -4063,38 +4082,54 @@ const Workflow = {
               row.appendChild(cb);
               row.appendChild(textWrap);
 
-              const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
-              const assigneeDropdown = this.createGroundWorkerDropdown({
-                selectedGroundWorkerName: item.assigneeName,
-                placeholder: 'Assign...',
-                className: 'checklist-assignee-dropdown',
-                priorityNames: getTaskAllAssigneeNames(t),
-                onChange: ({ assigneeName }) => {
-                  const name = (assigneeName || '').trim();
-                  const existing = name ? (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase()) : null;
-                  item.assigneeName = name || null;
-                  item.assigneeId = existing ? existing.id : null;
-                  DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                  renderChecklist();
-                  App.handleRoute();
-                }
-              });
-              assigneeWrap.appendChild(assigneeDropdown);
+              if (isDraft) {
+                const assigneeWrap = el('div', { class: 'task-assignee-wrapper' });
+                const assigneeDropdown = this.createGroundWorkerDropdown({
+                  selectedGroundWorkerName: item.assigneeName,
+                  placeholder: 'Assign...',
+                  className: 'checklist-assignee-dropdown',
+                  priorityNames: getTaskAllAssigneeNames(t),
+                  onChange: ({ assigneeName }) => {
+                    const name = (assigneeName || '').trim();
+                    const existing = name ? (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase()) : null;
+                    item.assigneeName = name || null;
+                    item.assigneeId = existing ? existing.id : null;
+                    DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                    renderChecklist();
+                    App.handleRoute();
+                  }
+                });
+                assigneeWrap.appendChild(assigneeDropdown);
 
-              const coAssigneePicker = this.renderChecklistCoAssigneePicker(
-                t,
-                item,
-                { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
-                !isArchived,
-                false,
-                () => {
-                  DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                  renderChecklist();
-                  App.handleRoute();
+                const coAssigneePicker = this.renderChecklistCoAssigneePicker(
+                  t,
+                  item,
+                  { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
+                  !isArchived,
+                  true,
+                  () => {
+                    DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                    renderChecklist();
+                    App.handleRoute();
+                  }
+                );
+                assigneeWrap.appendChild(coAssigneePicker);
+                row.appendChild(assigneeWrap);
+              } else {
+                const itemAssigneeNames = [];
+                if (item.assigneeName) {
+                  itemAssigneeNames.push(item.assigneeName);
                 }
-              );
-              assigneeWrap.appendChild(coAssigneePicker);
-              row.appendChild(assigneeWrap);
+                if (item.coAssignees && Array.isArray(item.coAssignees)) {
+                  item.coAssignees.forEach(name => {
+                    if (name && !itemAssigneeNames.includes(name)) {
+                      itemAssigneeNames.push(name);
+                    }
+                  });
+                }
+                const assigneeWrap = this.renderAssigneeAvatarsList(itemAssigneeNames);
+                row.appendChild(assigneeWrap);
+              }
 
               const itemHours = getChecklistItemTotalHours(item);
               const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
@@ -4528,9 +4563,14 @@ const Workflow = {
         // Row expand listener
         rowEl.addEventListener('click', (e) => {
           if (e.target.closest('input, select, button, .actions-cell, .inline-coassignee-dropdown, .inline-ground-worker-autocomplete')) return;
-          rowEl.classList.toggle('expanded');
+          const isNowExpanded = rowEl.classList.toggle('expanded');
           detailsDiv.classList.toggle('hidden');
           detailsDiv.classList.toggle('collapsed');
+          if (isNowExpanded) {
+            this.expandedTaskIds.add(t.id);
+          } else {
+            this.expandedTaskIds.delete(t.id);
+          }
         });
       });
 
