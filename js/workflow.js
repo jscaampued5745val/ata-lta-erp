@@ -1339,12 +1339,13 @@ const Workflow = {
             const assigneeDropdown = this.createGroundWorkerDropdown({
               selectedGroundWorkerName: item.assigneeName,
               placeholder: 'Assign...',
-              maxWidth: '120px',
               className: 'checklist-assignee-dropdown',
               priorityNames: getTaskAllAssigneeNames(task),
               onChange: ({ assigneeName }) => {
-                item.assigneeId = null;
-                item.assigneeName = assigneeName || null;
+                const name = (assigneeName || '').trim();
+                const existing = name ? (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase()) : null;
+                item.assigneeName = name || null;
+                item.assigneeId = existing ? existing.id : null;
                 DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
                 this.showTaskSidePane(taskId, triggerElement);
                 App.handleRoute();
@@ -1357,7 +1358,7 @@ const Workflow = {
               item,
               { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
               !isArchived,
-              true,
+              false,
               () => {
                 DB.update('tasks', task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
                 this.showTaskSidePane(taskId, triggerElement);
@@ -2730,6 +2731,7 @@ const Workflow = {
           if (!existing) DB.insert('groundWorkers', { id: generateId('gw'), name });
           const updated = [...coAssignees, name];
           item.coAssignees = updated;
+          this.clearDropdown(addDropdown);
           onUpdate();
         }
       });
@@ -4016,13 +4018,15 @@ const Workflow = {
               const assigneeDropdown = this.createGroundWorkerDropdown({
                 selectedGroundWorkerName: item.assigneeName,
                 placeholder: 'Assign...',
-                maxWidth: '160px',
                 className: 'checklist-assignee-dropdown',
                 priorityNames: getTaskAllAssigneeNames(t),
                 onChange: ({ assigneeName }) => {
-                  item.assigneeId = null;
-                  item.assigneeName = assigneeName || null;
+                  const name = (assigneeName || '').trim();
+                  const existing = name ? (DB.getAll('groundWorkers') || []).find(gw => gw.name.toLowerCase() === name.toLowerCase()) : null;
+                  item.assigneeName = name || null;
+                  item.assigneeId = existing ? existing.id : null;
                   DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  renderChecklist();
                   App.handleRoute();
                 }
               });
@@ -4033,9 +4037,10 @@ const Workflow = {
                 item,
                 { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
                 !isArchived,
-                true,
+                false,
                 () => {
                   DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  renderChecklist();
                   App.handleRoute();
                 }
               );
