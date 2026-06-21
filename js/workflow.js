@@ -1951,7 +1951,7 @@ const Workflow = {
     if (clear) clear.style.display = 'none';
   },
 
-  renderTaskCoAssigneePicker(t, { primaryName = '', className = 'inline-coassignee-dropdown' } = {}, editable = false) {
+  renderTaskCoAssigneePicker(t, { primaryName = '', className = 'inline-coassignee-dropdown' } = {}, editable = false, showChips = true) {
     const wrap = el('div', { class: 'task-coassignee-wrap', style: 'margin-top:4px;' });
     const chipsWrap = el('div', { class: 'co-assignee-chips' });
 
@@ -1974,7 +1974,7 @@ const Workflow = {
     };
     renderChips();
 
-    wrap.appendChild(chipsWrap);
+    if (showChips) wrap.appendChild(chipsWrap);
     if (editable) {
       const addDropdown = this.createGroundWorkerDropdown({
         placeholder: '+ Co-assignee',
@@ -2749,7 +2749,7 @@ const Workflow = {
             });
             assigneeWrap.appendChild(chipsWrap);
           }
-          assigneeWrap.appendChild(this.renderTaskCoAssigneePicker(t, { primaryName: t.assigneeName || '', className: 'inline-coassignee-dropdown' }, isDraft));
+          assigneeWrap.appendChild(this.renderTaskCoAssigneePicker(t, { primaryName: t.assigneeName || '', className: 'inline-coassignee-dropdown' }, isDraft, false));
           cellAssignee.appendChild(assigneeWrap);
         } else {
           const assigneeWrap = el('div', { class: 'assignee-avatars' });
