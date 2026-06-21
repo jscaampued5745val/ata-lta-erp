@@ -1419,7 +1419,7 @@ const Workflow = {
       
       // Custom single-select styled as dependency selector
       const predWrapper = el('div', { class: 'multi-select-dropdown', style: 'width: 160px;' });
-      const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— None —', style: 'width: 100%; height: 32px;' });
+      const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— Dependency —', style: 'width: 100%; height: 32px;' });
       const predMenu = el('div', { class: 'multi-select-menu', style: 'width: 100%;' });
       predWrapper.appendChild(predBtn);
       predWrapper.appendChild(predMenu);
@@ -1444,14 +1444,14 @@ const Workflow = {
         if (!selectedPrereqId) noneCheckbox.checked = true;
         noneCheckbox.addEventListener('change', () => {
           selectedPrereqId = null;
-          predBtn.textContent = '— None —';
+          predBtn.textContent = '— Dependency —';
           predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
             if (input !== noneCheckbox) input.checked = false;
           });
           predMenu.classList.remove('show');
         });
         noneOption.appendChild(noneCheckbox);
-        noneOption.appendChild(document.createTextNode('— None —'));
+        noneOption.appendChild(document.createTextNode('— Dependency —'));
         predMenu.appendChild(noneOption);
 
         normalizedChecklist.forEach(item => {
@@ -1467,7 +1467,7 @@ const Workflow = {
               });
             } else {
               selectedPrereqId = null;
-              predBtn.textContent = '— None —';
+              predBtn.textContent = '— Dependency —';
             }
             predMenu.classList.remove('show');
           });
@@ -2292,6 +2292,13 @@ const Workflow = {
       predMenu.innerHTML = '';
 
       const updateSelection = () => {
+        // Auto-check All Tasks (*) if all individual tasks are checked
+        const allCheckbox = predMenu.querySelector('.multi-select-option input[value="*"]');
+        const individualCheckboxes = Array.from(predMenu.querySelectorAll('.multi-select-option input')).filter(input => input.value !== '*');
+        if (allCheckbox && !allCheckbox.checked && individualCheckboxes.length > 0 && individualCheckboxes.every(cb => cb.checked)) {
+          allCheckbox.checked = true;
+        }
+
         const checkedOptions = Array.from(predMenu.querySelectorAll('.multi-select-option input:checked'));
         let selectedKeys = checkedOptions.map(opt => opt.value);
 
@@ -4019,7 +4026,7 @@ const Workflow = {
         
         // Custom single-select styled as dependency selector
         const predWrapper = el('div', { class: 'multi-select-dropdown', style: 'width: 160px;' });
-        const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— None —', style: 'width: 100%; height: 32px;' });
+        const predBtn = el('button', { type: 'button', class: 'multi-select-btn', text: '— Dependency —', style: 'width: 100%; height: 32px;' });
         const predMenu = el('div', { class: 'multi-select-menu', style: 'width: 100%;' });
         predWrapper.appendChild(predBtn);
         predWrapper.appendChild(predMenu);
@@ -4044,14 +4051,14 @@ const Workflow = {
           if (!selectedPrereqId) noneCheckbox.checked = true;
           noneCheckbox.addEventListener('change', () => {
             selectedPrereqId = null;
-            predBtn.textContent = '— None —';
+            predBtn.textContent = '— Dependency —';
             predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
               if (input !== noneCheckbox) input.checked = false;
             });
             predMenu.classList.remove('show');
           });
           noneOption.appendChild(noneCheckbox);
-          noneOption.appendChild(document.createTextNode('— None —'));
+          noneOption.appendChild(document.createTextNode('— Dependency —'));
           predMenu.appendChild(noneOption);
 
           normalizedChecklist.forEach(item => {
@@ -4067,7 +4074,7 @@ const Workflow = {
                 });
               } else {
                 selectedPrereqId = null;
-                predBtn.textContent = '— None —';
+                predBtn.textContent = '— Dependency —';
               }
               predMenu.classList.remove('show');
             });
@@ -4087,7 +4094,7 @@ const Workflow = {
           DB.update('tasks', t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
           newItemInput.value = '';
           selectedPrereqId = null;
-          predBtn.textContent = '— None —';
+          predBtn.textContent = '— Dependency —';
           populatePrereqSelect();
           renderChecklist();
         });
@@ -5230,6 +5237,16 @@ const Workflow = {
     let selectedPreds = [];
 
     const updateModalSelectionText = () => {
+      // Auto-check All Tasks (*) if all individual tasks are checked
+      const allCheckbox = predMenu.querySelector('.multi-select-option input[value="*"]');
+      const individualCheckboxes = Array.from(predMenu.querySelectorAll('.multi-select-option input')).filter(input => input.value !== '*');
+      if (allCheckbox && !allCheckbox.checked && individualCheckboxes.length > 0 && individualCheckboxes.every(cb => cb.checked)) {
+        allCheckbox.checked = true;
+        if (!selectedPreds.includes('*')) {
+          selectedPreds = ['*'];
+        }
+      }
+
       if (selectedPreds.includes('*')) {
         predBtn.textContent = 'All Tasks (*)';
         predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
@@ -5273,13 +5290,16 @@ const Workflow = {
       const checkbox = el('input', { type: 'checkbox', value: t.id });
       checkbox.addEventListener('change', () => {
         if (!checkbox.checked) {
-          const allCheckbox = predMenu.querySelector('input[value="*"]');
+          const allCheckbox = predMenu.querySelector('.multi-select-option input[value="*"]');
           if (allCheckbox) allCheckbox.checked = false;
-          selectedPreds = selectedPreds.filter(id => id !== t.id && id !== '*');
+          if (selectedPreds.includes('*')) {
+            selectedPreds = existingTasks.map(x => x.id);
+          }
+          selectedPreds = selectedPreds.filter(id => id !== t.id);
         } else {
           if (selectedPreds.includes('*')) {
             selectedPreds = existingTasks.map(x => x.id);
-            const allCheckbox = predMenu.querySelector('input[value="*"]');
+            const allCheckbox = predMenu.querySelector('.multi-select-option input[value="*"]');
             if (allCheckbox) allCheckbox.checked = false;
           }
           if (!selectedPreds.includes(t.id)) {
@@ -5463,6 +5483,16 @@ const Workflow = {
     let selectedPreds = [...(task.predecessors || [])];
 
     const updateModalSelectionText = () => {
+      // Auto-check All Tasks (*) if all individual tasks are checked
+      const allCheckbox = predMenu.querySelector('.multi-select-option input[value="*"]');
+      const individualCheckboxes = Array.from(predMenu.querySelectorAll('.multi-select-option input')).filter(input => input.value !== '*');
+      if (allCheckbox && !allCheckbox.checked && individualCheckboxes.length > 0 && individualCheckboxes.every(cb => cb.checked)) {
+        allCheckbox.checked = true;
+        if (!selectedPreds.includes('*')) {
+          selectedPreds = ['*'];
+        }
+      }
+
       if (selectedPreds.includes('*')) {
         predBtn.textContent = 'All Tasks (*)';
         predMenu.querySelectorAll('.multi-select-option input').forEach(input => {
@@ -5508,13 +5538,16 @@ const Workflow = {
       if (selectedPreds.includes(t.id) || selectedPreds.includes('*')) checkbox.checked = true;
       checkbox.addEventListener('change', () => {
         if (!checkbox.checked) {
-          const allCheckbox = predMenu.querySelector('input[value="*"]');
+          const allCheckbox = predMenu.querySelector('.multi-select-option input[value="*"]');
           if (allCheckbox) allCheckbox.checked = false;
-          selectedPreds = selectedPreds.filter(id => id !== t.id && id !== '*');
+          if (selectedPreds.includes('*')) {
+            selectedPreds = existingTasks.map(x => x.id);
+          }
+          selectedPreds = selectedPreds.filter(id => id !== t.id);
         } else {
           if (selectedPreds.includes('*')) {
             selectedPreds = existingTasks.map(x => x.id);
-            const allCheckbox = predMenu.querySelector('input[value="*"]');
+            const allCheckbox = predMenu.querySelector('.multi-select-option input[value="*"]');
             if (allCheckbox) allCheckbox.checked = false;
           }
           if (!selectedPreds.includes(t.id)) {
