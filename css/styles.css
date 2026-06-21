@@ -6684,7 +6684,8 @@ tbody tr:hover {
   margin-bottom: var(--space-3);
 }
 
-.detail-panel .checklist-item {
+.detail-panel .checklist-item,
+.side-pane-toggle-content .checklist-item {
   display: grid;
   grid-template-columns: 28px 1fr auto auto auto;
   align-items: center;
@@ -6693,27 +6694,32 @@ tbody tr:hover {
   border-bottom: 1px solid var(--border);
 }
 
-.detail-panel .checklist-item:last-child {
+.detail-panel .checklist-item:last-child,
+.side-pane-toggle-content .checklist-item:last-child {
   border-bottom: none;
 }
 
-.detail-panel .checklist-item.locked {
+.detail-panel .checklist-item.locked,
+.side-pane-toggle-content .checklist-item.locked {
   opacity: .55;
 }
 
-.detail-panel .checklist-item input[type="checkbox"] {
+.detail-panel .checklist-item input[type="checkbox"],
+.side-pane-toggle-content .checklist-item input[type="checkbox"] {
   width: 16px;
   height: 16px;
   accent-color: var(--accent);
 }
 
-.detail-panel .checklist-text {
+.detail-panel .checklist-text,
+.side-pane-toggle-content .checklist-text {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.detail-panel .lock-hint {
+.detail-panel .lock-hint,
+.side-pane-toggle-content .lock-hint {
   font-size: var(--text-xs);
   color: var(--warn);
   display: flex;
@@ -6721,7 +6727,8 @@ tbody tr:hover {
   gap: var(--space-1);
 }
 
-.detail-panel .hours-pill {
+.detail-panel .hours-pill,
+.side-pane-toggle-content .hours-pill {
   padding: 2px 7px;
   border-radius: var(--radius-pill);
   background: color-mix(in oklab, var(--accent), transparent 88%);
