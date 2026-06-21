@@ -7983,3 +7983,9 @@ tbody tr,
 tbody tr * {
   scroll-margin-top: 160px;
 }
+
+/* Prevent task-list container from acting as scroll parent/clipping container for sticky column headers */
+.project-detail-v2 .task-list {
+  overflow: visible;
+}
+
