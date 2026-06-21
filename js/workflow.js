@@ -1673,48 +1673,20 @@ const Workflow = {
       if (!isArchived) {
         const embedContainer = el('div', { class: 'embed-options', style: 'margin-top: 16px; display: flex; flex-direction: column; gap: 8px;' });
         
-        // 1. Embed a PDF
+        // 1. Upload Document
         const pdfOpt = el('button', { class: 'notion-embed-option', type: 'button' });
         pdfOpt.innerHTML = `
           <span class="notion-embed-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #ef4444;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           </span>
-          <span style="flex: 1; text-align: left;">Embed a PDF</span>
+          <span style="flex: 1; text-align: left;">Upload Document</span>
         `;
         pdfOpt.addEventListener('click', (e) => {
           e.stopPropagation();
           this.showAddDocumentModal(task.id);
         });
         
-        // 2. Connect Google Drive
-        const gdOpt = el('button', { class: 'notion-embed-option', type: 'button' });
-        gdOpt.innerHTML = `
-          <span class="notion-embed-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #22c55e;"><path d="M2.5 17h19M4.5 14l3.5-6h8l3.5 6M9 9h6M12 3v3"></path></svg>
-          </span>
-          <span style="flex: 1; text-align: left;">Connect Google Drive to Notion to embed a file</span>
-        `;
-        gdOpt.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.showGoogleDriveChooser(task.id);
-        });
-
-        // 3. Embed Figma
-        const figmaOpt = el('button', { class: 'notion-embed-option', type: 'button' });
-        figmaOpt.innerHTML = `
-          <span class="notion-embed-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #a855f7;"><path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H12v5H7.5A2.5 2.5 0 0 1 5 5.5z"></path><path d="M12 3h4.5A2.5 2.5 0 0 1 19 5.5 2.5 2.5 0 0 1 16.5 8H12V3z"></path><path d="M5 12.5A2.5 2.5 0 0 1 7.5 10H12v5H7.5A2.5 2.5 0 0 1 5 12.5z"></path><path d="M12 10h4.5a2.5 2.5 0 0 1 0 5H12v-5z"></path><path d="M5 19.5A2.5 2.5 0 0 1 7.5 17H12v5H7.5A2.5 2.5 0 0 1 5 19.5z"></path></svg>
-          </span>
-          <span style="flex: 1; text-align: left;">Embed Figma</span>
-        `;
-        figmaOpt.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.showFigmaEmbedModal(task.id);
-        });
-
         embedContainer.appendChild(pdfOpt);
-        embedContainer.appendChild(gdOpt);
-        embedContainer.appendChild(figmaOpt);
         cont.appendChild(embedContainer);
       }
     });
