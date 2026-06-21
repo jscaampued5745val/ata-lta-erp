@@ -7237,3 +7237,30 @@ tbody tr:hover {
 .project-detail-v2 .page-title-bar-v2 {
   margin-bottom: var(--space-3);
 }
+
+.title-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.project-detail-v2 .title-bar-actions .identity-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .page-title-bar-v2 {
+    flex-wrap: wrap;
+  }
+  .title-bar-actions {
+    flex-wrap: wrap;
+  }
+  .project-detail-v2 .title-bar-actions .identity-badges {
+    flex-wrap: wrap;
+  }
+}
