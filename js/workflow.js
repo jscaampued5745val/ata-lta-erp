@@ -4092,7 +4092,7 @@ const Workflow = {
           renderChecklist();
         });
         addChecklistRow.appendChild(newItemInput);
-        addChecklistRow.appendChild(prereqSelect);
+        addChecklistRow.appendChild(predWrapper);
         addChecklistRow.appendChild(addItemBtn);
 
         const checklistCard = el('div', { class: 'card card-compact', style: 'padding:0;' });
