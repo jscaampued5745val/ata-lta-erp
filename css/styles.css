@@ -2246,7 +2246,9 @@ tbody tr:hover {
   flex-direction: column;
   border-right: 1px solid #eef2f6;
   background: #fcfdfe;
+  position: relative;
 }
+
 
 .board-column-v2:last-child {
   border-right: none;
@@ -2258,9 +2260,10 @@ tbody tr:hover {
   justify-content: space-between;
   align-items: center;
   position: sticky;
-  top: 132px;
+  top: calc(76px + var(--sticky-tray-height, 56px));
   z-index: 20;
   background: #fcfdfe; /* match .board-column-v2 bg */
+  border-top: 4px solid var(--column-phase-color, transparent);
 }
 
 .board-column-title {
@@ -8002,7 +8005,7 @@ tbody tr:hover {
 .task-row *,
 tbody tr,
 tbody tr * {
-  scroll-margin-top: 160px;
+  scroll-margin-top: 164px;
 }
 
 /* Prevent task-list container from acting as scroll parent/clipping container for sticky column headers */

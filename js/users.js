@@ -624,7 +624,7 @@ const Users = {
     
     // Column 1: Expenses
     const expCol = el('div', { class: 'board-column-v2' });
-    expCol.style.borderTop = '4px solid #f59e0b';
+    expCol.style.setProperty('--column-phase-color', '#f59e0b');
     const expHeader = el('div', { class: 'board-column-header-v2' });
     expHeader.appendChild(el('div', { class: 'board-column-title', text: 'Expense Submissions' }));
     expCol.appendChild(expHeader);
@@ -633,7 +633,7 @@ const Users = {
     
     // Column 2: Billing Submissions
     const changeCol = el('div', { class: 'board-column-v2' });
-    changeCol.style.borderTop = '4px solid #3b82f6';
+    changeCol.style.setProperty('--column-phase-color', '#3b82f6');
     const changeHeader = el('div', { class: 'board-column-header-v2' });
     changeHeader.appendChild(el('div', { class: 'board-column-title', text: 'Billing Submissions' }));
     changeCol.appendChild(changeHeader);

@@ -984,7 +984,7 @@ const Workflow = {
     statuses.forEach(st => {
       const colColor = statusColors[st] || '#cbd5e1';
       const col = el('div', { class: 'board-column-v2' });
-      col.style.borderTop = `4px solid ${colColor}`;
+      col.style.setProperty('--column-phase-color', colColor);
       
       const header = el('div', { class: 'board-column-header-v2' });
       header.appendChild(el('div', { class: 'board-column-title', text: st }));
@@ -3519,7 +3519,7 @@ const Workflow = {
       });
 
       if (this.taskViewMode === 'board') {
-        const board = el('div', { class: 'board-v2', style: 'margin-top: 0; padding-top: 16px; display: flex; gap: var(--space-4);' });
+        const board = el('div', { class: 'board-v2', style: 'margin-top: 0; display: flex; gap: var(--space-4);' });
         const statuses = ['Draft', 'Assigned', 'In Progress', 'For Review', 'Completed', 'Cancelled'];
         const statusColors = {
           'Draft': '#94a3b8',
@@ -3533,7 +3533,7 @@ const Workflow = {
         statuses.forEach(st => {
           const colColor = statusColors[st] || '#cbd5e1';
           const col = el('div', { class: 'board-column-v2', style: 'flex: 1; min-width: 0;' });
-          col.style.borderTop = `4px solid ${colColor}`;
+          col.style.setProperty('--column-phase-color', colColor);
           
           const header = el('div', { class: 'board-column-header-v2' });
           const colTasks = filteredTasks.filter(t => t.status === st);

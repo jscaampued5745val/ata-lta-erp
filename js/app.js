@@ -24,6 +24,45 @@ const App = {
     
     this.handleRoute();
     this.updateSidebarNotifications();
+    this.setupStickyTrayResize();
+  },
+
+  updateStickyTrayOffset() {
+    const content = document.getElementById('content');
+    if (!content) return;
+    const tray = content.querySelector('.filters-bar, .task-view-toolbar');
+
+    const setHeight = (el) => {
+      const height = el ? el.getBoundingClientRect().height : 0;
+      content.style.setProperty('--sticky-tray-height', `${height}px`);
+    };
+
+    if (typeof ResizeObserver !== 'undefined') {
+      if (!this._trayObserver) {
+        this._trayObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) setHeight(entry.target);
+        });
+      }
+      if (this._trayTarget && this._trayTarget !== tray) {
+        this._trayObserver.unobserve(this._trayTarget);
+      }
+      if (tray) {
+        this._trayObserver.observe(tray);
+        this._trayTarget = tray;
+      } else {
+        this._trayTarget = null;
+      }
+    }
+
+    setHeight(tray);
+  },
+
+  setupStickyTrayResize() {
+    let raf = 0;
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => this.updateStickyTrayOffset());
+    });
   },
 
   updateSidebarNotifications() {
@@ -248,6 +287,7 @@ const App = {
       this.highlightNav(hash);
       this.updateEntityBadge();
       this.updateSidebarNotifications();
+      requestAnimationFrame(() => this.updateStickyTrayOffset());
     }
   },
 
