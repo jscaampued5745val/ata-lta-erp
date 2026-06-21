@@ -1686,7 +1686,21 @@ const Workflow = {
           this.showAddDocumentModal(task.id);
         });
         
+        // 2. Link GDrive File
+        const gdOpt = el('button', { class: 'notion-embed-option', type: 'button' });
+        gdOpt.innerHTML = `
+          <span class="notion-embed-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #22c55e;"><path d="M2.5 17h19M4.5 14l3.5-6h8l3.5 6M9 9h6M12 3v3"></path></svg>
+          </span>
+          <span style="flex: 1; text-align: left;">Link GDrive File</span>
+        `;
+        gdOpt.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.showGoogleDriveChooser(task.id);
+        });
+
         embedContainer.appendChild(pdfOpt);
+        embedContainer.appendChild(gdOpt);
         cont.appendChild(embedContainer);
       }
     });
