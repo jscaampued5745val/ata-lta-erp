@@ -7989,3 +7989,9 @@ tbody tr * {
   overflow: visible;
 }
 
+/* Disable stickiness on the task list board view column headers specifically */
+.project-detail-v2 .board-column-header-v2 {
+  position: static;
+}
+
+
