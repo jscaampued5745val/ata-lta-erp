@@ -2858,6 +2858,8 @@ const Workflow = {
     container.groupBy = 'phase';
     container.activeFilters = new Set();
     container.searchQuery = '';
+    container.employeeFilter = null;
+    container.statusFilter = null;
 
     // Lifecycle Card Redesign
     const lifecycleCard = el('div', { class: 'lifecycle-card' });
@@ -3063,39 +3065,67 @@ const Workflow = {
         Object.keys(viewButtons).forEach(m => {
           viewButtons[m].classList.toggle('active', m === mode);
         });
-        if (mode === 'board') {
-          groupToggle.style.display = 'none';
-        } else {
-          groupToggle.style.display = 'flex';
-        }
         renderGroups();
       });
       viewToggle.appendChild(btn);
     });
     toolbar.appendChild(viewToggle);
 
-    const groupToggle = el('div', { class: 'group-toggle' });
-    if (this.taskViewMode === 'board') {
-      groupToggle.style.display = 'none';
-    }
-    const groupButtons = {};
-    ['phase', 'assignee', 'flat'].forEach(mode => {
-      const btn = el('button', {
-        type: 'button',
-        text: mode === 'phase' ? 'Phase' : mode === 'assignee' ? 'Assignee' : 'Flat List'
-      });
-      if (container.groupBy === mode) btn.classList.add('active');
-      groupButtons[mode] = btn;
-      btn.dataset.group = mode;
-      btn.addEventListener('click', () => {
-        if (container.groupBy === mode) return;
-        container.groupBy = mode;
-        updateToolbar();
-        renderGroups();
-      });
-      groupToggle.appendChild(btn);
+    // Employee Filter Options
+    const empOptions = [{ value: '', text: 'All Employees' }];
+    const uniqueEmpNames = new Set();
+    (DB.getAll('users') || []).forEach(u => {
+      if (u.name) uniqueEmpNames.add(u.name.trim());
     });
-    toolbar.appendChild(groupToggle);
+    (DB.getAll('groundWorkers') || []).forEach(gw => {
+      if (gw.name) uniqueEmpNames.add(gw.name.trim());
+    });
+    sortedTasks.forEach(t => {
+      const names = getTaskAllAssigneeNames(t);
+      names.forEach(name => {
+        if (name) uniqueEmpNames.add(name.trim());
+      });
+    });
+    Array.from(uniqueEmpNames).sort().forEach(name => {
+      empOptions.push({ value: name, text: name });
+    });
+
+    const empFilter = createSearchableDropdown({
+      placeholder: 'Filter Employee...',
+      options: empOptions,
+      maxWidth: '180px'
+    });
+    empFilter.value = container.employeeFilter || '';
+    empFilter.addEventListener('change', () => {
+      container.employeeFilter = empFilter.value || null;
+      renderGroups();
+    });
+    toolbar.appendChild(empFilter);
+
+    // Status Filter Dropdown
+    const statusFilter = el('select', { 
+      class: 'form-select', 
+      style: 'width: auto; max-width: 150px; height: 36px; font-size: 0.875rem; padding: 4px 12px; margin-right: 8px;' 
+    });
+    const statusOptions = [
+      { value: '', text: 'All Statuses' },
+      { value: 'Draft', text: 'Draft' },
+      { value: 'Assigned', text: 'Assigned' },
+      { value: 'In Progress', text: 'In Progress' },
+      { value: 'For Review', text: 'For Review' },
+      { value: 'Completed', text: 'Completed' },
+      { value: 'Cancelled', text: 'Cancelled' }
+    ];
+    statusOptions.forEach(opt => {
+      const o = el('option', { value: opt.value, text: opt.text });
+      if (container.statusFilter === opt.value) o.selected = true;
+      statusFilter.appendChild(o);
+    });
+    statusFilter.addEventListener('change', () => {
+      container.statusFilter = statusFilter.value || null;
+      renderGroups();
+    });
+    toolbar.appendChild(statusFilter);
 
     // Compute filter counts from tasks
     const todayStrChip = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })).toISOString().slice(0, 10);
@@ -3139,6 +3169,7 @@ const Workflow = {
         if (container.activeFilters.has(filter)) {
           container.activeFilters.delete(filter);
         } else {
+          container.activeFilters.clear();
           container.activeFilters.add(filter);
         }
         updateToolbar();
@@ -3149,9 +3180,6 @@ const Workflow = {
     toolbar.appendChild(filterChips);
 
     const updateToolbar = () => {
-      Object.keys(groupButtons).forEach(mode => {
-        groupButtons[mode].classList.toggle('active', container.groupBy === mode);
-      });
       Object.keys(filterButtons).forEach(filter => {
         filterButtons[filter].classList.toggle('active', container.activeFilters.has(filter));
       });
@@ -3439,6 +3467,31 @@ const Workflow = {
           if (!matchTitle && !matchAssignee && !matchCoAssignees) {
             return false;
           }
+        }
+
+        // Employee filter (matches primary, co-assignees, and sub-task assignees/co-assignees)
+        if (container.employeeFilter) {
+          const emp = container.employeeFilter.trim().toLowerCase();
+          const primaryName = (t.assigneeName || '').trim().toLowerCase();
+          const coAssignees = (t.coAssignees || []).map(name => (name || '').trim().toLowerCase());
+          const checklistAssignees = (t.checklist || []).flatMap(item => {
+            const names = [];
+            if (item.assigneeName) names.push(item.assigneeName.trim().toLowerCase());
+            if (item.coAssignees && Array.isArray(item.coAssignees)) {
+              item.coAssignees.forEach(n => names.push(n.trim().toLowerCase()));
+            }
+            return names;
+          });
+          
+          const matchPrimary = primaryName === emp;
+          const matchCo = coAssignees.includes(emp);
+          const matchChecklist = checklistAssignees.includes(emp);
+          if (!matchPrimary && !matchCo && !matchChecklist) return false;
+        }
+
+        // Status filter
+        if (container.statusFilter) {
+          if (t.status !== container.statusFilter) return false;
         }
 
         if (activeFilters.length === 0) return true;
