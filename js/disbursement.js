@@ -117,13 +117,15 @@ const Disbursement = {
     const viewMode = App.getPreferredViewMode('disbursement');
 
     const actions = el('div', { class: 'actions-bar' });
-    const addBtn = el('button', { class: 'btn btn-primary', text: 'File Expense' });
-    addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
-    actions.appendChild(addBtn);
+    if (Auth.can('disbursement:create')) {
+      const addBtn = el('button', { class: 'btn btn-primary', text: 'File Expense' });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
+      actions.appendChild(addBtn);
 
-    const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
-    templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
-    actions.appendChild(templatesBtn);
+      const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
+      templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
+      actions.appendChild(templatesBtn);
+    }
 
     const reportBtn = el('button', { class: 'btn btn-secondary', text: 'Summary Report' });
     reportBtn.addEventListener('click', () => { this.view = 'report'; App.handleRoute(); });
@@ -198,7 +200,7 @@ const Disbursement = {
     filtersBar.appendChild(clientFilter);
 
     const empOptions = [{ value: '', text: 'All Employees' }];
-    DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role)).forEach(u => {
+    DB.getWhere('users', u => Auth.ALL_ROLES.includes(u.role)).forEach(u => {
       empOptions.push({ value: u.id, text: u.name });
     });
     (DB.getAll('tasks') || []).forEach(t => {
@@ -431,8 +433,7 @@ const Disbursement = {
       return;
     }
     const board = el('div', { class: 'board-v2' });
-    const isAdmin = Auth.user.role === 'Admin';
-    const statuses = isAdmin ? ['Approved', 'Released', 'Rejected'] : ['Pending', 'Approved', 'Released', 'Rejected'];
+    const statuses = ['Pending', 'Approved', 'Released', 'Rejected'];
     const statusColors = {
       'Pending': '#f59e0b',
       'Approved': '#3b82f6',
@@ -552,9 +553,16 @@ const Disbursement = {
   // Expense Filing Form
   // ============================================================
   renderForm() {
+    if (!Auth.can('disbursement:create')) {
+      this.view = 'list';
+      App.handleRoute();
+      return el('div');
+    }
+
     const entity = Auth.activeEntity;
     const isNew = !this.detailId;
     const existing = this.detailId ? DB.getById('disbursements', this.detailId) : null;
+    const prefill = this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null;
 
     const container = el('div');
 
@@ -606,15 +614,21 @@ const Disbursement = {
     // Linked Work Request
     const wrGroup = el('div', { class: 'form-group' });
     wrGroup.appendChild(el('label', { text: 'Linked Work Request' }));
-    const wrSel = el('select', { name: 'linkedWorkRequestId', class: 'form-select' });
+    const wrSelAttrs = { name: 'linkedWorkRequestId', class: 'form-select' };
+    if (prefill) wrSelAttrs.disabled = true;
+    const wrSel = el('select', wrSelAttrs);
     wrSel.appendChild(el('option', { value: '', text: '— None —' }));
     DB.getWhere('workRequests', wr => wr.entity === entity).forEach(wr => {
       const client = DB.getById('clients', wr.clientId);
       const opt = el('option', { value: wr.id, text: wr.title + ' — ' + (client?.name || '—') });
       if (existing && existing.linkedWorkRequestId === wr.id) opt.selected = true;
+      else if (!existing && prefill && prefill.workRequestId === wr.id) opt.selected = true;
       wrSel.appendChild(opt);
     });
     wrGroup.appendChild(wrSel);
+    if (prefill && prefill.workRequestId) {
+      wrGroup.appendChild(el('input', { type: 'hidden', name: 'linkedWorkRequestId', value: prefill.workRequestId }));
+    }
     form.appendChild(wrGroup);
 
     // Task link (Dynamic based on WR)
@@ -750,6 +764,20 @@ const Disbursement = {
     } else {
       DB.update('disbursements', record.id, record);
     }
+
+    // Fulfill pending operations request if any
+    const reqId = this.prefilledRequestId || (record.linkedWorkRequestId ? DB.getWhere('operationsRequests', r => r.workRequestId === record.linkedWorkRequestId && r.type === 'disbursement' && r.status === 'pending')[0]?.id : null);
+    if (reqId) {
+      DB.update('operationsRequests', reqId, {
+        status: 'fulfilled',
+        fulfilledBy: Auth.user.id,
+        fulfilledAt: new Date().toISOString(),
+        linkedRecordId: record.id
+      });
+    }
+    this.prefilledRequestId = null;
+    this.prefilledWrId = null;
+    this.prefilledClientId = null;
 
     this.view = 'list';
     this.detailId = null;
@@ -908,13 +936,13 @@ const Disbursement = {
     }
 
     // Approval Actions
-    const isAdmin = Auth.user.role === 'Admin';
+    const canApprove = Auth.can('disbursement:approve');
     const isPending = ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status);
 
-    if (isPending && isAdmin) {
+    if (isPending && canApprove) {
       const isRequester = Auth.isSelfApprover(this.getEmployeeId(d));
       if (isRequester) {
-        container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve your own expense. Wait for another Admin.' }));
+        container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve your own expense. Wait for another Admin or Manager.' }));
       } else {
         const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-xl); border-top: 1px solid #e2e8f0; padding-top: var(--spacing-lg);' });
 
@@ -969,7 +997,7 @@ const Disbursement = {
     handlerGroup.appendChild(el('label', { text: 'Assign Release Handler *' }));
     const handlerSel = el('select', { name: 'handlerId', required: true, class: 'form-select' });
     handlerSel.appendChild(el('option', { value: '', text: '— Select Handler —' }));
-    DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role) && u.id !== d.requestedBy).forEach(u => {
+    DB.getWhere('users', u => Auth.ALL_ROLES.includes(u.role) && u.id !== d.requestedBy).forEach(u => {
       handlerSel.appendChild(el('option', { value: u.id, text: u.name + ' (' + u.role + ')' }));
     });
     handlerGroup.appendChild(handlerSel);

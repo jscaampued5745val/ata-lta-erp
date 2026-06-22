@@ -66,16 +66,15 @@ const App = {
   },
 
   updateSidebarNotifications() {
-    const role = Auth.user.role;
-    const isAdmin = role === 'Admin';
+    const canApprove = Auth.can('disbursement:approve');
     const entity = Auth.activeEntity;
 
     const items = DB.getWhere('disbursements', d => d.entity === entity);
     let count = 0;
 
     items.forEach(d => {
-      // Admin sees count of submissions awaiting their approval
-      if (isAdmin && (d.status === 'Submitted' || d.status === 'Under Review')) {
+      // Users with disbursement:approve permission see count of submissions awaiting approval
+      if (canApprove && (d.status === 'Submitted' || d.status === 'Under Review')) {
         count++;
       }
       // Handlers see count of disbursements awaiting their final release
@@ -100,7 +99,7 @@ const App = {
     }
 
     // Also badge the Admin nav link for pending changes and disbursement submissions
-    if (isAdmin) {
+    if (canApprove) {
       const pendingChanges = (typeof PendingChanges !== 'undefined' && typeof PendingChanges.getAllPending === 'function') ? PendingChanges.getAllPending() : [];
       const adminCount = count + pendingChanges.length;
       const adminNav = document.querySelector('nav a[href="#admin"]');
@@ -135,17 +134,26 @@ const App = {
     }
     this.renderEntitySwitcher();
 
-    // Hide Admin nav link for non-Admin users
+    // Configure Admin / My Submissions nav link dynamically based on role/permissions
     const adminNav = document.querySelector('nav a[href="#admin"]');
     if (adminNav) {
-      adminNav.parentElement.style.display = Auth.user.role === 'Admin' ? '' : 'none';
+      const canManageUsers = Auth.can('users:view');
+      const labelEl = adminNav.querySelector('.nav-link-text');
+      if (canManageUsers) {
+        adminNav.parentElement.style.display = '';
+        if (labelEl) labelEl.textContent = 'Admin';
+      } else {
+        // Staff-level user: show as "My Submissions"
+        adminNav.parentElement.style.display = '';
+        if (labelEl) labelEl.textContent = 'My Submissions';
+      }
     }
 
     // Hide Reports nav link for non-Managerial users
     const reportsNav = document.querySelector('nav a[href="#reports"]');
     if (reportsNav) {
-      const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
-      reportsNav.parentElement.style.display = isManagerial ? '' : 'none';
+      const canViewReports = Auth.can('reports:view');
+      reportsNav.parentElement.style.display = canViewReports ? '' : 'none';
     }
   },
 
@@ -153,7 +161,7 @@ const App = {
     const sel = document.getElementById('entity-switcher');
     sel.innerHTML = '';
     
-    if (Auth.user.entities.length > 1 && (Auth.user.role === 'Admin' || Auth.user.role === 'Manager')) {
+    if (Auth.user.entities.length > 1 && Auth.isManagerial()) {
       const opt = document.createElement('option');
       opt.value = 'ALL';
       opt.textContent = 'Consolidated View';
@@ -266,7 +274,7 @@ const App = {
     };
 
     // RBAC: Restricted modules
-    if (hash === '#reports' && (Auth.user.role !== 'Admin' && Auth.user.role !== 'Manager')) {
+    if (hash === '#reports' && !Auth.can('reports:view')) {
        location.hash = '#dashboard';
        return;
     }

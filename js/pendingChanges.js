@@ -1,13 +1,15 @@
 /**
  * Admin Review Gate — Pending Changes
  * Structural mutations are staged for Admin/Manager approval.
+ * Staff-level roles (Accounting, Operations, Documentation, HR)
+ * stage changes in pendingChanges for managerial review.
  */
 
 const PendingChanges = {
   /**
    * Submit a structural change for review.
    * Admin/Manager bypass the gate and save directly.
-   * Staff/Viewer stage changes in pendingChanges.
+   * Staff-level roles stage changes in pendingChanges.
    */
   submit(table, record, isNew) {
     const role = Auth.user?.role;

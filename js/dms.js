@@ -67,13 +67,10 @@ const DMS = {
   renderList() {
     const entity = Auth.activeEntity;
 
-    // Restrict Documents module to Admin and Documentation Staff
-    const isAdmin = Auth.user.role === 'Admin';
-    const isDocStaff = Auth.user.role === 'Staff' && Auth.can('dms:handover');
-    
-    if (!isAdmin && !isDocStaff) {
+    // Restrict Documents module to roles with dms:edit or dms:handover
+    if (!Auth.can('dms:edit') && !Auth.can('dms:handover')) {
       const wrapper = el('div');
-      wrapper.appendChild(el('p', { text: 'Documents are restricted to Admin and Documentation users.', class: 'empty-state' }));
+      wrapper.appendChild(el('p', { text: 'Documents are restricted to Admin, Manager, and Documentation users.', class: 'empty-state' }));
       return wrapper;
     }
 
@@ -99,8 +96,8 @@ const DMS = {
     });
     actions.appendChild(viewToggle);
 
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
-    const canCrossEntity = isManagerial && Auth.user.entities.length > 1;
+    // Entity-scope filter — intentional direct check (entity-scope, not permission)
+    const canCrossEntity = Auth.isManagerial() && Auth.user.entities.length > 1;
 
     let entityFilter = null;
     if (canCrossEntity) {
@@ -144,7 +141,7 @@ const DMS = {
     filtersBar.appendChild(clientFilter);
 
     const empOptions = [{ value: '', text: 'All Uploaders' }];
-    DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role)).forEach(u => {
+    DB.getWhere('users', u => Auth.ALL_ROLES.includes(u.role)).forEach(u => {
       empOptions.push({ value: u.id, text: u.name });
     });
     (DB.getAll('tasks') || []).forEach(t => {
@@ -557,8 +554,8 @@ const DMS = {
   // Detail View
   // ============================================================
   renderDetail() {
-    // Only Admin users may view document details
-    if (Auth.user.role !== 'Admin') {
+    // Only roles with dms:edit or dms:handover may view document details
+    if (!Auth.can('dms:edit') && !Auth.can('dms:handover')) {
       this.view = 'list';
       App.handleRoute();
       return el('div');
@@ -669,7 +666,7 @@ const DMS = {
       commentsSection.appendChild(el('p', { class: 'empty-state', text: 'No comments yet.' }));
     }
 
-    if (Auth.user.role === 'Admin') {
+    if (Auth.can('dms:edit')) {
       const commentForm = el('form', { class: 'form-stacked' });
       const textGroup = el('div', { class: 'form-group' });
       textGroup.appendChild(el('label', { text: 'Add Comment' }));

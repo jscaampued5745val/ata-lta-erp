@@ -393,7 +393,7 @@ const Workflow = {
    * Open a modal with the full billing/invoice creation form,
    * pre-populated from the given work request.
    */
-  openGenerateBillingModal(wr) {
+  openGenerateBillingModal(wr, preselectedTask) {
     const entity = Auth.activeEntity;
     const client = DB.getById('clients', wr.clientId);
     const tasks = DB.getWhere('tasks', t => t.workRequestId === wr.id);
@@ -435,7 +435,9 @@ const Workflow = {
       const taskSel = el('select', { name: 'linkedTaskId' });
       taskSel.appendChild(el('option', { value: '', text: '— Whole Project —' }));
       tasks.forEach(t => {
-        taskSel.appendChild(el('option', { value: t.id, text: t.title }));
+        const opt = el('option', { value: t.id, text: t.title });
+        if (preselectedTask && preselectedTask.id === t.id) opt.selected = true;
+        taskSel.appendChild(opt);
       });
       taskGroup.appendChild(taskSel);
       form.appendChild(taskGroup);
@@ -614,14 +616,447 @@ const Workflow = {
     });
   },
 
+  /**
+   * Open a modal with the disbursement/expense creation form,
+   * pre-populated from the given work request.
+   */
+  openGenerateDisbursementModal(wr, preselectedTask) {
+    const entity = Auth.activeEntity;
+    const client = DB.getById('clients', wr.clientId);
+    const tasks = DB.getWhere('tasks', t => t.workRequestId === wr.id);
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
+    const form = el('form', { id: 'gen-disbursement-form' });
+
+    // ---------- Client (read-only, auto-filled) ----------
+    const clientGroup = el('div', { class: 'form-group' });
+    clientGroup.appendChild(el('label', { text: 'Client' }));
+    clientGroup.appendChild(el('input', {
+      type: 'text',
+      value: client ? client.name : '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    form.appendChild(clientGroup);
+
+    // ---------- Work Request (read-only, auto-filled) ----------
+    const wrGroup = el('div', { class: 'form-group' });
+    wrGroup.appendChild(el('label', { text: 'Work Request' }));
+    wrGroup.appendChild(el('input', {
+      type: 'text',
+      value: wr.title || '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    wrGroup.appendChild(el('input', { type: 'hidden', name: 'linkedWorkRequestId', value: wr.id }));
+    form.appendChild(wrGroup);
+
+    // ---------- Task link (optional) ----------
+    if (tasks.length > 0) {
+      const taskGroup = el('div', { class: 'form-group' });
+      taskGroup.appendChild(el('label', { text: 'Link to Specific Task' }));
+      const taskSel = el('select', { name: 'linkedTaskId' });
+      taskSel.appendChild(el('option', { value: '', text: '— Whole Project —' }));
+      tasks.forEach(t => {
+        const opt = el('option', { value: t.id, text: t.title });
+        if (preselectedTask && preselectedTask.id === t.id) opt.selected = true;
+        taskSel.appendChild(opt);
+      });
+      taskGroup.appendChild(taskSel);
+      form.appendChild(taskGroup);
+    }
+
+    // ---------- Category ----------
+    const catGroup = el('div', { class: 'form-group' });
+    catGroup.appendChild(el('label', { text: 'Category *' }));
+    const catSel = el('select', { name: 'category', required: true, class: 'form-select' });
+    ['Transportation', 'Notary', 'Meals', 'Government Fee', 'Other'].forEach(c => {
+      catSel.appendChild(el('option', { value: c, text: c }));
+    });
+    catGroup.appendChild(catSel);
+    form.appendChild(catGroup);
+
+    // ---------- Description ----------
+    const descGroup = el('div', { class: 'form-group' });
+    descGroup.appendChild(el('label', { text: 'Description *' }));
+    descGroup.appendChild(el('input', { type: 'text', name: 'description', required: true, placeholder: 'e.g. BIR filing fee' }));
+    form.appendChild(descGroup);
+
+    // ---------- Amount ----------
+    const amtGroup = el('div', { class: 'form-group' });
+    amtGroup.appendChild(el('label', { text: 'Amount (₱) *' }));
+    const amtIn = el('input', { type: 'text', inputmode: 'decimal', name: 'amount', placeholder: '0.00', required: true });
+    amtIn.addEventListener('input', () => { amtIn.value = amtIn.value.replace(/[^0-9.,]/g, ''); });
+    amtIn.addEventListener('focus', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? String(n) : ''; });
+    amtIn.addEventListener('blur', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''; });
+    amtGroup.appendChild(amtIn);
+    form.appendChild(amtGroup);
+
+    // ---------- Fund Source ----------
+    const fundGroup = el('div', { class: 'form-group' });
+    fundGroup.appendChild(el('label', { text: 'Fund Source *' }));
+    const fundWrap = el('div', { class: 'radio-group' });
+    ['Firm Fund', 'Client Fund'].forEach(f => {
+      const label = el('label', { class: 'radio-label' });
+      const radio = el('input', { type: 'radio', name: 'fundSource', value: f, required: true });
+      if (f === 'Firm Fund') radio.checked = true;
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(' ' + f));
+      fundWrap.appendChild(label);
+    });
+    fundGroup.appendChild(fundWrap);
+    form.appendChild(fundGroup);
+
+    // ---------- Linked Invoice (visible only for Client Fund) ----------
+    const invGroup = el('div', { class: 'form-group hidden', id: 'modal-linked-invoice-group' });
+    invGroup.appendChild(el('label', { text: 'Linked Billing Invoice' }));
+    const invSel = el('select', { name: 'linkedInvoiceId', class: 'form-select' });
+    invSel.appendChild(el('option', { value: '', text: '— Select Invoice —' }));
+    DB.getWhere('invoices', inv => inv.entity === entity && inv.status !== 'Cancelled').forEach(inv => {
+      const invClient = DB.getById('clients', inv.clientId);
+      invSel.appendChild(el('option', { value: inv.id, text: inv.invoiceNumber + ' — ' + (invClient?.name || '—') }));
+    });
+    invGroup.appendChild(invSel);
+    form.appendChild(invGroup);
+
+    // Toggle linked invoice visibility
+    form.querySelectorAll('input[name="fundSource"]').forEach(r => {
+      r.addEventListener('change', () => {
+        const isClient = form.querySelector('input[name="fundSource"]:checked')?.value === 'Client Fund';
+        invGroup.classList.toggle('hidden', !isClient);
+      });
+    });
+
+    // ---------- Receipt (optional) ----------
+    const receiptGroup = el('div', { class: 'form-group' });
+    receiptGroup.appendChild(el('label', { text: 'Receipt (optional)' }));
+    receiptGroup.appendChild(el('input', { type: 'file', name: 'receipt' }));
+    form.appendChild(receiptGroup);
+
+    wrapper.appendChild(form);
+
+    // ---------- Footer buttons ----------
+    const footer = el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const saveBtn = el('button', { type: 'button', class: 'btn btn-primary', text: 'Submit Expense' });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    wrapper.appendChild(footer);
+
+    // Open modal
+    const overlay = this.showModal('Generate Disbursement', wrapper);
+
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    saveBtn.addEventListener('click', () => {
+      // Validation
+      const desc = form.querySelector('[name="description"]').value.trim();
+      const amtVal = form.querySelector('[name="amount"]').value;
+      if (!desc) {
+        this.showMessage('Validation Error', 'Please enter a description.', 'warning');
+        return;
+      }
+      const amount = parseFloat(String(amtVal).replace(/[₱$,\s]/g, '')) || 0;
+      if (amount <= 0) {
+        this.showMessage('Validation Error', 'Please enter a valid amount.', 'warning');
+        return;
+      }
+
+      const data = Object.fromEntries(new FormData(form).entries());
+      const receiptInput = form.querySelector('input[name="receipt"]');
+      const receiptFile = receiptInput?.files?.[0];
+
+      const record = {
+        id: generateId('d'),
+        category: data.category,
+        description: desc,
+        amount: amount,
+        fundSource: data.fundSource,
+        linkedInvoiceId: data.linkedInvoiceId || null,
+        linkedWorkRequestId: data.linkedWorkRequestId || null,
+        linkedTaskId: data.linkedTaskId || null,
+        entity: entity,
+        employeeId: Auth.user.id,
+        requestedBy: Auth.user.id,
+        status: 'Submitted',
+        submittedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        receiptFilename: receiptFile ? receiptFile.name : null
+      };
+
+      DB.insert('disbursements', record);
+
+      // Link disbursement back to WR
+      if (record.linkedWorkRequestId) {
+        const linkedWr = DB.getById('workRequests', record.linkedWorkRequestId);
+        if (linkedWr) {
+          const linkedIds = new Set(linkedWr.linkedDisbursementIds || []);
+          linkedIds.add(record.id);
+          DB.update('workRequests', linkedWr.id, { linkedDisbursementIds: Array.from(linkedIds) });
+        }
+      }
+
+      overlay.remove();
+
+      this.showMessage(
+        'Expense Filed',
+        'Disbursement for ' + data.category + ' (₱' + amount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ') has been submitted and linked to "' + wr.title + '".',
+        'success'
+      );
+
+      // Refresh WR detail
+      App.handleRoute();
+    });
+  },
+
+  /**
+   * Open a modal with the transmittal creation form,
+   * pre-populated from the given work request.
+   */
+  openGenerateTransmittalModal(wr) {
+    const entity = Auth.activeEntity;
+    const client = DB.getById('clients', wr.clientId);
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
+    const form = el('form', { id: 'gen-transmittal-form' });
+
+    // ---------- Client (read-only, auto-filled) ----------
+    const clientGroup = el('div', { class: 'form-group' });
+    clientGroup.appendChild(el('label', { text: 'Client' }));
+    clientGroup.appendChild(el('input', {
+      type: 'text',
+      value: client ? client.name : '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    clientGroup.appendChild(el('input', { type: 'hidden', name: 'clientId', value: wr.clientId || '' }));
+    form.appendChild(clientGroup);
+
+    // ---------- Work Request (read-only, auto-filled) ----------
+    const wrGroup = el('div', { class: 'form-group' });
+    wrGroup.appendChild(el('label', { text: 'Work Request' }));
+    wrGroup.appendChild(el('input', {
+      type: 'text',
+      value: wr.title || '—',
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    wrGroup.appendChild(el('input', { type: 'hidden', name: 'workRequestId', value: wr.id }));
+    form.appendChild(wrGroup);
+
+    // ---------- Tracking Number (auto-generated, read-only) ----------
+    const tnGroup = el('div', { class: 'form-group' });
+    tnGroup.appendChild(el('label', { text: 'Tracking Number' }));
+    tnGroup.appendChild(el('input', {
+      type: 'text', name: 'trackingNumber',
+      value: Transmittal.generateTrackingNumber(entity),
+      readonly: true,
+      style: 'background: #f1f5f9; cursor: default;'
+    }));
+    form.appendChild(tnGroup);
+
+    // ---------- Itemized Document List ----------
+    const itemsSection = el('div', { class: 'form-section', style: 'margin-top: 4px;' });
+    itemsSection.appendChild(el('h4', { text: 'Document Items', style: 'margin-bottom: 8px; font-size: 0.9rem;' }));
+
+    // Column headers
+    const headerLabelStyle = 'font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; padding-left: 13px;';
+    const colHeaders = el('div', { class: 'line-item-row', style: 'margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;' });
+    colHeaders.appendChild(el('span', { text: 'Document Type', class: 'item-type', style: headerLabelStyle }));
+    colHeaders.appendChild(el('span', { text: 'Description', class: 'item-desc', style: headerLabelStyle }));
+    colHeaders.appendChild(el('span', { class: 'btn btn-sm', style: 'visibility: hidden;', text: '×' }));
+    itemsSection.appendChild(colHeaders);
+
+    const itemsList = el('div', { id: 'modal-transmittal-item-rows' });
+    itemsSection.appendChild(itemsList);
+
+    const addTransmittalItem = (item) => {
+      const row = el('div', { class: 'line-item-row' });
+
+      const typeSel = el('select', { class: 'item-type' });
+      ['Original Scan', 'Generated Copy', 'Government Receipt', 'Final Deliverable', 'Other'].forEach(t => {
+        const opt = el('option', { value: t, text: t });
+        if (item?.documentType === t) opt.selected = true;
+        typeSel.appendChild(opt);
+      });
+      row.appendChild(typeSel);
+
+      row.appendChild(el('input', { type: 'text', placeholder: 'Description', class: 'item-desc', value: item?.description || '' }));
+
+      const removeBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×' });
+      removeBtn.addEventListener('click', () => {
+        if (itemsList.querySelectorAll('.line-item-row').length > 1) {
+          row.remove();
+        }
+      });
+      row.appendChild(removeBtn);
+
+      itemsList.appendChild(row);
+    };
+
+    // Default items
+    addTransmittalItem();
+
+    const addItemBtn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm', text: '+ Add Item', style: 'margin-top: 6px;' });
+    addItemBtn.addEventListener('click', () => addTransmittalItem());
+    itemsSection.appendChild(addItemBtn);
+    form.appendChild(itemsSection);
+
+    // ---------- Notes ----------
+    const notesGroup = el('div', { class: 'form-group' });
+    notesGroup.appendChild(el('label', { text: 'Notes' }));
+    notesGroup.appendChild(el('textarea', { name: 'notes', rows: 3, placeholder: 'Optional notes for the recipient...' }));
+    form.appendChild(notesGroup);
+
+    wrapper.appendChild(form);
+
+    // ---------- Footer buttons ----------
+    const footer = el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' });
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel' });
+    const saveBtn = el('button', { type: 'button', class: 'btn btn-primary', text: 'Create Transmittal' });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    wrapper.appendChild(footer);
+
+    // Open modal
+    const overlay = this.showModal('Generate Transmittal', wrapper);
+    overlay.querySelector('.modal').classList.add('modal-wide');
+
+    cancelBtn.addEventListener('click', () => overlay.remove());
+
+    saveBtn.addEventListener('click', () => {
+      // Collect items
+      const rows = itemsList.querySelectorAll('.line-item-row');
+      const items = [];
+      rows.forEach(row => {
+        const desc = row.querySelector('.item-desc')?.value?.trim();
+        const docType = row.querySelector('.item-type')?.value;
+        if (desc && docType) {
+          items.push({ description: desc, documentType: docType });
+        }
+      });
+
+      if (items.length === 0) {
+        this.showMessage('Validation Error', 'Please add at least one document item with a description.', 'warning');
+        return;
+      }
+
+      const data = Object.fromEntries(new FormData(form).entries());
+
+      const record = {
+        id: generateId('tx'),
+        workRequestId: data.workRequestId,
+        clientId: data.clientId,
+        trackingNumber: data.trackingNumber || Transmittal.generateTrackingNumber(entity),
+        status: 'Draft',
+        items,
+        notes: data.notes || '',
+        entity,
+        sentAt: '',
+        acknowledgedAt: '',
+        sentBy: '',
+        acknowledgedBy: '',
+        createdAt: new Date().toISOString(),
+        createdBy: Auth.user.id
+      };
+
+      DB.insert('transmittals', record);
+
+      // Fulfill pending operations request if any
+      if (record.workRequestId) {
+        const pendingReq = DB.getWhere('operationsRequests', r => r.workRequestId === record.workRequestId && r.type === 'transmittal' && r.status === 'pending')[0];
+        if (pendingReq) {
+          DB.update('operationsRequests', pendingReq.id, {
+            status: 'fulfilled',
+            fulfilledBy: Auth.user.id,
+            fulfilledAt: new Date().toISOString(),
+            linkedRecordId: record.id
+          });
+        }
+      }
+
+      // Link transmittal back to WR
+      if (record.workRequestId) {
+        const linkedWr = DB.getById('workRequests', record.workRequestId);
+        if (linkedWr) {
+          const linkedIds = new Set(linkedWr.linkedTransmittalIds || []);
+          linkedIds.add(record.id);
+          DB.update('workRequests', linkedWr.id, { linkedTransmittalIds: Array.from(linkedIds) });
+        }
+      }
+
+      overlay.remove();
+
+      this.showMessage(
+        'Transmittal Created',
+        'Transmittal ' + record.trackingNumber + ' has been created and linked to "' + wr.title + '".',
+        'success'
+      );
+
+      // Refresh WR detail
+      App.handleRoute();
+    });
+  },
+
+  submitOperationsRequest(type, wr) {
+    const existing = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === type && r.status === 'pending');
+    if (existing.length > 0) {
+      this.showMessage('Already Requested', 'A request for this action is already pending review.', 'info');
+      return;
+    }
+
+    const label = type === 'billing' ? 'Billing/Invoice' : type === 'disbursement' ? 'Disbursement/Expense' : 'Transmittal';
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' }, [
+      el('p', { text: `Are you sure you want to request a ${label} record for the Work Request "${wr.title}"?` }),
+      el('div', { class: 'form-group' }, [
+        el('label', { text: 'Additional Notes (Optional)' }),
+        el('textarea', { id: 'opreq-notes', class: 'form-control', style: 'width: 100%; min-height: 80px;', placeholder: 'Provide any details for Accounting/Documentation staff...' })
+      ]),
+      el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' }, [
+        el('button', { id: 'btn-cancel-opreq', class: 'btn btn-ghost', text: 'Cancel' }),
+        el('button', { id: 'btn-save-opreq', class: 'btn btn-primary', text: 'Submit Request' })
+      ])
+    ]);
+
+    const overlay = this.showModal('Submit Operations Request', wrapper);
+    
+    overlay.querySelector('#btn-cancel-opreq').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#btn-save-opreq').addEventListener('click', () => {
+      const notes = overlay.querySelector('#opreq-notes').value.trim();
+      const record = {
+        id: generateId('opreq'),
+        type,
+        workRequestId: wr.id,
+        clientId: wr.clientId,
+        requestedBy: Auth.user.id,
+        requestedAt: new Date().toISOString(),
+        status: 'pending',
+        rejectionReason: '',
+        notes
+      };
+
+      DB.insert('operationsRequests', record);
+      overlay.remove();
+
+      this.showMessage(
+        'Request Submitted',
+        `Your request for ${label} has been submitted to Accounting/Documentation for review.`,
+        'success'
+      );
+
+      App.handleRoute();
+    });
+  },
+
   render() {
     const container = el('div', { class: 'page' });
     
     if (this.view === 'detail' && this.detailWrId) {
       const wr = DB.getById('workRequests', this.detailWrId);
-
       // Breadcrumb title bar consistent with the rest of the system
       const client = DB.getById('clients', wr.clientId);
+      const canEdit = Auth.can('workflow:edit');
+      const isArchived = wr && wr.status === 'Cancelled';
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       const h1 = el('h1', { class: 'breadcrumb-h1' });
       const opLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Operations' });
@@ -630,8 +1065,12 @@ const Workflow = {
       h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
       h1.appendChild(document.createTextNode(wr.title || 'Untitled Work Request'));
       titleBar.appendChild(h1);
-
       const actions = el('div', { class: 'title-bar-actions' });
+      if (canEdit && wr && !isArchived) {
+        const addBtn = el('button', { class: 'btn btn-primary btn-sm', text: '+ Add Task', style: 'margin-right: var(--spacing-sm);' });
+        addBtn.addEventListener('click', () => { this.showAddTaskModal(wr.id, () => App.handleRoute()); });
+        actions.appendChild(addBtn);
+      }
       const badges = el('div', { class: 'identity-badges', style: 'margin-right:12px;' });
       const statusBadgeClass = {
         'Draft': 'badge-info',
@@ -703,6 +1142,13 @@ const Workflow = {
         m.classList.remove('open');
       });
     });
+    if (this.view === 'detail' && this.prefilledTransmittalRequestId) {
+      this.prefilledTransmittalRequestId = null;
+      const wr = DB.getById('workRequests', this.detailWrId);
+      if (wr) {
+        setTimeout(() => this.openGenerateTransmittalModal(wr), 100);
+      }
+    }
   },
 
   // ============================================================
@@ -710,7 +1156,8 @@ const Workflow = {
   // ============================================================
   renderList() {
     const entity = Auth.activeEntity;
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const canApprove = Auth.can('workflow:approve');
+    const canEdit = Auth.can('workflow:edit');
 
     const wrapper = el('div');
 
@@ -718,10 +1165,12 @@ const Workflow = {
     const headerBar = el('div', { class: 'form-header-bar' });
     headerBar.appendChild(el('h2', { text: 'Work Requests' }));
     const topActions = el('div', { class: 'form-actions-top' });
-    if (Auth.user.role === 'Manager') {
+    if (canEdit) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Work Request' });
       addBtn.addEventListener('click', () => { this.view = 'form'; this.editingId = null; App.handleRoute(); });
       topActions.appendChild(addBtn);
+    }
+    if (canApprove) {
       const templateBtn = el('button', { class: 'btn btn-secondary', text: 'Retainer Templates' });
       templateBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
       topActions.appendChild(templateBtn);
@@ -848,7 +1297,8 @@ const Workflow = {
         const matchesEntity = (entity === 'ALL' ? Auth.user.entities.includes(r.entity) : r.entity === entity);
         return matchesEntity && r.status !== 'Cancelled';
       });
-      if (!isManagerial && !Auth.can('dms:handover')) {
+      // Scope visibility for all non-managerial staff roles to only show work requests they are added to
+      if (!canApprove) {
         const myTasks = DB.getWhere('tasks', t => t.assigneeId === Auth.user.id || t.assignedTo === Auth.user.id);
         const myWrIds = new Set(myTasks.map(t => t.workRequestId));
         wrs = wrs.filter(r => myWrIds.has(r.id) || r.assignedTo === Auth.user.id);
@@ -899,7 +1349,7 @@ const Workflow = {
   },
 
   refreshTable(container, wrs) {
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const canEdit = Auth.can('workflow:edit');
     if (wrs.length === 0) {
       container.appendChild(el('p', { text: 'No work requests found.', class: 'empty-state' }));
       return;
@@ -931,12 +1381,12 @@ const Workflow = {
       const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailWrId = wr.id; App.handleRoute(); });
       tdAct.appendChild(viewBtn);
-      if (isManagerial && wr.status === 'Draft') {
+      if (canEdit && wr.status === 'Draft') {
         const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit' });
         editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.view = 'form'; this.editingId = wr.id; App.handleRoute(); });
         tdAct.appendChild(editBtn);
       }
-      if (isManagerial && wr.status !== 'Completed' && wr.status !== 'Cancelled') {
+      if (canEdit && wr.status !== 'Completed' && wr.status !== 'Cancelled') {
         const ts = this.getPhaseTransitionStatus(wr.id);
         if (ts && ts.canTransition && ts.nextPhase) {
           const routeBtn = el('button', { 
@@ -1092,7 +1542,7 @@ const Workflow = {
   },
 
   refreshListCompact(container, wrs) {
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const canEdit = Auth.can('workflow:edit');
     if (wrs.length === 0) {
       container.appendChild(el('p', { text: 'No work requests found.', class: 'empty-state' }));
       return;
@@ -1113,7 +1563,7 @@ const Workflow = {
       
       row.appendChild(textCol);
       row.appendChild(this.statusBadge(wr.status));
-      if (isManagerial && wr.status !== 'Completed' && wr.status !== 'Cancelled') {
+      if (canEdit && wr.status !== 'Completed' && wr.status !== 'Cancelled') {
         const ts = this.getPhaseTransitionStatus(wr.id);
         if (ts && ts.canTransition && ts.nextPhase) {
           const readyBadge = el('span', {
@@ -1622,7 +2072,7 @@ const Workflow = {
       if ((task.taskDocuments || []).length === 0) {
         docsList.appendChild(el('div', { class: 'empty-state', text: 'No documents attached.', style: 'margin-bottom: 8px;' }));
       } else {
-        const isAdmin = Auth.user.role === 'Admin';
+        const canEditDms = Auth.can('dms:edit');
         task.taskDocuments.forEach((d, dIdx) => {
           const item = el('div', { class: 'detail-item-v2', style: 'display:flex; justify-content:space-between; align-items:center; padding: 8px 0; border-bottom: 1px solid var(--color-border);' });
           const leftSide = el('div', { style: 'display:flex; flex-direction:column; gap: 2px;' });
@@ -1649,7 +2099,7 @@ const Workflow = {
             `;
             leftSide.appendChild(driveLink);
           } else {
-            if (isAdmin) {
+            if (canEditDms) {
               const dmsDoc = DB.getWhere('documents', doc => (doc.fileName === fName) && doc.workRequestId === wr.id)[0];
               if (dmsDoc && dmsDoc.dataUrl) {
                 const link = el('a', {
@@ -1997,8 +2447,7 @@ const Workflow = {
   // Create / Edit Form
   // ============================================================
   renderForm() {
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
-    if (!isManagerial) {
+    if (!Auth.can('workflow:edit')) {
       this.view = 'list';
       App.handleRoute();
       return el('div');
@@ -2862,7 +3311,7 @@ const Workflow = {
     }
     const client = DB.getById('clients', wr.clientId);
     const tasks = DB.getWhere('tasks', t => t.workRequestId === wr.id);
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const canApprove = Auth.can('workflow:approve');
     const isDraft = wr.status === 'Draft';
 
     const container = el('div', { class: 'project-detail-v2' });
@@ -2881,7 +3330,7 @@ const Workflow = {
     
     const ts = this.getPhaseTransitionStatus(wr.id);
     const showRouteButton = ts && ts.nextPhase && ts.nextPhase !== 'Cancelled';
-    const canCancel = isManagerial && wr.status !== 'Completed' && wr.status !== 'Cancelled';
+    const canCancel = canApprove && wr.status !== 'Completed' && wr.status !== 'Cancelled';
     const phaseColors = {
       'Draft': '#6b6b6b',
       'Pre-processing': '#2f6feb',
@@ -2997,8 +3446,7 @@ const Workflow = {
       return 0;
     });
 
-    const isDocStaff = Auth.user?.name?.toLowerCase().includes('documentation') ||
-                       Auth.user?.email?.toLowerCase().startsWith('docs@');
+    const isDocStaff = Auth.can('dms:handover');
     const isArchived = wr.status === 'Cancelled';
 
     // End-of-day time log reminder banner (Manila 5 PM+)
@@ -4386,10 +4834,13 @@ const Workflow = {
         rightPane.appendChild(detailHeaderActions);
 
         // Attached Documents Section
+        const canHandover = Auth.can('dms:handover');
+        const canEditDms = Auth.can('dms:edit');
+        
         const docsSection = el('div', { class: 'detail-block' });
         const docsHeader = el('div', { class: 'detail-section-title' });
         docsHeader.appendChild(el('span', { text: 'Attached Documents' }));
-        if (isDocStaff && !isArchived) {
+        if (canHandover && !isArchived) {
           const addDocBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Upload Scanned' });
           addDocBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showAddDocumentModal(t.id); });
           docsHeader.appendChild(addDocBtn);
@@ -4405,8 +4856,11 @@ const Workflow = {
             const leftSide = el('div', { style: 'display:flex; flex-direction:column;' });
             const fName = d.fileName || d.filename;
 
-            if (isAdmin) {
-              const dmsDoc = DB.getWhere('documents', doc => (doc.fileName === fName) && doc.workRequestId === wr.id)[0];
+            // Only Admin can click to view actual file
+            if (canEditDms) {
+              const dmsDoc = DB.getWhere('documents', doc => 
+                (doc.fileName === fName) && doc.workRequestId === wr.id
+              )[0];
               if (dmsDoc && dmsDoc.dataUrl) {
                 const link = el('a', {
                   href: '#',
@@ -4429,8 +4883,13 @@ const Workflow = {
             leftSide.appendChild(el('span', { class: 'kpi-label', text: formatDate(d.uploadDate) }));
             item.appendChild(leftSide);
 
-            if (isDocStaff || isAdmin) {
-              const delBtn = el('button', { class: 'btn btn-ghost btn-xs', text: '×', style: 'color:var(--danger); font-size:1.2rem; padding:0 4px; line-height:1;' });
+            // Delete Button: Documentation and Admin can remove
+            if (Auth.can('dms:handover')) {
+              const delBtn = el('button', { 
+                class: 'btn btn-ghost btn-xs', 
+                text: '×', 
+                style: 'color:var(--danger); font-size:1.2rem; padding:0 4px; line-height:1;' 
+              });
               delBtn.title = 'Remove Attachment';
               delBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -4469,7 +4928,8 @@ const Workflow = {
                   contentArea.textContent = c.text;
                   commentRow.appendChild(contentArea);
 
-                  if (isAdmin && !isArchived) {
+                  // Admin Actions: Edit/Delete (disabled in archive)
+                  if (Auth.can('workflow:approve') && !isArchived) {
                     const cActions = el('div', { style: 'display:flex; gap:8px; margin-top:8px; border-top:1px solid var(--border); padding-top:4px;' });
                     const editBtn = el('button', { class: 'btn btn-link btn-xs', text: 'Edit', style: 'padding:0; font-size:0.7rem;' });
                     editBtn.addEventListener('click', (e) => {
@@ -4516,7 +4976,7 @@ const Workflow = {
               }
               commentContainer.appendChild(list);
 
-              if (isAdmin && !isArchived) {
+              if (Auth.can('workflow:approve') && !isArchived) {
                 const addForm = el('div', { style: 'margin-top:12px; padding-top:12px; border-top: 1px solid var(--border);' });
                 const addInput = el('textarea', { placeholder: 'Write a comment...', class: 'form-control', style: 'width:100%; min-height:50px; font-size:0.875rem;' });
                 const addBtnRow = el('div', { style: 'display:flex; gap:8px; margin-top:8px;' });
@@ -4595,6 +5055,68 @@ const Workflow = {
         const depHeader = el('div', { class: 'detail-section-title' });
         depHeader.appendChild(el('span', { text: 'Dependency Map' }));
         depSection.appendChild(depHeader);
+
+        // Generate action buttons inside task detail pane
+        if (!isArchived) {
+          const genActionsBar = el('div', { class: 'detail-block', style: 'border-top: 1px solid var(--border); padding-top: var(--space-4); margin-top: var(--space-4);' });
+          const genHeader = el('div', { class: 'detail-section-title' });
+          genHeader.appendChild(el('span', { text: 'Quick Actions' }));
+          genActionsBar.appendChild(genHeader);
+
+          const actionsWrap = el('div', { style: 'display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2);' });
+
+          const actions = [];
+
+          // Billing Action
+          const pendingBilling = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'billing' && r.status === 'pending')[0];
+          if (Auth.can('billing:edit')) {
+            actions.push({ text: 'Generate Billing', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateBillingModal(wr, t) });
+          } else if (Auth.can('billing:request')) {
+            actions.push({
+              text: pendingBilling ? 'Billing Requested' : 'Request Billing',
+              class: 'btn btn-secondary btn-xs',
+              disabled: !!pendingBilling,
+              handler: () => this.submitOperationsRequest('billing', wr)
+            });
+          }
+
+          // Disbursement Action
+          const pendingDisb = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'disbursement' && r.status === 'pending')[0];
+          if (Auth.can('disbursement:create')) {
+            actions.push({ text: 'Generate Disbursement', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateDisbursementModal(wr, t) });
+          } else if (Auth.can('disbursement:request')) {
+            actions.push({
+              text: pendingDisb ? 'Disbursement Requested' : 'Request Disbursement',
+              class: 'btn btn-secondary btn-xs',
+              disabled: !!pendingDisb,
+              handler: () => this.submitOperationsRequest('disbursement', wr)
+            });
+          }
+
+          // Transmittal Action
+          const pendingTrans = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'transmittal' && r.status === 'pending')[0];
+          if (Auth.can('transmittal:edit')) {
+            actions.push({ text: 'Generate Transmittal', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateTransmittalModal(wr, t) });
+          } else if (Auth.can('transmittal:request')) {
+            actions.push({
+              text: pendingTrans ? 'Transmittal Requested' : 'Request Transmittal',
+              class: 'btn btn-secondary btn-xs',
+              disabled: !!pendingTrans,
+              handler: () => this.submitOperationsRequest('transmittal', wr)
+            });
+          }
+
+          actions.forEach(a => {
+            const btnAttrs = { type: 'button', class: a.class, text: a.text, style: 'flex: 1; min-width: 120px;' };
+            if (a.disabled) btnAttrs.disabled = true;
+            const btn = el('button', btnAttrs);
+            btn.addEventListener('click', (e) => { e.stopPropagation(); a.handler(); });
+            actionsWrap.appendChild(btn);
+          });
+
+          genActionsBar.appendChild(actionsWrap);
+          rightPane.appendChild(genActionsBar);
+        }
 
         const depContent = el('div', { class: 'dep-list' });
         const taskPreds = t.predecessors || [];
@@ -4739,17 +5261,6 @@ const Workflow = {
       });
       invCol.appendChild(invList);
     }
-
-    // Generate Billing button
-    const genBillingBtn = el('button', {
-      class: 'btn btn-primary btn-sm',
-      text: '+ Generate Billing',
-      style: 'margin-top: 12px; width: 100%;'
-    });
-    genBillingBtn.addEventListener('click', () => {
-      this.openGenerateBillingModal(wr);
-    });
-    invCol.appendChild(genBillingBtn);
 
     grid.appendChild(invCol);
 
@@ -6479,8 +6990,7 @@ const Workflow = {
   // Retainer Templates
   // ============================================================
   renderTemplates() {
-    const isOnlyManager = Auth.user.role === 'Manager';
-    if (!isOnlyManager) {
+    if (!Auth.can('workflow:approve')) {
       this.view = 'list';
       App.handleRoute();
       return el('div');
@@ -6547,8 +7057,7 @@ const Workflow = {
   },
 
   renderTemplateForm() {
-    const isOnlyManager = Auth.user.role === 'Manager';
-    if (!isOnlyManager) {
+    if (!Auth.can('workflow:approve')) {
       this.view = 'list';
       App.handleRoute();
       return el('div');
@@ -6762,7 +7271,7 @@ const Workflow = {
 
   renderArchive() {
     const entity = Auth.activeEntity;
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const canApprove = Auth.can('workflow:approve');
     const archived = DB.getWhere('workRequests', wr => wr.entity === entity && wr.status === 'Cancelled');
 
     const container = el('div', { class: 'page' });
@@ -6805,7 +7314,7 @@ const Workflow = {
       const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { this.view = 'detail'; this.detailWrId = wr.id; App.handleRoute(); });
       tdAct.appendChild(viewBtn);
-      if (isManagerial) {
+      if (canApprove) {
         const restoreBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Restore', style: 'margin-left:4px;' });
         restoreBtn.addEventListener('click', () => {
           this.showConfirm('Restore Work Request',

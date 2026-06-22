@@ -119,18 +119,22 @@ const Billing = {
 
     // Actions bar
     const actions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-md);' });
-    const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
-    addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
-    actions.appendChild(addBtn);
-    const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
-    templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
-    actions.appendChild(templatesBtn);
+    if (Auth.can('billing:edit')) {
+      const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
+      actions.appendChild(addBtn);
+      const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
+      templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
+      actions.appendChild(templatesBtn);
+    }
     const agingBtn = el('button', { class: 'btn btn-secondary', text: 'Aging Report' });
     agingBtn.addEventListener('click', () => { this.view = 'aging'; App.handleRoute(); });
     actions.appendChild(agingBtn);
-    const trashBtn = el('button', { class: 'btn btn-secondary', text: 'Trash' });
-    trashBtn.addEventListener('click', () => { this.view = 'trash'; App.handleRoute(); });
-    actions.appendChild(trashBtn);
+    if (Auth.can('billing:edit')) {
+      const trashBtn = el('button', { class: 'btn btn-secondary', text: 'Trash' });
+      trashBtn.addEventListener('click', () => { this.view = 'trash'; App.handleRoute(); });
+      actions.appendChild(trashBtn);
+    }
     wrapper.appendChild(actions);
 
     // Filters
@@ -263,8 +267,7 @@ const Billing = {
         const inv = pc.proposedData;
         const matchesEntity = (entity === 'ALL' ? Auth.user.entities.includes(inv.entity) : inv.entity === entity);
         if (!matchesEntity) return false;
-        const role = Auth.user?.role;
-        if (role !== 'Admin' && role !== 'Manager' && pc.submittedBy !== Auth.user?.id) return false;
+        if (!Auth.can('billing:approve') && pc.submittedBy !== Auth.user?.id) return false;
         return true;
       }).map(pc => {
         const inv = deepClone(pc.proposedData);
@@ -399,10 +402,7 @@ const Billing = {
       return;
     }
     const board = el('div', { class: 'board-v2' });
-    let statuses = ['Draft', 'Pending', 'Approved', 'Sent', 'Partially Paid', 'Paid', 'Overdue'];
-    if (Auth.user?.role === 'Admin') {
-      statuses = ['Approved', 'Sent', 'Partially Paid', 'Paid', 'Overdue'];
-    }
+    const statuses = ['Draft', 'Pending', 'Approved', 'Sent', 'Partially Paid', 'Paid', 'Overdue'];
     const statusColors = {
       'Draft': '#94a3b8',
       'Pending': '#f59e0b',
@@ -592,9 +592,15 @@ const Billing = {
   // Create / Edit Form
   // ============================================================
   renderForm() {
+    if (!Auth.can('billing:edit')) {
+      this.view = 'list';
+      App.handleRoute();
+      return el('div');
+    }
+
     const entity = Auth.activeEntity;
     const inv = this.detailId ? this.getInvoiceById(this.detailId) : null;
-    const prefill = this.pendingPrefill;
+    const prefill = this.pendingPrefill || (this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null);
     this.pendingPrefill = null; // consume once
     const container = el('div');
 
@@ -615,7 +621,9 @@ const Billing = {
     // Client
     const clientGroup = el('div', { class: 'form-group' });
     clientGroup.appendChild(el('label', { text: 'Client *' }));
-    const clientSel = el('select', { name: 'clientId', required: true });
+    const clientSelAttrs = { name: 'clientId', required: true };
+    if (prefill) clientSelAttrs.disabled = true;
+    const clientSel = el('select', clientSelAttrs);
     clientSel.appendChild(el('option', { value: '', text: '— Select Client —' }));
     DB.getWhere('clients', c => c.entity === entity).forEach(c => {
       const opt = el('option', { value: c.id, text: c.name });
@@ -624,12 +632,17 @@ const Billing = {
       clientSel.appendChild(opt);
     });
     clientGroup.appendChild(clientSel);
+    if (prefill) {
+      clientGroup.appendChild(el('input', { type: 'hidden', name: 'clientId', value: prefill.clientId }));
+    }
     form.appendChild(clientGroup);
 
     // Work Request link
     const wrGroup = el('div', { class: 'form-group' });
     wrGroup.appendChild(el('label', { text: 'Link to Work Request' }));
-    const wrSel = el('select', { name: 'workRequestId' });
+    const wrSelAttrs = { name: 'workRequestId' };
+    if (prefill) wrSelAttrs.disabled = true;
+    const wrSel = el('select', wrSelAttrs);
     wrSel.appendChild(el('option', { value: '', text: '— None —' }));
     DB.getWhere('workRequests', wr => wr.entity === entity).forEach(wr => {
       const opt = el('option', { value: wr.id, text: wr.title });
@@ -638,6 +651,9 @@ const Billing = {
       wrSel.appendChild(opt);
     });
     wrGroup.appendChild(wrSel);
+    if (prefill && prefill.workRequestId) {
+      wrGroup.appendChild(el('input', { type: 'hidden', name: 'workRequestId', value: prefill.workRequestId }));
+    }
     form.appendChild(wrGroup);
 
     // Task link (Dynamic based on WR)
@@ -893,6 +909,20 @@ const Billing = {
       );
     }
 
+    // Fulfill pending operations request if any
+    const reqId = this.prefilledRequestId || (data.workRequestId ? DB.getWhere('operationsRequests', r => r.workRequestId === data.workRequestId && r.type === 'billing' && r.status === 'pending')[0]?.id : null);
+    if (reqId) {
+      DB.update('operationsRequests', reqId, {
+        status: 'fulfilled',
+        fulfilledBy: Auth.user.id,
+        fulfilledAt: new Date().toISOString(),
+        linkedRecordId: record.id
+      });
+    }
+    this.prefilledRequestId = null;
+    this.prefilledWrId = null;
+    this.prefilledClientId = null;
+
     this.view = 'list';
     this.detailId = null;
     App.handleRoute();
@@ -1074,7 +1104,7 @@ const Billing = {
     }
 
     // Payment recording
-    if (inv.status !== 'Paid' && inv.status !== 'Cancelled' && inv.status !== 'Pending') {
+    if (Auth.can('billing:edit') && inv.status !== 'Paid' && inv.status !== 'Cancelled' && inv.status !== 'Pending') {
       const paySection = el('div', { class: 'form-section' });
       paySection.appendChild(el('h3', { text: 'Record Payment' }));
       const payForm = el('form', { class: 'form-stacked' });
@@ -1229,25 +1259,27 @@ const Billing = {
 
     // Status actions
     const actions = el('div', { class: 'form-actions' });
-    const role = Auth.user?.role;
-    const isAdminOrManager = role === 'Admin' || role === 'Manager';
+    const canApprove = Auth.can('billing:approve');
+    const canEdit = Auth.can('billing:edit');
     
     if (inv.status === 'Draft') {
-      const editBtn = el('button', { class: 'btn btn-secondary', text: 'Edit Invoice', style: 'margin-right:8px;' });
-      editBtn.addEventListener('click', () => {
-        this.view = 'form';
-        this.detailId = inv.id;
-        App.handleRoute();
-      });
-      actions.appendChild(editBtn);
+      if (canEdit) {
+        const editBtn = el('button', { class: 'btn btn-secondary', text: 'Edit Invoice', style: 'margin-right:8px;' });
+        editBtn.addEventListener('click', () => {
+          this.view = 'form';
+          this.detailId = inv.id;
+          App.handleRoute();
+        });
+        actions.appendChild(editBtn);
 
-      const trashBtn = el('button', { class: 'btn btn-danger', text: 'Trash', style: 'margin-right:8px;' });
-      trashBtn.addEventListener('click', () => {
-        this.trashInvoice(inv.id);
-      });
-      actions.appendChild(trashBtn);
+        const trashBtn = el('button', { class: 'btn btn-danger', text: 'Trash', style: 'margin-right:8px;' });
+        trashBtn.addEventListener('click', () => {
+          this.trashInvoice(inv.id);
+        });
+        actions.appendChild(trashBtn);
+      }
 
-      if (isAdminOrManager) {
+      if (canApprove) {
         const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve' });
         approveBtn.addEventListener('click', () => {
           DB.update('invoices', inv.id, { status: 'Approved', updatedAt: new Date().toISOString() });
@@ -1261,7 +1293,7 @@ const Billing = {
           App.handleRoute();
         });
         actions.appendChild(approveBtn);
-      } else {
+      } else if (canEdit) {
         const sendBtn = el('button', { class: 'btn btn-primary', text: 'Send for Approval' });
         sendBtn.addEventListener('click', () => {
           // Set local status to Pending
@@ -1274,7 +1306,7 @@ const Billing = {
         });
         actions.appendChild(sendBtn);
       }
-    } else if (inv.status === 'Approved') {
+    } else if (inv.status === 'Approved' && canEdit) {
       const sentBtn = el('button', { class: 'btn btn-primary', text: 'Mark as Sent' });
       sentBtn.addEventListener('click', () => {
         DB.update('invoices', inv.id, { status: 'Sent', updatedAt: new Date().toISOString() });

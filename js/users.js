@@ -16,13 +16,13 @@ const Users = {
     container.appendChild(titleBar);
     this.updateBreadcrumb(h1);
 
-    const isAdmin = Auth.user.role === 'Admin';
+    const canManageUsers = Auth.can('users:view');
 
     // Tabs
     const tabs = el('div', { class: 'admin-tabs' });
     tabs.style.marginBottom = '20px'; // align layout nicely below breadcrumb
 
-    if (isAdmin) {
+    if (canManageUsers) {
       const usersTab = el('button', {
         class: 'btn ' + (this.view === 'users' ? 'btn-primary' : 'btn-secondary'),
         text: 'Users'
@@ -38,7 +38,7 @@ const Users = {
     auditTab.addEventListener('click', () => { this.view = 'audit'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
     tabs.appendChild(auditTab);
 
-    if (isAdmin) {
+    if (canManageUsers) {
       const entity = Auth.activeEntity;
       const pendingDisbursements = DB.getWhere('disbursements', d => d.entity === entity && (d.status === 'Submitted' || d.status === 'Under Review'));
       const pendingChanges = PendingChanges.getAllPending();
@@ -55,27 +55,49 @@ const Users = {
       pendingTab.addEventListener('click', () => { this.view = 'pending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
       tabs.appendChild(pendingTab);
     } else {
-      const myPendingTab = el('button', {
-        class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
-        text: 'My Pending Submissions'
+      const isOperations = Auth.user.role === 'Operations';
+      if (!isOperations) {
+        const myPendingTab = el('button', {
+          class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
+          text: 'My Pending Submissions'
+        });
+        myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+        tabs.appendChild(myPendingTab);
+      }
+      
+      const myRequestsTab = el('button', {
+        class: 'btn ' + (this.view === 'myRequests' ? 'btn-primary' : 'btn-secondary'),
+        text: 'My Requests'
       });
-      myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
-      tabs.appendChild(myPendingTab);
+      myRequestsTab.addEventListener('click', () => { this.view = 'myRequests'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+      tabs.appendChild(myRequestsTab);
+
+      if (isOperations && this.view !== 'myRequests') {
+        this.view = 'myRequests';
+      } else if (!isOperations && this.view !== 'myPending' && this.view !== 'myRequests') {
+        this.view = 'myPending';
+      }
     }
 
     container.appendChild(tabs);
 
-    if (this.view === 'users' && isAdmin) {
+    if (this.view === 'users' && canManageUsers) {
       container.appendChild(this.renderUsersSection());
     } else if (this.view === 'audit') {
       container.appendChild(this.renderAuditSection());
-    } else if (this.view === 'pending' && isAdmin) {
+    } else if (this.view === 'pending' && canManageUsers) {
       container.appendChild(this.renderPendingSection());
-    } else if (this.view === 'myPending' && !isAdmin) {
+    } else if (this.view === 'myPending' && !canManageUsers) {
       container.appendChild(this.renderMyPendingSection());
-    } else if (!isAdmin) {
-      this.view = 'myPending';
-      container.appendChild(this.renderMyPendingSection());
+    } else if (this.view === 'myRequests' && !canManageUsers) {
+      container.appendChild(this.renderMyRequestsSection());
+    } else if (!canManageUsers) {
+      this.view = Auth.user.role === 'Operations' ? 'myRequests' : 'myPending';
+      if (this.view === 'myRequests') {
+        container.appendChild(this.renderMyRequestsSection());
+      } else {
+        container.appendChild(this.renderMyPendingSection());
+      }
     } else {
       container.appendChild(this.renderUsersSection());
     }
@@ -189,8 +211,10 @@ const Users = {
     const map = {
       'Admin': 'badge-danger',
       'Manager': 'badge-warning',
-      'Staff': 'badge-info',
-      'Viewer': 'badge-success'
+      'Accounting': 'badge-info',
+      'Operations': 'badge-success',
+      'Documentation': 'badge-primary',
+      'HR': 'badge-secondary'
     };
     return el('span', { class: 'badge ' + (map[role] || ''), text: role });
   },
@@ -239,7 +263,7 @@ const Users = {
     const roleGroup = el('div', { class: 'form-group' });
     roleGroup.appendChild(el('label', { text: 'Role *' }));
     const roleSel = el('select', { name: 'role', required: true });
-    ['Admin', 'Manager', 'Staff', 'Viewer'].forEach(r => {
+    Auth.ALL_ROLES.forEach(r => {
       const opt = el('option', { value: r, text: r });
       if (user && user.role === r) opt.selected = true;
       roleSel.appendChild(opt);
@@ -384,7 +408,7 @@ const Users = {
   // ============================================================
   renderAuditSection() {
     const wrapper = el('div');
-    const isAdmin = Auth.user.role === 'Admin';
+    const canViewAllAudit = Auth.can('audit:view_all');
 
     // Filters
     const filters = el('div', { class: 'audit-filters' });
@@ -396,7 +420,7 @@ const Users = {
       const opt = el('option', { value: u.id, text: u.name });
       userFilter.appendChild(opt);
     });
-    if (!isAdmin) {
+    if (!canViewAllAudit) {
       userFilter.value = Auth.user.id;
       userFilter.disabled = true;
     }
@@ -420,11 +444,11 @@ const Users = {
 
     const clearBtn = el('button', { class: 'btn btn-secondary', text: 'Clear' });
     clearBtn.addEventListener('click', () => {
-      if (isAdmin) userFilter.value = '';
+      if (canViewAllAudit) userFilter.value = '';
       clientFilter.value = '';
       dateFrom.value = '';
       dateTo.value = '';
-      this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '', '', '');
+      this.refreshAuditLog(tableContainer, canViewAllAudit ? '' : Auth.user.id, '', '', '', '');
     });
     filters.appendChild(clearBtn);
 
@@ -443,7 +467,7 @@ const Users = {
     dateFrom.addEventListener('change', triggerRefresh);
     dateTo.addEventListener('change', triggerRefresh);
 
-    this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '', '', '');
+    this.refreshAuditLog(tableContainer, canViewAllAudit ? '' : Auth.user.id, '', '', '', '');
 
     return wrapper;
   },
@@ -918,7 +942,7 @@ const Users = {
       return el('p', { text: 'Pending change not found.', class: 'empty-state' });
     }
 
-    const canApprove = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const canApprove = Auth.can('users:view');
     const isSubmitter = pc.submittedBy === Auth.user.id;
 
     const wrapper = el('div', { style: 'max-width: 800px; margin: 0 auto;' });
@@ -1107,6 +1131,73 @@ const Users = {
     }
 
     wrapper.appendChild(actions);
+    return wrapper;
+  },
+
+  renderMyRequestsSection() {
+    const wrapper = el('div');
+    const requests = DB.getWhere('operationsRequests', r => r.requestedBy === Auth.user.id);
+    
+    if (requests.length === 0) {
+      wrapper.appendChild(el('p', { text: 'No requests submitted yet.', class: 'empty-state' }));
+      return wrapper;
+    }
+
+    const table = el('table', { class: 'data-table' });
+    const thead = el('thead');
+    const thr = el('tr');
+    ['Request Type', 'Work Request', 'Client', 'Requested At', 'Status', 'Fulfill Info / Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
+    thead.appendChild(thr);
+    table.appendChild(thead);
+
+    const tbody = el('tbody');
+    requests.forEach(r => {
+      const tr = el('tr');
+      
+      const typeLabel = r.type === 'billing' ? 'Billing' : r.type === 'disbursement' ? 'Disbursement' : 'Transmittal';
+      tr.appendChild(el('td', { text: typeLabel }));
+      
+      const wr = DB.getById('workRequests', r.workRequestId);
+      tr.appendChild(el('td', { text: wr ? wr.title : '—' }));
+      
+      const client = DB.getById('clients', r.clientId);
+      tr.appendChild(el('td', { text: client ? client.name : '—' }));
+      
+      tr.appendChild(el('td', { text: formatDate(r.requestedAt) }));
+      
+      const st = r.status;
+      const badge = el('span', { 
+        class: 'badge', 
+        text: st,
+        style: `font-size: 11px; padding: 2px 6px; border-radius: var(--radius-sm); background: ${st === 'fulfilled' ? 'color-mix(in oklab, var(--success), transparent 88%)' : st === 'rejected' ? 'color-mix(in oklab, var(--danger), transparent 88%)' : 'color-mix(in oklab, var(--warn), transparent 88%)'}; color: ${st === 'fulfilled' ? 'var(--success)' : st === 'rejected' ? 'var(--danger)' : 'color-mix(in oklab, var(--warn), black 30%)'};`
+      });
+      const tdSt = el('td');
+      tdSt.appendChild(badge);
+      tr.appendChild(tdSt);
+
+      const tdAct = el('td');
+      if (st === 'pending') {
+        const cancelBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Cancel Request' });
+        cancelBtn.addEventListener('click', () => {
+          Workflow.showConfirm('Cancel Request', 'Are you sure you want to cancel this request?', () => {
+            DB.delete('operationsRequests', r.id);
+            App.handleRoute();
+          }, 'danger');
+        });
+        tdAct.appendChild(cancelBtn);
+      } else if (st === 'fulfilled') {
+        const fulfiller = DB.getById('users', r.fulfilledBy);
+        tdAct.textContent = `Fulfilled by ${fulfiller ? fulfiller.name : 'System'} on ${formatDate(r.fulfilledAt)}`;
+      } else if (st === 'rejected') {
+        tdAct.textContent = r.rejectionReason ? `Reason: ${r.rejectionReason}` : 'No reason provided';
+      }
+      tr.appendChild(tdAct);
+      
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+
     return wrapper;
   }
 };
