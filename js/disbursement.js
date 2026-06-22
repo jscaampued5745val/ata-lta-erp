@@ -134,6 +134,40 @@ const Disbursement = {
     const wrapper = el('div');
     wrapper.appendChild(actions);
 
+    // Pending operations requests banner
+    if (Auth.can('disbursement:create')) {
+      const pendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'disbursement');
+      if (pendingReqs.length > 0) {
+        const banner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);' });
+        const bannerTitle = el('div', { style: 'font-weight:600;color:#e65100;margin-bottom:var(--spacing-sm);font-size:0.95rem;' });
+        bannerTitle.textContent = `⚠ ${pendingReqs.length} Pending Disbursement Request${pendingReqs.length > 1 ? 's' : ''} from Operations`;
+        banner.appendChild(bannerTitle);
+        pendingReqs.forEach(req => {
+          const row = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-xs) 0;border-bottom:1px solid #ffe082;' });
+          const client = DB.getById('clients', req.clientId);
+          const wr = DB.getById('workRequests', req.workRequestId);
+          const info = el('span', { style: 'font-size:0.875rem;color:#333;' });
+          info.textContent = `${client ? client.name : 'Unknown Client'} – ${wr ? wr.title : 'Unknown WR'} (requested by ${req.requestedBy || 'N/A'})`;
+          row.appendChild(info);
+          const fulfillBtn = el('button', { class: 'btn btn-primary', text: 'Fulfill', style: 'padding:2px 12px;font-size:0.8rem;' });
+          fulfillBtn.addEventListener('click', () => { Disbursement.view = 'form'; Disbursement.prefilledWrId = req.workRequestId; Disbursement.prefilledClientId = req.clientId; Disbursement.prefilledRequestId = req.id; App.handleRoute(); });
+          row.appendChild(fulfillBtn);
+          banner.appendChild(row);
+        });
+        wrapper.appendChild(banner);
+      }
+    } else if (Auth.can('disbursement:request')) {
+      const myPendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'disbursement' && r.requestedBy === Auth.user.name);
+      const reqBanner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);display:flex;align-items:center;justify-content:space-between;' });
+      const reqInfo = el('span', { style: 'font-size:0.9rem;color:#333;' });
+      reqInfo.textContent = myPendingReqs.length > 0 ? `You have ${myPendingReqs.length} pending disbursement request${myPendingReqs.length > 1 ? 's' : ''}.` : 'Need an expense filed? Submit a request to Accounting.';
+      reqBanner.appendChild(reqInfo);
+      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Disbursement from Accounting', style: 'white-space:nowrap;' });
+      reqBtn.addEventListener('click', () => { Disbursement.showRequestDisbursementModal(); });
+      reqBanner.appendChild(reqBtn);
+      wrapper.appendChild(reqBanner);
+    }
+
     // "Pending for Release" Section for Handlers
     const pendingForRelease = DB.getWhere('disbursements', d => d.entity === entity && d.status === 'Approved' && d.paymentHandledBy === Auth.user.id);
     if (pendingForRelease.length > 0) {
@@ -782,6 +816,65 @@ const Disbursement = {
     this.view = 'list';
     this.detailId = null;
     App.handleRoute();
+  },
+
+  showRequestDisbursementModal() {
+    const entity = Auth.activeEntity;
+    const wrs = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      return wrEnt === entity.toUpperCase();
+    });
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
+    const selectGroup = el('div', { class: 'form-group' });
+    selectGroup.appendChild(el('label', { text: 'Select Work Request *' }));
+    const wrSelect = el('select', { class: 'form-select', style: 'width:100%;' });
+    wrSelect.appendChild(el('option', { value: '', text: '— Select —' }));
+    wrs.forEach(wr => {
+      const client = DB.getById('clients', wr.clientId);
+      const pending = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'disbursement' && r.status === 'pending');
+      if (pending.length === 0) {
+        wrSelect.appendChild(el('option', { value: wr.id, text: `${wr.title} — ${client?.name || '—'}` }));
+      }
+    });
+    selectGroup.appendChild(wrSelect);
+    wrapper.appendChild(selectGroup);
+
+    const notesGroup = el('div', { class: 'form-group' });
+    notesGroup.appendChild(el('label', { text: 'Additional Notes (Optional)' }));
+    notesGroup.appendChild(el('textarea', { id: 'disb-opreq-notes', class: 'form-control', style: 'width: 100%; min-height: 80px;', placeholder: 'Provide any details for Accounting staff...' }));
+    wrapper.appendChild(notesGroup);
+
+    wrapper.appendChild(el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' }, [
+      el('button', { id: 'btn-cancel-disb-opreq', class: 'btn btn-ghost', text: 'Cancel' }),
+      el('button', { id: 'btn-save-disb-opreq', class: 'btn btn-primary', text: 'Submit Request' })
+    ]));
+
+    const overlay = Workflow.showModal('Request Disbursement', wrapper);
+
+    overlay.querySelector('#btn-cancel-disb-opreq').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#btn-save-disb-opreq').addEventListener('click', () => {
+      const wrId = wrSelect.value;
+      if (!wrId) { alert('Please select a work request.'); return; }
+      const wr = DB.getById('workRequests', wrId);
+      const notes = overlay.querySelector('#disb-opreq-notes').value.trim();
+      const record = {
+        id: generateId('opreq'),
+        type: 'disbursement',
+        workRequestId: wrId,
+        clientId: wr.clientId,
+        requestedBy: Auth.user.id,
+        requestedAt: new Date().toISOString(),
+        status: 'pending',
+        rejectionReason: '',
+        notes
+      };
+      DB.insert('operationsRequests', record);
+      overlay.remove();
+      Workflow.showMessage('Request Submitted', 'Your disbursement request has been submitted to Accounting for review.', 'success');
+      App.handleRoute();
+    });
   },
 
   // ============================================================

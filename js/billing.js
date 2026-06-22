@@ -137,6 +137,40 @@ const Billing = {
     }
     wrapper.appendChild(actions);
 
+    // Pending operations requests banner
+    if (Auth.can('billing:edit')) {
+      const pendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'billing');
+      if (pendingReqs.length > 0) {
+        const banner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);' });
+        const bannerTitle = el('div', { style: 'font-weight:600;color:#e65100;margin-bottom:var(--spacing-sm);font-size:0.95rem;' });
+        bannerTitle.textContent = `⚠ ${pendingReqs.length} Pending Invoice Request${pendingReqs.length > 1 ? 's' : ''} from Operations`;
+        banner.appendChild(bannerTitle);
+        pendingReqs.forEach(req => {
+          const row = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-xs) 0;border-bottom:1px solid #ffe082;' });
+          const client = DB.getById('clients', req.clientId);
+          const wr = DB.getById('workRequests', req.workRequestId);
+          const info = el('span', { style: 'font-size:0.875rem;color:#333;' });
+          info.textContent = `${client ? client.name : 'Unknown Client'} – ${wr ? wr.title : 'Unknown WR'} (requested by ${req.requestedBy || 'N/A'})`;
+          row.appendChild(info);
+          const fulfillBtn = el('button', { class: 'btn btn-primary', text: 'Fulfill', style: 'padding:2px 12px;font-size:0.8rem;' });
+          fulfillBtn.addEventListener('click', () => { Billing.view = 'form'; Billing.prefilledWrId = req.workRequestId; Billing.prefilledClientId = req.clientId; Billing.prefilledRequestId = req.id; App.handleRoute(); });
+          row.appendChild(fulfillBtn);
+          banner.appendChild(row);
+        });
+        wrapper.appendChild(banner);
+      }
+    } else if (Auth.can('billing:request')) {
+      const myPendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'billing' && r.requestedBy === Auth.user.name);
+      const reqBanner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);display:flex;align-items:center;justify-content:space-between;' });
+      const reqInfo = el('span', { style: 'font-size:0.9rem;color:#333;' });
+      reqInfo.textContent = myPendingReqs.length > 0 ? `You have ${myPendingReqs.length} pending invoice request${myPendingReqs.length > 1 ? 's' : ''}.` : 'Need an invoice created? Submit a request to Accounting.';
+      reqBanner.appendChild(reqInfo);
+      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Invoice from Accounting', style: 'white-space:nowrap;' });
+      reqBtn.addEventListener('click', () => { Billing.view = 'request'; App.handleRoute(); });
+      reqBanner.appendChild(reqBtn);
+      wrapper.appendChild(reqBanner);
+    }
+
     // Filters
     const filters = el('div', { class: 'filters-bar' });
     const wrFilter = el('select', { class: 'form-select' });
