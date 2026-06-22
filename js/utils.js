@@ -334,8 +334,9 @@ function wrapFilterFieldWithClear(element, onClear) {
   
   function updateClearVisibility() {
     const hasVal = !!element.value;
-    clearBtn.style.display = hasVal ? 'flex' : 'none';
-    wrapper.classList.toggle('has-value', hasVal);
+    const isVisible = hasVal && !element.disabled;
+    clearBtn.style.display = isVisible ? 'flex' : 'none';
+    wrapper.classList.toggle('has-value', isVisible);
   }
   
   // Intercept the setter on the element's value property so programmatic changes update the button
@@ -359,6 +360,28 @@ function wrapFilterFieldWithClear(element, onClear) {
       configurable: true
     });
   }
+
+  // Intercept the setter on the element's disabled property so programmatic changes update the button
+  let disabledProto = Object.getPrototypeOf(element);
+  let disabledDescriptor = null;
+  while (disabledProto) {
+    disabledDescriptor = Object.getOwnPropertyDescriptor(disabledProto, 'disabled');
+    if (disabledDescriptor) break;
+    disabledProto = Object.getPrototypeOf(disabledProto);
+  }
+  
+  if (disabledDescriptor && disabledDescriptor.set) {
+    Object.defineProperty(element, 'disabled', {
+      get() {
+        return disabledDescriptor.get.call(element);
+      },
+      set(val) {
+        disabledDescriptor.set.call(element, val);
+        updateClearVisibility();
+      },
+      configurable: true
+    });
+  }
   
   element.addEventListener('input', updateClearVisibility);
   element.addEventListener('change', updateClearVisibility);
@@ -366,6 +389,7 @@ function wrapFilterFieldWithClear(element, onClear) {
   clearBtn.addEventListener('mousedown', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (element.disabled) return;
     element.value = '';
     updateClearVisibility();
     element.dispatchEvent(new Event('change', { bubbles: true }));

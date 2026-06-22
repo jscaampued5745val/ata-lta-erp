@@ -209,7 +209,7 @@ async function runVerification() {
 
       // 2. Verify that saving a Work Request with assignedTo saves correctly
       const testClientId = DB.getAll('clients')[0]?.id || 'c-test-1';
-      const staffUser = DB.getWhere('users', u => u.role === 'Staff')[0];
+      const staffUser = DB.getWhere('users', u => u.role === 'Accounting')[0];
       const testStaffId = staffUser ? staffUser.id : 'u-test-staff';
       
       const formNode = formEl.querySelector('form');

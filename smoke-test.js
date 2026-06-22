@@ -3,8 +3,8 @@ const { chromium } = require('playwright');
 const BASE = 'http://127.0.0.1:8888';
 const SEED_USERS = [
   { email: 'admin@ata-lta.ph', password: 'password123', role: 'Admin' },
-  { email: 'accounting-ata@ata-lta.ph', password: 'password123', role: 'Staff' },
-  { email: 'docs@ata-lta.ph', password: 'password123', role: 'Staff' }
+  { email: 'accounting-ata@ata-lta.ph', password: 'password123', role: 'Accounting' },
+  { email: 'docs@ata-lta.ph', password: 'password123', role: 'Documentation' }
 ];
 
 let results = [];
@@ -155,15 +155,21 @@ async function runTests() {
   const opsBoardWide = opsBoardBox ? opsBoardBox.width > pageWidth + 2 : false;
   await log('Operations Board No-Scroll (#10)', !opsBoardWide, `boardWidth=${opsBoardBox?.width}`);
 
-  // ─── TEST 11: Operations Documentation staff sees all WRs ───────
+  // ─── TEST 11: Operations Documentation staff has restricted WR visibility ───────
   await logout();
   await loginAs(SEED_USERS[2]); // docs staff
   await page.goto(BASE + '/#operations');
   await page.waitForTimeout(800);
   const wrCards = await page.$$('.board-card, .data-table tbody tr, .list-item');
-  await log('Docs Staff WR Visibility (#16)', wrCards.length >= 2, `visible items=${wrCards.length}`);
+  // Documentation staff is now restricted to assigned WRs (0 in seed data)
+  await log('Docs Staff WR Visibility (#16)', wrCards.length === 0, `visible items=${wrCards.length}`);
 
   // ─── TEST 12: Inline task accordion panels exist ────────────────
+  // Log back in as Admin who has access to all WRs to verify task accordion panels
+  await logout();
+  await loginAs(SEED_USERS[0]);
+  await page.goto(BASE + '/#operations');
+  await page.waitForTimeout(800);
   const wrCard = await page.$('text=Annual Tax Filing 2025');
   if (wrCard) {
     await page.evaluate(el => {

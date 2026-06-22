@@ -21,8 +21,7 @@ const Reports = {
   monthlyMonth: '',
 
   render() {
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
-    if (!isManagerial) {
+    if (!Auth.can('reports:view')) {
       return el('div', { class: 'page' }, [
         el('div', { class: 'empty-state', text: 'You do not have permission to view reports.' })
       ]);

@@ -112,9 +112,8 @@ const Clients = {
       );
     }
 
-    // Staff visibility filter
-    const role = Auth.user.role;
-    if (role === 'Staff') {
+    // Staff-level visibility filter: only see clients they're assigned to
+    if (!Auth.can('clients:edit')) {
       const userId = Auth.user.id;
       const tasks = DB.getAll('tasks');
       const workRequests = DB.getAll('workRequests');
@@ -127,8 +126,6 @@ const Clients = {
         }
       });
       clients = clients.filter(c => c.contactUserId === userId || assignedClientIds.has(c.id));
-    } else if (role === 'Viewer') {
-      // Viewer can see all clients in entity (existing behavior)
     }
 
     return clients;
@@ -185,15 +182,15 @@ const Clients = {
         actions.appendChild(editBtn);
       }
       
-      const role = Auth.user.role;
-      if (role === 'Admin' || role === 'Manager') {
+      if (Auth.can('clients:edit')) {
         const archiveBtn = el('button', { 
           class: 'btn btn-secondary btn-sm text-danger', 
           text: 'Archive', 
           style: 'margin-left: 8px;' 
         });
         archiveBtn.addEventListener('click', () => {
-          if (role === 'Admin') {
+          // Admin bypasses PendingChanges — intentional direct-role check (Gap 6)
+          if (Auth.user.role === 'Admin') {
             this.archiveClientDirectly(c.id);
           } else {
             this.archiveClientRequest(c.id);
@@ -274,7 +271,7 @@ const Clients = {
 
     const entityUsers = DB.getWhere('users', u => {
       const userEntities = (u.entities || []).map(e => e.toUpperCase());
-      return ['Admin', 'Manager', 'Staff'].includes(u.role) && userEntities.includes(Auth.activeEntity);
+      return Auth.ALL_ROLES.includes(u.role) && userEntities.includes(Auth.activeEntity);
     });
     entityUsers.forEach(u => {
       datalist.appendChild(el('option', { value: u.name + ' (' + u.role + ')' }));
@@ -614,9 +611,8 @@ const Clients = {
       return matchesEntity && c.status === 'Archived';
     });
 
-    // Staff visibility filter
-    const role = Auth.user.role;
-    if (role === 'Staff') {
+    // Staff-level visibility filter
+    if (!Auth.can('clients:edit')) {
       const userId = Auth.user.id;
       const tasks = DB.getAll('tasks');
       const workRequests = DB.getAll('workRequests');

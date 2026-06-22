@@ -39,7 +39,7 @@ function defaultRequirementChecklist(taskId) {
 }
 
 const seedData = {
-  schemaVersion: 3,
+  schemaVersion: 4,
 
   users: [
     {
@@ -80,7 +80,7 @@ const seedData = {
       name: 'Accounting Staff ATA',
       email: 'accounting-ata@ata-lta.ph',
       password: 'password123',
-      role: 'Staff',
+      role: 'Accounting',
       entities: ['ata'],
       isActive: true,
       avatarUrl: 'https://randomuser.me/api/portraits/women/4.jpg',
@@ -91,7 +91,7 @@ const seedData = {
       name: 'Accounting Staff LTA',
       email: 'accounting-lta@ata-lta.ph',
       password: 'password123',
-      role: 'Staff',
+      role: 'Accounting',
       entities: ['lta'],
       isActive: true,
       avatarUrl: 'https://randomuser.me/api/portraits/men/5.jpg',
@@ -102,7 +102,7 @@ const seedData = {
       name: 'Operations Staff ATA',
       email: 'ops-ata@ata-lta.ph',
       password: 'password123',
-      role: 'Staff',
+      role: 'Operations',
       entities: ['ata'],
       isActive: true,
       avatarUrl: 'https://randomuser.me/api/portraits/women/6.jpg',
@@ -113,7 +113,7 @@ const seedData = {
       name: 'Operations Staff LTA',
       email: 'ops-lta@ata-lta.ph',
       password: 'password123',
-      role: 'Staff',
+      role: 'Operations',
       entities: ['lta'],
       isActive: true,
       avatarUrl: 'https://randomuser.me/api/portraits/men/7.jpg',
@@ -124,7 +124,7 @@ const seedData = {
       name: 'Documentation Staff',
       email: 'docs@ata-lta.ph',
       password: 'password123',
-      role: 'Staff',
+      role: 'Documentation',
       entities: ['ATA', 'LTA'],
       isActive: true,
       avatarUrl: 'https://randomuser.me/api/portraits/women/8.jpg',
@@ -135,21 +135,10 @@ const seedData = {
       name: 'HR Staff',
       email: 'hr@ata-lta.ph',
       password: 'password123',
-      role: 'Staff',
+      role: 'HR',
       entities: ['ATA', 'LTA'],
       isActive: true,
       avatarUrl: 'https://randomuser.me/api/portraits/women/9.jpg',
-      createdAt: now
-    },
-    {
-      id: makeId('u', 10),
-      name: 'Admin Staff',
-      email: 'admin-staff@ata-lta.ph',
-      password: 'password123',
-      role: 'Staff',
-      entities: ['ATA', 'LTA'],
-      isActive: true,
-      avatarUrl: 'https://randomuser.me/api/portraits/men/10.jpg',
       createdAt: now
     }
   ],

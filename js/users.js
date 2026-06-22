@@ -16,13 +16,13 @@ const Users = {
     container.appendChild(titleBar);
     this.updateBreadcrumb(h1);
 
-    const isAdmin = Auth.user.role === 'Admin';
+    const canManageUsers = Auth.can('users:view');
 
     // Tabs
     const tabs = el('div', { class: 'admin-tabs' });
     tabs.style.marginBottom = '20px'; // align layout nicely below breadcrumb
 
-    if (isAdmin) {
+    if (canManageUsers) {
       const usersTab = el('button', {
         class: 'btn ' + (this.view === 'users' ? 'btn-primary' : 'btn-secondary'),
         text: 'Users'
@@ -38,7 +38,7 @@ const Users = {
     auditTab.addEventListener('click', () => { this.view = 'audit'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
     tabs.appendChild(auditTab);
 
-    if (isAdmin) {
+    if (canManageUsers) {
       const entity = Auth.activeEntity;
       const pendingDisbursements = DB.getWhere('disbursements', d => d.entity === entity && (d.status === 'Submitted' || d.status === 'Under Review'));
       const pendingChanges = PendingChanges.getAllPending();
@@ -65,15 +65,15 @@ const Users = {
 
     container.appendChild(tabs);
 
-    if (this.view === 'users' && isAdmin) {
+    if (this.view === 'users' && canManageUsers) {
       container.appendChild(this.renderUsersSection());
     } else if (this.view === 'audit') {
       container.appendChild(this.renderAuditSection());
-    } else if (this.view === 'pending' && isAdmin) {
+    } else if (this.view === 'pending' && canManageUsers) {
       container.appendChild(this.renderPendingSection());
-    } else if (this.view === 'myPending' && !isAdmin) {
+    } else if (this.view === 'myPending' && !canManageUsers) {
       container.appendChild(this.renderMyPendingSection());
-    } else if (!isAdmin) {
+    } else if (!canManageUsers) {
       this.view = 'myPending';
       container.appendChild(this.renderMyPendingSection());
     } else {
@@ -189,8 +189,10 @@ const Users = {
     const map = {
       'Admin': 'badge-danger',
       'Manager': 'badge-warning',
-      'Staff': 'badge-info',
-      'Viewer': 'badge-success'
+      'Accounting': 'badge-info',
+      'Operations': 'badge-success',
+      'Documentation': 'badge-primary',
+      'HR': 'badge-secondary'
     };
     return el('span', { class: 'badge ' + (map[role] || ''), text: role });
   },
@@ -239,7 +241,7 @@ const Users = {
     const roleGroup = el('div', { class: 'form-group' });
     roleGroup.appendChild(el('label', { text: 'Role *' }));
     const roleSel = el('select', { name: 'role', required: true });
-    ['Admin', 'Manager', 'Staff', 'Viewer'].forEach(r => {
+    Auth.ALL_ROLES.forEach(r => {
       const opt = el('option', { value: r, text: r });
       if (user && user.role === r) opt.selected = true;
       roleSel.appendChild(opt);
@@ -384,7 +386,7 @@ const Users = {
   // ============================================================
   renderAuditSection() {
     const wrapper = el('div');
-    const isAdmin = Auth.user.role === 'Admin';
+    const canViewAllAudit = Auth.can('audit:view_all');
 
     // Filters
     const filters = el('div', { class: 'audit-filters' });
@@ -396,7 +398,7 @@ const Users = {
       const opt = el('option', { value: u.id, text: u.name });
       userFilter.appendChild(opt);
     });
-    if (!isAdmin) {
+    if (!canViewAllAudit) {
       userFilter.value = Auth.user.id;
       userFilter.disabled = true;
     }
@@ -420,11 +422,11 @@ const Users = {
 
     const clearBtn = el('button', { class: 'btn btn-secondary', text: 'Clear' });
     clearBtn.addEventListener('click', () => {
-      if (isAdmin) userFilter.value = '';
+      if (canViewAllAudit) userFilter.value = '';
       clientFilter.value = '';
       dateFrom.value = '';
       dateTo.value = '';
-      this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '', '', '');
+      this.refreshAuditLog(tableContainer, canViewAllAudit ? '' : Auth.user.id, '', '', '', '');
     });
     filters.appendChild(clearBtn);
 
@@ -443,7 +445,7 @@ const Users = {
     dateFrom.addEventListener('change', triggerRefresh);
     dateTo.addEventListener('change', triggerRefresh);
 
-    this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '', '', '');
+    this.refreshAuditLog(tableContainer, canViewAllAudit ? '' : Auth.user.id, '', '', '', '');
 
     return wrapper;
   },
@@ -918,7 +920,7 @@ const Users = {
       return el('p', { text: 'Pending change not found.', class: 'empty-state' });
     }
 
-    const canApprove = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const canApprove = Auth.can('users:view');
     const isSubmitter = pc.submittedBy === Auth.user.id;
 
     const wrapper = el('div', { style: 'max-width: 800px; margin: 0 auto;' });
