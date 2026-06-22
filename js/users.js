@@ -31,12 +31,14 @@ const Users = {
       tabs.appendChild(usersTab);
     }
 
-    const auditTab = el('button', {
-      class: 'btn ' + (this.view === 'audit' ? 'btn-primary' : 'btn-secondary'),
-      text: 'Audit Log'
-    });
-    auditTab.addEventListener('click', () => { this.view = 'audit'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
-    tabs.appendChild(auditTab);
+    if (canManageUsers) {
+      const auditTab = el('button', {
+        class: 'btn ' + (this.view === 'audit' ? 'btn-primary' : 'btn-secondary'),
+        text: 'Audit Log'
+      });
+      auditTab.addEventListener('click', () => { this.view = 'audit'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+      tabs.appendChild(auditTab);
+    }
 
     if (canManageUsers) {
       const entity = Auth.activeEntity;
@@ -83,7 +85,7 @@ const Users = {
 
     if (this.view === 'users' && canManageUsers) {
       container.appendChild(this.renderUsersSection());
-    } else if (this.view === 'audit') {
+    } else if (this.view === 'audit' && canManageUsers) {
       container.appendChild(this.renderAuditSection());
     } else if (this.view === 'pending' && canManageUsers) {
       container.appendChild(this.renderPendingSection());

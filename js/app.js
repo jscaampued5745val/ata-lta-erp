@@ -117,6 +117,46 @@ const App = {
         }
       }
     }
+
+    // Badge Billing nav for pending billing operations requests
+    const billingReqRole = Auth.user?.role;
+    if (billingReqRole === 'Accounting' || billingReqRole === 'Admin' || billingReqRole === 'Manager') {
+      const billingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'billing');
+      const billingNav = document.querySelector('nav a[href="#billing"]');
+      if (billingNav) {
+        let bBadge = billingNav.querySelector('.nav-badge');
+        if (billingReqs.length > 0) {
+          if (!bBadge) { bBadge = document.createElement('span'); bBadge.className = 'nav-badge'; billingNav.appendChild(bBadge); }
+          bBadge.textContent = billingReqs.length > 99 ? '99+' : billingReqs.length;
+        } else if (bBadge) { bBadge.remove(); }
+      }
+    }
+
+    // Badge Disbursement nav for pending disbursement operations requests
+    if (billingReqRole === 'Accounting' || billingReqRole === 'Admin' || billingReqRole === 'Manager') {
+      const disbReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'disbursement');
+      const disbNav = document.querySelector('nav a[href="#disbursement"]');
+      if (disbNav) {
+        let dBadge = disbNav.querySelector('.nav-badge');
+        if (disbReqs.length > 0) {
+          if (!dBadge) { dBadge = document.createElement('span'); dBadge.className = 'nav-badge'; disbNav.appendChild(dBadge); }
+          dBadge.textContent = disbReqs.length > 99 ? '99+' : disbReqs.length;
+        } else if (dBadge) { dBadge.remove(); }
+      }
+    }
+
+    // Badge Transmittal nav for pending transmittal operations requests
+    if (billingReqRole === 'Documentation' || billingReqRole === 'Admin' || billingReqRole === 'Manager') {
+      const transReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'transmittal');
+      const transNav = document.querySelector('nav a[href="#transmittal"]');
+      if (transNav) {
+        let tBadge = transNav.querySelector('.nav-badge');
+        if (transReqs.length > 0) {
+          if (!tBadge) { tBadge = document.createElement('span'); tBadge.className = 'nav-badge'; transNav.appendChild(tBadge); }
+          tBadge.textContent = transReqs.length > 99 ? '99+' : transReqs.length;
+        } else if (tBadge) { tBadge.remove(); }
+      }
+    }
   },
 
   renderShell() {
