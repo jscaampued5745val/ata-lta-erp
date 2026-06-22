@@ -103,11 +103,16 @@ async function runTests() {
   const boardWiderThanViewport = boardBox ? boardBox.width > pageWidth + 2 : false;
   await log('Billing Board No-Scroll (#9)', !boardWiderThanViewport, `boardWidth=${boardBox?.width}, viewport=${pageWidth}`);
 
-  // ─── TEST 7: Billing PDF buttons exist ───────────────────────────
-  // In board view, click the first invoice card (cards are clickable divs with text)
   const firstCard = await page.$('text=ATA-SI-2025-001');
   if (firstCard) {
-    await firstCard.click();
+    await page.evaluate(el => {
+      const content = document.querySelector('.content');
+      const rect = el.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      content.scrollTop += (rect.top - (contentRect.top + 200));
+    }, firstCard);
+    await page.waitForTimeout(200);
+    await firstCard.click({ force: true });
     await page.waitForTimeout(800);
     const hasPrintInvoice = await page.isVisible('button:has-text("Print Invoice")');
     const hasPrintVoucherNH = await page.isVisible('button:has-text("Print Voucher (No Header)")');
@@ -161,13 +166,20 @@ async function runTests() {
   // ─── TEST 12: Inline task accordion panels exist ────────────────
   const wrCard = await page.$('text=Annual Tax Filing 2025');
   if (wrCard) {
-    await wrCard.click();
+    await page.evaluate(el => {
+      const content = document.querySelector('.content');
+      const rect = el.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      content.scrollTop += (rect.top - (contentRect.top + 200));
+    }, wrCard);
+    await page.waitForTimeout(200);
+    await wrCard.click({ force: true });
     await page.waitForTimeout(800);
-    const expandRows = await page.$$('tr.task-expand');
+    const expandRows = await page.$$('.task-row');
     const accordions = await page.$$('.accordion-panel');
     const collapsedPanels = await page.$$('.accordion-panel.collapsed');
     await log('Task Accordion Panels (#15, #19)', expandRows.length > 0 && accordions.length >= 3, `expand rows=${expandRows.length}, accordion panels=${accordions.length}, collapsed=${collapsedPanels.length}`);
-    await page.click('button:has-text("← Back to List")');
+    await page.click('button:has-text("Back to Work Requests")');
   } else {
     await log('Task Accordion Panels (#15, #19)', false, 'no WR card found');
   }

@@ -329,8 +329,8 @@ const Transmittal = {
     statuses.forEach(st => {
       const colColor = statusColors[st] || '#cbd5e1';
       const col = el('div', { class: 'board-column-v2' });
-      col.style.borderTop = `4px solid ${colColor}`;
-      
+      col.style.setProperty('--column-phase-color', colColor);
+
       const header = el('div', { class: 'board-column-header-v2' });
       header.appendChild(el('div', { class: 'board-column-title', text: st }));
       col.appendChild(header);

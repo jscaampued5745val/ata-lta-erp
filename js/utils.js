@@ -108,7 +108,7 @@ const PaymentIcons = {
  * @param {string} [opts.maxWidth] - Optional max-width CSS value
  * @returns {HTMLElement} wrapper element with .value property
  */
-function createSearchableDropdown({ placeholder, options, maxWidth }) {
+function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeText = false, addNewLabel = null }) {
   const wrapper = document.createElement('div');
   wrapper.className = 'searchable-dropdown';
   if (maxWidth) wrapper.style.maxWidth = maxWidth;
@@ -150,7 +150,8 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
     if (trimmedFilter) {
       const hasExactMatch = options.some(o => o.text.toLowerCase() === trimmedFilter.toLowerCase());
       if (!hasExactMatch) {
-        filtered.push({ value: trimmedFilter, text: trimmedFilter });
+        const label = addNewLabel ? addNewLabel(trimmedFilter) : trimmedFilter;
+        filtered.push({ value: trimmedFilter, text: trimmedFilter, itemLabel: label });
       }
     }
 
@@ -167,7 +168,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
       item.className = 'searchable-dropdown-item';
       if (opt.value === selectedValue) item.classList.add('selected');
       if (i === highlightIdx) item.classList.add('highlighted');
-      item.textContent = opt.text;
+      item.textContent = opt.itemLabel || opt.text;
       item.addEventListener('mousedown', (e) => {
         e.preventDefault(); // prevent blur
         selectOption(opt.value, opt.text);
@@ -188,6 +189,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
     selectedValue = val;
     selectedText = text;
     input.value = val ? text : '';
+    input.title = input.value || placeholder || '';
     clearBtn.style.display = val ? 'flex' : 'none';
     if (changed) {
       wrapper.dispatchEvent(new Event('change', { bubbles: true }));
@@ -208,7 +210,12 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
     isOpen = false;
     wrapper.classList.remove('open');
     // Restore display text
+    if (allowFreeText && !selectedValue && input.value.trim()) {
+      selectedValue = input.value.trim();
+      selectedText = selectedValue;
+    }
     input.value = selectedValue ? selectedText : '';
+    clearBtn.style.display = input.value ? 'flex' : 'none';
   }
 
   input.addEventListener('focus', () => {
@@ -220,8 +227,8 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
     highlightIdx = -1;
     if (!isOpen) open();
     renderList(input.value);
+    clearBtn.style.display = input.value ? 'flex' : 'none';
     wrapper.dispatchEvent(new Event('input', { bubbles: true }));
-    wrapper.dispatchEvent(new Event('change', { bubbles: true }));
   });
 
   input.addEventListener('blur', () => {
@@ -245,6 +252,8 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
       e.preventDefault();
       if (highlightIdx >= 0 && highlightIdx < items.length) {
         items[highlightIdx].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      } else if (items.length > 0) {
+        items[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       }
     } else if (e.key === 'Escape') {
       close();
@@ -262,7 +271,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
   arrow.addEventListener('mousedown', (e) => {
     e.preventDefault();
     if (isOpen) { close(); input.blur(); }
-    else { input.focus(); }
+    else { input.focus(); if (!isOpen) open(); }
   });
 
   // Close when clicking outside
@@ -284,6 +293,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth }) {
         selectedText = match ? match.text : val;
         input.value = selectedText;
       }
+      input.title = input.value || placeholder || '';
       clearBtn.style.display = val ? 'flex' : 'none';
     }
   });
@@ -374,6 +384,191 @@ function wrapFilterFieldWithClear(element, onClear) {
       updateClearVisibility();
     }
   });
-  
+
   return wrapper;
 }
+
+function getChecklistItemTotalHours(item) {
+  return (item.timeLogs || []).reduce((sum, log) => sum + (log.hours || 0), 0);
+}
+
+function getTaskTotalHours(task) {
+  const taskLogs = (task.timeLogs || []).reduce((sum, log) => sum + (log.hours || 0), 0);
+  const checklistLogs = (task.checklist || []).reduce((sum, item) => sum + getChecklistItemTotalHours(item), 0);
+  return taskLogs + checklistLogs;
+}
+
+function isChecklistBlocked(item, checklist) {
+  if (!item.dependsOn) return false;
+  if (item.dependsOn === '*') {
+    return (checklist || []).some(c => c.id !== item.id && !c.completed);
+  }
+  const prereq = (checklist || []).find(c => c.id === item.dependsOn);
+  return !prereq || !prereq.completed;
+}
+
+function getIncompleteChecklistNames(task) {
+  return (task.checklist || [])
+    .filter(item => !item.completed && !isChecklistBlocked(item, task.checklist))
+    .map(item => item.text);
+}
+
+function getTaskChecklistCompletion(task) {
+  const list = task.checklist || [];
+  const done = list.filter(i => i.completed).length;
+  return { done, total: list.length, percent: list.length ? Math.round((done / list.length) * 100) : 0 };
+}
+
+/**
+ * Return all distinct assignee names for a task: primary assigneeName plus
+ * any coAssignees, falling back to resolving the registered user name from
+ * assigneeId / assignedTo when no explicit name is stored.
+ */
+function getTaskAllAssigneeNames(task) {
+  const names = new Set();
+  if (task.assigneeName) names.add(task.assigneeName);
+  (task.coAssignees || []).forEach(n => { if (n) names.add(n); });
+  if (!task.assigneeName && (task.assigneeId || task.assignedTo)) {
+    const u = DB.getById('users', task.assigneeId || task.assignedTo);
+    if (u?.name) names.add(u.name);
+  }
+  return Array.from(names);
+}
+
+function manilaToday() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })).toISOString().slice(0, 10);
+}
+
+class SidePane {
+  constructor() {
+    this.overlay = null;
+    this.pane = null;
+    this.body = null;
+    this.activeElement = null;
+    this.onCloseCallback = null;
+    this.onExpandCallback = null;
+    this.init();
+  }
+
+  init() {
+    let overlay = document.getElementById('global-side-pane-overlay');
+    let pane = document.getElementById('global-side-pane');
+    
+    if (!overlay) {
+      overlay = el('div', { id: 'global-side-pane-overlay', class: 'side-pane-overlay' });
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', () => this.close());
+    }
+    
+    if (!pane) {
+      pane = el('div', { id: 'global-side-pane', class: 'side-pane' });
+      document.body.appendChild(pane);
+    }
+    
+    this.overlay = overlay;
+    this.pane = pane;
+    
+    // Close on ESC key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.isOpen()) {
+        this.close();
+      }
+    });
+
+    // Close when clicking outside (since overlay is hidden/non-blocking)
+    document.addEventListener('click', (e) => {
+      if (this.isOpen()) {
+        const clickedTrigger = e.target.closest('.board-card') || e.target.closest('.list-item') || e.target.closest('.task-row') || e.target.closest('.status-select') || e.target.closest('.modal-overlay') || e.target.closest('.modal') || e.target.closest('.searchable-dropdown') || e.target.closest('.mdp-wrapper') || e.target.closest('.mtp-wrapper') || e.target.closest('.sidebar') || e.target.closest('.sidebar-collapse-btn') || e.target.closest('.notion-embed-popover');
+        if (!this.pane.contains(e.target) && !clickedTrigger) {
+          this.close();
+        }
+      }
+    });
+  }
+
+  isOpen() {
+    return this.pane && this.pane.classList.contains('open');
+  }
+
+  open({ title, content, onClose, onExpand, triggerElement }) {
+    this.close(); // Close any currently open pane first (clears active classes)
+    
+    this.onCloseCallback = onClose;
+    this.onExpandCallback = onExpand;
+    this.activeElement = triggerElement;
+    
+    if (this.activeElement) {
+      this.activeElement.classList.add('side-pane-active');
+    }
+    
+    this.pane.innerHTML = '';
+    
+    // Header
+    const headerLeft = el('div', { class: 'side-pane-header-left', style: 'display: flex; align-items: center; gap: 4px;' });
+    
+    // Close button (Notion-style double chevron right >>)
+    const closeBtn = el('button', { 
+      class: 'side-pane-close-btn', 
+      title: 'Close',
+      html: '<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 4.5l7.5 7.5-7.5 7.5m-6-15l7.5 7.5-7.5 7.5"/></svg>'
+    });
+    closeBtn.addEventListener('click', () => this.close());
+    headerLeft.appendChild(closeBtn);
+    
+    // Expand button (diagonal resize icon next to Close)
+    if (onExpand) {
+      const expandBtn = el('button', { 
+        class: 'side-pane-expand-btn', 
+        title: 'Open as full page',
+        html: '<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>'
+      });
+      expandBtn.addEventListener('click', () => {
+        this.close();
+        onExpand();
+      });
+      headerLeft.appendChild(expandBtn);
+    }
+    
+    const header = el('div', { class: 'side-pane-header' }, [headerLeft]);
+    this.pane.appendChild(header);
+    
+    // Body
+    this.body = el('div', { class: 'side-pane-body' });
+    if (content) {
+      if (typeof content === 'string') {
+        this.body.innerHTML = content;
+      } else {
+        this.body.appendChild(content);
+      }
+    }
+    this.pane.appendChild(this.body);
+    
+    // Transition classes
+    requestAnimationFrame(() => {
+      this.overlay.classList.add('open');
+      this.pane.classList.add('open');
+      // Do NOT set document.body.style.overflow = 'hidden' to match Notion's scrollable canvas behavior
+    });
+  }
+
+  close() {
+    if (!this.isOpen()) return;
+    
+    if (this.overlay) this.overlay.classList.remove('open');
+    if (this.pane) this.pane.classList.remove('open');
+    // Do NOT reset document.body.style.overflow
+    
+    if (this.activeElement) {
+      this.activeElement.classList.remove('side-pane-active');
+      this.activeElement = null;
+    }
+    
+    if (this.onCloseCallback) {
+      const cb = this.onCloseCallback;
+      this.onCloseCallback = null;
+      cb();
+    }
+  }
+}
+
+window.SidePaneInstance = new SidePane();
