@@ -134,11 +134,19 @@ const App = {
     }
     this.renderEntitySwitcher();
 
-    // Hide Admin nav link for non-Admin/Manager users
+    // Configure Admin / My Submissions nav link dynamically based on role/permissions
     const adminNav = document.querySelector('nav a[href="#admin"]');
     if (adminNav) {
       const canManageUsers = Auth.can('users:view');
-      adminNav.parentElement.style.display = canManageUsers ? '' : 'none';
+      const labelEl = adminNav.querySelector('.nav-link-text');
+      if (canManageUsers) {
+        adminNav.parentElement.style.display = '';
+        if (labelEl) labelEl.textContent = 'Admin';
+      } else {
+        // Staff-level user: show as "My Submissions"
+        adminNav.parentElement.style.display = '';
+        if (labelEl) labelEl.textContent = 'My Submissions';
+      }
     }
 
     // Hide Reports nav link for non-Managerial users

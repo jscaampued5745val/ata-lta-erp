@@ -59,10 +59,10 @@ const Auth = {
     if (role === 'Admin') return true;
     if (!this.user.entities.includes(entity)) return false;
     const perms = {
-      Manager: ['clients:view','clients:edit','workflow:view','workflow:edit','workflow:approve','billing:view','billing:edit','billing:approve','disbursement:view','disbursement:approve','dms:view','dms:edit','dms:handover','reports:view','users:view','audit:view_all'],
-      Accounting: ['clients:view','workflow:view','workflow:edit','billing:view','billing:edit','disbursement:view','disbursement:create','dms:view'],
-      Operations: ['clients:view','workflow:view','workflow:edit','billing:view','disbursement:view','dms:view'],
-      Documentation: ['clients:view','workflow:view','workflow:edit','billing:view','disbursement:view','dms:view','dms:edit','dms:handover'],
+      Manager: ['clients:view','clients:edit','workflow:view','workflow:edit','workflow:approve','billing:view','billing:edit','billing:approve','disbursement:view','disbursement:approve','dms:view','dms:edit','dms:handover','reports:view','users:view','audit:view_all','transmittal:view','transmittal:edit'],
+      Accounting: ['clients:view','workflow:view','workflow:edit','billing:view','billing:edit','disbursement:view','disbursement:create','dms:view','transmittal:view'],
+      Operations: ['clients:view','workflow:view','workflow:edit','billing:view','billing:request','disbursement:view','disbursement:request','dms:view','transmittal:view','transmittal:request'],
+      Documentation: ['clients:view','workflow:view','workflow:edit','billing:view','disbursement:view','dms:view','dms:edit','dms:handover','transmittal:view','transmittal:edit'],
       // ⚠️ HR: UNCONFIRMED placeholder — minimal view-only across all modules
       // pending business owner confirmation of actual HR permission requirements.
       HR: ['clients:view','workflow:view','billing:view','disbursement:view','dms:view']

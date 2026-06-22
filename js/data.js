@@ -40,6 +40,8 @@ function defaultRequirementChecklist(taskId) {
 
 const seedData = {
   schemaVersion: 4,
+  operationsRequests: [],
+
 
   users: [
     {
@@ -1622,7 +1624,7 @@ const seedData = {
 // ============================================================
 
 const DB = {
-  SCHEMA_VERSION: 12,
+  SCHEMA_VERSION: 13,
 
   init() {
     const stored = localStorage.getItem('erp_schema_version');
@@ -1636,6 +1638,7 @@ const DB = {
         if (oldVersion < 10) this.migrateV9ToV10();
         if (oldVersion < 11) this.migrateV10ToV11();
         if (oldVersion < 12) this.migrateV11ToV12();
+        if (oldVersion < 13) this.migrateV12ToV13();
       } else if (oldVersion === 0) {
         this.resetToSeed();
       }
@@ -1815,6 +1818,13 @@ const DB = {
     this.save('tasks', tasks);
 
     localStorage.setItem('erp_schema_version', '12');
+  },
+
+  migrateV12ToV13() {
+    if (!localStorage.getItem('erp_operationsRequests')) {
+      this.save('operationsRequests', []);
+    }
+    localStorage.setItem('erp_schema_version', '13');
   },
 
   getAll(table) {

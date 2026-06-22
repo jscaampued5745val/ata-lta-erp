@@ -562,6 +562,7 @@ const Disbursement = {
     const entity = Auth.activeEntity;
     const isNew = !this.detailId;
     const existing = this.detailId ? DB.getById('disbursements', this.detailId) : null;
+    const prefill = this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null;
 
     const container = el('div');
 
@@ -613,15 +614,21 @@ const Disbursement = {
     // Linked Work Request
     const wrGroup = el('div', { class: 'form-group' });
     wrGroup.appendChild(el('label', { text: 'Linked Work Request' }));
-    const wrSel = el('select', { name: 'linkedWorkRequestId', class: 'form-select' });
+    const wrSelAttrs = { name: 'linkedWorkRequestId', class: 'form-select' };
+    if (prefill) wrSelAttrs.disabled = true;
+    const wrSel = el('select', wrSelAttrs);
     wrSel.appendChild(el('option', { value: '', text: '— None —' }));
     DB.getWhere('workRequests', wr => wr.entity === entity).forEach(wr => {
       const client = DB.getById('clients', wr.clientId);
       const opt = el('option', { value: wr.id, text: wr.title + ' — ' + (client?.name || '—') });
       if (existing && existing.linkedWorkRequestId === wr.id) opt.selected = true;
+      else if (!existing && prefill && prefill.workRequestId === wr.id) opt.selected = true;
       wrSel.appendChild(opt);
     });
     wrGroup.appendChild(wrSel);
+    if (prefill && prefill.workRequestId) {
+      wrGroup.appendChild(el('input', { type: 'hidden', name: 'linkedWorkRequestId', value: prefill.workRequestId }));
+    }
     form.appendChild(wrGroup);
 
     // Task link (Dynamic based on WR)
@@ -757,6 +764,20 @@ const Disbursement = {
     } else {
       DB.update('disbursements', record.id, record);
     }
+
+    // Fulfill pending operations request if any
+    const reqId = this.prefilledRequestId || (record.linkedWorkRequestId ? DB.getWhere('operationsRequests', r => r.workRequestId === record.linkedWorkRequestId && r.type === 'disbursement' && r.status === 'pending')[0]?.id : null);
+    if (reqId) {
+      DB.update('operationsRequests', reqId, {
+        status: 'fulfilled',
+        fulfilledBy: Auth.user.id,
+        fulfilledAt: new Date().toISOString(),
+        linkedRecordId: record.id
+      });
+    }
+    this.prefilledRequestId = null;
+    this.prefilledWrId = null;
+    this.prefilledClientId = null;
 
     this.view = 'list';
     this.detailId = null;

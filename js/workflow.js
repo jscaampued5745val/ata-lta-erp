@@ -962,6 +962,19 @@ const Workflow = {
 
       DB.insert('transmittals', record);
 
+      // Fulfill pending operations request if any
+      if (record.workRequestId) {
+        const pendingReq = DB.getWhere('operationsRequests', r => r.workRequestId === record.workRequestId && r.type === 'transmittal' && r.status === 'pending')[0];
+        if (pendingReq) {
+          DB.update('operationsRequests', pendingReq.id, {
+            status: 'fulfilled',
+            fulfilledBy: Auth.user.id,
+            fulfilledAt: new Date().toISOString(),
+            linkedRecordId: record.id
+          });
+        }
+      }
+
       // Link transmittal back to WR
       if (record.workRequestId) {
         const linkedWr = DB.getById('workRequests', record.workRequestId);
@@ -984,6 +997,57 @@ const Workflow = {
       App.handleRoute();
     });
   },
+
+  submitOperationsRequest(type, wr) {
+    const existing = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === type && r.status === 'pending');
+    if (existing.length > 0) {
+      this.showMessage('Already Requested', 'A request for this action is already pending review.', 'info');
+      return;
+    }
+
+    const label = type === 'billing' ? 'Billing/Invoice' : type === 'disbursement' ? 'Disbursement/Expense' : 'Transmittal';
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' }, [
+      el('p', { text: `Are you sure you want to request a ${label} record for the Work Request "${wr.title}"?` }),
+      el('div', { class: 'form-group' }, [
+        el('label', { text: 'Additional Notes (Optional)' }),
+        el('textarea', { id: 'opreq-notes', class: 'form-control', style: 'width: 100%; min-height: 80px;', placeholder: 'Provide any details for Accounting/Documentation staff...' })
+      ]),
+      el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' }, [
+        el('button', { id: 'btn-cancel-opreq', class: 'btn btn-ghost', text: 'Cancel' }),
+        el('button', { id: 'btn-save-opreq', class: 'btn btn-primary', text: 'Submit Request' })
+      ])
+    ]);
+
+    const overlay = this.showModal('Submit Operations Request', wrapper);
+    
+    overlay.querySelector('#btn-cancel-opreq').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#btn-save-opreq').addEventListener('click', () => {
+      const notes = overlay.querySelector('#opreq-notes').value.trim();
+      const record = {
+        id: generateId('opreq'),
+        type,
+        workRequestId: wr.id,
+        clientId: wr.clientId,
+        requestedBy: Auth.user.id,
+        requestedAt: new Date().toISOString(),
+        status: 'pending',
+        rejectionReason: '',
+        notes
+      };
+
+      DB.insert('operationsRequests', record);
+      overlay.remove();
+
+      this.showMessage(
+        'Request Submitted',
+        `Your request for ${label} has been submitted to Accounting/Documentation for review.`,
+        'success'
+      );
+
+      App.handleRoute();
+    });
+  },
+
   render() {
     const container = el('div', { class: 'page' });
     
@@ -1078,6 +1142,13 @@ const Workflow = {
         m.classList.remove('open');
       });
     });
+    if (this.view === 'detail' && this.prefilledTransmittalRequestId) {
+      this.prefilledTransmittalRequestId = null;
+      const wr = DB.getById('workRequests', this.detailWrId);
+      if (wr) {
+        setTimeout(() => this.openGenerateTransmittalModal(wr), 100);
+      }
+    }
   },
 
   // ============================================================
@@ -2001,7 +2072,7 @@ const Workflow = {
       if ((task.taskDocuments || []).length === 0) {
         docsList.appendChild(el('div', { class: 'empty-state', text: 'No documents attached.', style: 'margin-bottom: 8px;' }));
       } else {
-        const isAdmin = Auth.user.role === 'Admin';
+        const canEditDms = Auth.can('dms:edit');
         task.taskDocuments.forEach((d, dIdx) => {
           const item = el('div', { class: 'detail-item-v2', style: 'display:flex; justify-content:space-between; align-items:center; padding: 8px 0; border-bottom: 1px solid var(--color-border);' });
           const leftSide = el('div', { style: 'display:flex; flex-direction:column; gap: 2px;' });
@@ -2028,7 +2099,7 @@ const Workflow = {
             `;
             leftSide.appendChild(driveLink);
           } else {
-            if (isAdmin) {
+            if (canEditDms) {
               const dmsDoc = DB.getWhere('documents', doc => (doc.fileName === fName) && doc.workRequestId === wr.id)[0];
               if (dmsDoc && dmsDoc.dataUrl) {
                 const link = el('a', {
@@ -4994,14 +5065,51 @@ const Workflow = {
 
           const actionsWrap = el('div', { style: 'display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2);' });
 
-          const actions = [
-            { text: 'Generate Billing', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateBillingModal(wr, t) },
-            { text: 'Generate Disbursement', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateDisbursementModal(wr, t) },
-            { text: 'Generate Transmittal', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateTransmittalModal(wr, t) }
-          ];
+          const actions = [];
+
+          // Billing Action
+          const pendingBilling = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'billing' && r.status === 'pending')[0];
+          if (Auth.can('billing:edit')) {
+            actions.push({ text: 'Generate Billing', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateBillingModal(wr, t) });
+          } else if (Auth.can('billing:request')) {
+            actions.push({
+              text: pendingBilling ? 'Billing Requested' : 'Request Billing',
+              class: 'btn btn-secondary btn-xs',
+              disabled: !!pendingBilling,
+              handler: () => this.submitOperationsRequest('billing', wr)
+            });
+          }
+
+          // Disbursement Action
+          const pendingDisb = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'disbursement' && r.status === 'pending')[0];
+          if (Auth.can('disbursement:create')) {
+            actions.push({ text: 'Generate Disbursement', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateDisbursementModal(wr, t) });
+          } else if (Auth.can('disbursement:request')) {
+            actions.push({
+              text: pendingDisb ? 'Disbursement Requested' : 'Request Disbursement',
+              class: 'btn btn-secondary btn-xs',
+              disabled: !!pendingDisb,
+              handler: () => this.submitOperationsRequest('disbursement', wr)
+            });
+          }
+
+          // Transmittal Action
+          const pendingTrans = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'transmittal' && r.status === 'pending')[0];
+          if (Auth.can('transmittal:edit')) {
+            actions.push({ text: 'Generate Transmittal', class: 'btn btn-secondary btn-xs', handler: () => this.openGenerateTransmittalModal(wr, t) });
+          } else if (Auth.can('transmittal:request')) {
+            actions.push({
+              text: pendingTrans ? 'Transmittal Requested' : 'Request Transmittal',
+              class: 'btn btn-secondary btn-xs',
+              disabled: !!pendingTrans,
+              handler: () => this.submitOperationsRequest('transmittal', wr)
+            });
+          }
 
           actions.forEach(a => {
-            const btn = el('button', { type: 'button', class: a.class, text: a.text, style: 'flex: 1; min-width: 120px;' });
+            const btnAttrs = { type: 'button', class: a.class, text: a.text, style: 'flex: 1; min-width: 120px;' };
+            if (a.disabled) btnAttrs.disabled = true;
+            const btn = el('button', btnAttrs);
             btn.addEventListener('click', (e) => { e.stopPropagation(); a.handler(); });
             actionsWrap.appendChild(btn);
           });
@@ -5153,17 +5261,6 @@ const Workflow = {
       });
       invCol.appendChild(invList);
     }
-
-    // Generate Billing button
-    const genBillingBtn = el('button', {
-      class: 'btn btn-primary btn-sm',
-      text: '+ Generate Billing',
-      style: 'margin-top: 12px; width: 100%;'
-    });
-    genBillingBtn.addEventListener('click', () => {
-      this.openGenerateBillingModal(wr);
-    });
-    invCol.appendChild(genBillingBtn);
 
     grid.appendChild(invCol);
 

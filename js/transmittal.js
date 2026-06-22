@@ -616,6 +616,19 @@ const Transmittal = {
       }
     }
 
+    // Fulfill pending operations request if any
+    if (record.workRequestId) {
+      const pendingReq = DB.getWhere('operationsRequests', r => r.workRequestId === record.workRequestId && r.type === 'transmittal' && r.status === 'pending')[0];
+      if (pendingReq) {
+        DB.update('operationsRequests', pendingReq.id, {
+          status: 'fulfilled',
+          fulfilledBy: Auth.user.id,
+          fulfilledAt: new Date().toISOString(),
+          linkedRecordId: record.id
+        });
+      }
+    }
+
     this.view = 'list';
     this.detailId = null;
     App.handleRoute();

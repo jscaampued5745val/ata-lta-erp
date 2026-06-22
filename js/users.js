@@ -55,12 +55,28 @@ const Users = {
       pendingTab.addEventListener('click', () => { this.view = 'pending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
       tabs.appendChild(pendingTab);
     } else {
-      const myPendingTab = el('button', {
-        class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
-        text: 'My Pending Submissions'
+      const isOperations = Auth.user.role === 'Operations';
+      if (!isOperations) {
+        const myPendingTab = el('button', {
+          class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
+          text: 'My Pending Submissions'
+        });
+        myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+        tabs.appendChild(myPendingTab);
+      }
+      
+      const myRequestsTab = el('button', {
+        class: 'btn ' + (this.view === 'myRequests' ? 'btn-primary' : 'btn-secondary'),
+        text: 'My Requests'
       });
-      myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
-      tabs.appendChild(myPendingTab);
+      myRequestsTab.addEventListener('click', () => { this.view = 'myRequests'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+      tabs.appendChild(myRequestsTab);
+
+      if (isOperations && this.view !== 'myRequests') {
+        this.view = 'myRequests';
+      } else if (!isOperations && this.view !== 'myPending' && this.view !== 'myRequests') {
+        this.view = 'myPending';
+      }
     }
 
     container.appendChild(tabs);
@@ -73,9 +89,15 @@ const Users = {
       container.appendChild(this.renderPendingSection());
     } else if (this.view === 'myPending' && !canManageUsers) {
       container.appendChild(this.renderMyPendingSection());
+    } else if (this.view === 'myRequests' && !canManageUsers) {
+      container.appendChild(this.renderMyRequestsSection());
     } else if (!canManageUsers) {
-      this.view = 'myPending';
-      container.appendChild(this.renderMyPendingSection());
+      this.view = Auth.user.role === 'Operations' ? 'myRequests' : 'myPending';
+      if (this.view === 'myRequests') {
+        container.appendChild(this.renderMyRequestsSection());
+      } else {
+        container.appendChild(this.renderMyPendingSection());
+      }
     } else {
       container.appendChild(this.renderUsersSection());
     }
@@ -1109,6 +1131,73 @@ const Users = {
     }
 
     wrapper.appendChild(actions);
+    return wrapper;
+  },
+
+  renderMyRequestsSection() {
+    const wrapper = el('div');
+    const requests = DB.getWhere('operationsRequests', r => r.requestedBy === Auth.user.id);
+    
+    if (requests.length === 0) {
+      wrapper.appendChild(el('p', { text: 'No requests submitted yet.', class: 'empty-state' }));
+      return wrapper;
+    }
+
+    const table = el('table', { class: 'data-table' });
+    const thead = el('thead');
+    const thr = el('tr');
+    ['Request Type', 'Work Request', 'Client', 'Requested At', 'Status', 'Fulfill Info / Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
+    thead.appendChild(thr);
+    table.appendChild(thead);
+
+    const tbody = el('tbody');
+    requests.forEach(r => {
+      const tr = el('tr');
+      
+      const typeLabel = r.type === 'billing' ? 'Billing' : r.type === 'disbursement' ? 'Disbursement' : 'Transmittal';
+      tr.appendChild(el('td', { text: typeLabel }));
+      
+      const wr = DB.getById('workRequests', r.workRequestId);
+      tr.appendChild(el('td', { text: wr ? wr.title : '—' }));
+      
+      const client = DB.getById('clients', r.clientId);
+      tr.appendChild(el('td', { text: client ? client.name : '—' }));
+      
+      tr.appendChild(el('td', { text: formatDate(r.requestedAt) }));
+      
+      const st = r.status;
+      const badge = el('span', { 
+        class: 'badge', 
+        text: st,
+        style: `font-size: 11px; padding: 2px 6px; border-radius: var(--radius-sm); background: ${st === 'fulfilled' ? 'color-mix(in oklab, var(--success), transparent 88%)' : st === 'rejected' ? 'color-mix(in oklab, var(--danger), transparent 88%)' : 'color-mix(in oklab, var(--warn), transparent 88%)'}; color: ${st === 'fulfilled' ? 'var(--success)' : st === 'rejected' ? 'var(--danger)' : 'color-mix(in oklab, var(--warn), black 30%)'};`
+      });
+      const tdSt = el('td');
+      tdSt.appendChild(badge);
+      tr.appendChild(tdSt);
+
+      const tdAct = el('td');
+      if (st === 'pending') {
+        const cancelBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Cancel Request' });
+        cancelBtn.addEventListener('click', () => {
+          Workflow.showConfirm('Cancel Request', 'Are you sure you want to cancel this request?', () => {
+            DB.delete('operationsRequests', r.id);
+            App.handleRoute();
+          }, 'danger');
+        });
+        tdAct.appendChild(cancelBtn);
+      } else if (st === 'fulfilled') {
+        const fulfiller = DB.getById('users', r.fulfilledBy);
+        tdAct.textContent = `Fulfilled by ${fulfiller ? fulfiller.name : 'System'} on ${formatDate(r.fulfilledAt)}`;
+      } else if (st === 'rejected') {
+        tdAct.textContent = r.rejectionReason ? `Reason: ${r.rejectionReason}` : 'No reason provided';
+      }
+      tr.appendChild(tdAct);
+      
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+
     return wrapper;
   }
 };
