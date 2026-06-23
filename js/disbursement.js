@@ -596,6 +596,7 @@ const Disbursement = {
     const entity = Auth.activeEntity;
     const isNew = !this.detailId;
     const existing = this.detailId ? DB.getById('disbursements', this.detailId) : null;
+    const opReq = this.prefilledRequestId ? DB.getById('operationsRequests', this.prefilledRequestId) : null;
     const prefill = this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null;
 
     const container = el('div');
@@ -622,6 +623,7 @@ const Disbursement = {
     ['Transportation', 'Notary', 'Meals', 'Government Fee', 'Other'].forEach(c => {
       const opt = el('option', { value: c, text: c });
       if (existing && existing.category === c) opt.selected = true;
+      else if (!existing && opReq && opReq.category === c) opt.selected = true;
       catSel.appendChild(opt);
     });
     catGroup.appendChild(catSel);
@@ -629,12 +631,12 @@ const Disbursement = {
 
     const descGroup = el('div', { class: 'form-group' });
     descGroup.appendChild(el('label', { text: 'Description *' }));
-    descGroup.appendChild(el('input', { type: 'text', name: 'description', required: true, value: existing ? (existing.description || '') : '' }));
+    descGroup.appendChild(el('input', { type: 'text', name: 'description', required: true, value: existing ? (existing.description || '') : (opReq ? (opReq.notes || 'Operations Disbursement Request') : '') }));
     form.appendChild(descGroup);
 
     const amtGroup = el('div', { class: 'form-group' });
     amtGroup.appendChild(el('label', { text: 'Amount (₱) *' }));
-    amtGroup.appendChild(el('input', { type: 'number', name: 'amount', min: 0, step: 0.01, required: true, value: existing ? String(existing.amount) : '' }));
+    amtGroup.appendChild(el('input', { type: 'number', name: 'amount', min: 0, step: 0.01, required: true, value: existing ? String(existing.amount) : (opReq ? String(opReq.amount) : '') }));
     form.appendChild(amtGroup);
 
     const receiptGroup = el('div', { class: 'form-group' });
@@ -642,6 +644,8 @@ const Disbursement = {
     receiptGroup.appendChild(el('input', { type: 'file', name: 'receipt' }));
     if (existing && existing.receiptFilename) {
       receiptGroup.appendChild(el('p', { text: 'Current: ' + existing.receiptFilename, style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
+    } else if (!existing && opReq && opReq.receiptFilename) {
+      receiptGroup.appendChild(el('p', { text: 'Requested receipt: ' + opReq.receiptFilename, style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
     }
     form.appendChild(receiptGroup);
 
@@ -681,6 +685,7 @@ const Disbursement = {
         DB.getWhere('tasks', t => t.workRequestId === wrId).forEach(t => {
           const opt = el('option', { value: t.id, text: t.title });
           if (existing && existing.linkedTaskId === t.id) opt.selected = true;
+          else if (!existing && opReq && opReq.linkedTaskId === t.id) opt.selected = true;
           taskSel.appendChild(opt);
         });
       }

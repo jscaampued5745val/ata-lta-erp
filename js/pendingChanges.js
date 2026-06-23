@@ -14,10 +14,12 @@ const PendingChanges = {
   submit(table, record, isNew) {
     const role = Auth.user?.role;
     if (role === 'Admin' || role === 'Manager') {
+      const cleanRecord = { ...record };
+      delete cleanRecord.tasks;
       if (isNew) {
-        DB.insert(table, record);
+        DB.insert(table, cleanRecord);
       } else {
-        DB.update(table, record.id, record);
+        DB.update(table, cleanRecord.id, cleanRecord);
       }
       return { approved: true };
     }
@@ -58,10 +60,35 @@ const PendingChanges = {
     const pc = DB.getById('pendingChanges', pendingId);
     if (!pc || pc.status !== 'pending') return false;
 
-    if (pc.parentRecordId) {
-      DB.update(pc.table, pc.parentRecordId, pc.proposedData);
+    if (pc.table === 'workRequests') {
+      const record = deepClone(pc.proposedData);
+      const tasks = record.tasks || [];
+      delete record.tasks;
+
+      if (pc.parentRecordId) {
+        DB.update('workRequests', pc.parentRecordId, record);
+        // Clear existing tasks
+        const existing = DB.getWhere('tasks', t => t.workRequestId === pc.parentRecordId);
+        existing.forEach(t => DB.delete('tasks', t.id));
+        // Insert updated tasks
+        tasks.forEach(t => {
+          t.workRequestId = pc.parentRecordId;
+          DB.insert('tasks', t);
+        });
+      } else {
+        DB.insert('workRequests', record);
+        // Insert new tasks
+        tasks.forEach(t => {
+          t.workRequestId = record.id;
+          DB.insert('tasks', t);
+        });
+      }
     } else {
-      DB.insert(pc.table, pc.proposedData);
+      if (pc.parentRecordId) {
+        DB.update(pc.table, pc.parentRecordId, pc.proposedData);
+      } else {
+        DB.insert(pc.table, pc.proposedData);
+      }
     }
 
     // Back-linking logic upon approval
