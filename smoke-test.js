@@ -3,8 +3,8 @@ const { chromium } = require('playwright');
 const BASE = 'http://127.0.0.1:8888';
 const SEED_USERS = [
   { email: 'admin@ata-lta.ph', password: 'password123', role: 'Admin' },
-  { email: 'accounting-ata@ata-lta.ph', password: 'password123', role: 'Staff' },
-  { email: 'docs@ata-lta.ph', password: 'password123', role: 'Staff' }
+  { email: 'accounting-ata@ata-lta.ph', password: 'password123', role: 'Accounting' },
+  { email: 'docs@ata-lta.ph', password: 'password123', role: 'Documentation' }
 ];
 
 let results = [];
@@ -103,11 +103,16 @@ async function runTests() {
   const boardWiderThanViewport = boardBox ? boardBox.width > pageWidth + 2 : false;
   await log('Billing Board No-Scroll (#9)', !boardWiderThanViewport, `boardWidth=${boardBox?.width}, viewport=${pageWidth}`);
 
-  // ─── TEST 7: Billing PDF buttons exist ───────────────────────────
-  // In board view, click the first invoice card (cards are clickable divs with text)
   const firstCard = await page.$('text=ATA-SI-2025-001');
   if (firstCard) {
-    await firstCard.click();
+    await page.evaluate(el => {
+      const content = document.querySelector('.content');
+      const rect = el.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      content.scrollTop += (rect.top - (contentRect.top + 200));
+    }, firstCard);
+    await page.waitForTimeout(200);
+    await firstCard.click({ force: true });
     await page.waitForTimeout(800);
     const hasPrintInvoice = await page.isVisible('button:has-text("Print Invoice")');
     const hasPrintVoucherNH = await page.isVisible('button:has-text("Print Voucher (No Header)")');
@@ -150,24 +155,37 @@ async function runTests() {
   const opsBoardWide = opsBoardBox ? opsBoardBox.width > pageWidth + 2 : false;
   await log('Operations Board No-Scroll (#10)', !opsBoardWide, `boardWidth=${opsBoardBox?.width}`);
 
-  // ─── TEST 11: Operations Documentation staff sees all WRs ───────
+  // ─── TEST 11: Operations Documentation staff has restricted WR visibility ───────
   await logout();
   await loginAs(SEED_USERS[2]); // docs staff
   await page.goto(BASE + '/#operations');
   await page.waitForTimeout(800);
   const wrCards = await page.$$('.board-card, .data-table tbody tr, .list-item');
-  await log('Docs Staff WR Visibility (#16)', wrCards.length >= 2, `visible items=${wrCards.length}`);
+  // Documentation staff is now restricted to assigned WRs (0 in seed data)
+  await log('Docs Staff WR Visibility (#16)', wrCards.length === 0, `visible items=${wrCards.length}`);
 
   // ─── TEST 12: Inline task accordion panels exist ────────────────
+  // Log back in as Admin who has access to all WRs to verify task accordion panels
+  await logout();
+  await loginAs(SEED_USERS[0]);
+  await page.goto(BASE + '/#operations');
+  await page.waitForTimeout(800);
   const wrCard = await page.$('text=Annual Tax Filing 2025');
   if (wrCard) {
-    await wrCard.click();
+    await page.evaluate(el => {
+      const content = document.querySelector('.content');
+      const rect = el.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      content.scrollTop += (rect.top - (contentRect.top + 200));
+    }, wrCard);
+    await page.waitForTimeout(200);
+    await wrCard.click({ force: true });
     await page.waitForTimeout(800);
-    const expandRows = await page.$$('tr.task-expand');
+    const expandRows = await page.$$('.task-row');
     const accordions = await page.$$('.accordion-panel');
     const collapsedPanels = await page.$$('.accordion-panel.collapsed');
     await log('Task Accordion Panels (#15, #19)', expandRows.length > 0 && accordions.length >= 3, `expand rows=${expandRows.length}, accordion panels=${accordions.length}, collapsed=${collapsedPanels.length}`);
-    await page.click('button:has-text("← Back to List")');
+    await page.click('button:has-text("Back to Work Requests")');
   } else {
     await log('Task Accordion Panels (#15, #19)', false, 'no WR card found');
   }

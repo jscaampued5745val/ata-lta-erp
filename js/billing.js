@@ -119,19 +119,57 @@ const Billing = {
 
     // Actions bar
     const actions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-md);' });
-    const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
-    addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
-    actions.appendChild(addBtn);
-    const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
-    templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
-    actions.appendChild(templatesBtn);
+    if (Auth.can('billing:edit')) {
+      const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
+      actions.appendChild(addBtn);
+      const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
+      templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
+      actions.appendChild(templatesBtn);
+    }
     const agingBtn = el('button', { class: 'btn btn-secondary', text: 'Aging Report' });
     agingBtn.addEventListener('click', () => { this.view = 'aging'; App.handleRoute(); });
     actions.appendChild(agingBtn);
-    const trashBtn = el('button', { class: 'btn btn-secondary', text: 'Trash' });
-    trashBtn.addEventListener('click', () => { this.view = 'trash'; App.handleRoute(); });
-    actions.appendChild(trashBtn);
+    if (Auth.can('billing:edit')) {
+      const trashBtn = el('button', { class: 'btn btn-secondary', text: 'Trash' });
+      trashBtn.addEventListener('click', () => { this.view = 'trash'; App.handleRoute(); });
+      actions.appendChild(trashBtn);
+    }
     wrapper.appendChild(actions);
+
+    // Pending operations requests banner
+    if (Auth.can('billing:edit')) {
+      const pendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'billing');
+      if (pendingReqs.length > 0) {
+        const banner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);' });
+        const bannerTitle = el('div', { style: 'font-weight:600;color:#e65100;margin-bottom:var(--spacing-sm);font-size:0.95rem;' });
+        bannerTitle.textContent = `⚠ ${pendingReqs.length} Pending Invoice Request${pendingReqs.length > 1 ? 's' : ''} from Operations`;
+        banner.appendChild(bannerTitle);
+        pendingReqs.forEach(req => {
+          const row = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-xs) 0;border-bottom:1px solid #ffe082;' });
+          const client = DB.getById('clients', req.clientId);
+          const wr = DB.getById('workRequests', req.workRequestId);
+          const info = el('span', { style: 'font-size:0.875rem;color:#333;' });
+          info.textContent = `${client ? client.name : 'Unknown Client'} – ${wr ? wr.title : 'Unknown WR'} (requested by ${req.requestedBy || 'N/A'})`;
+          row.appendChild(info);
+          const fulfillBtn = el('button', { class: 'btn btn-primary', text: 'Fulfill', style: 'padding:2px 12px;font-size:0.8rem;' });
+          fulfillBtn.addEventListener('click', () => { Billing.view = 'form'; Billing.prefilledWrId = req.workRequestId; Billing.prefilledClientId = req.clientId; Billing.prefilledRequestId = req.id; App.handleRoute(); });
+          row.appendChild(fulfillBtn);
+          banner.appendChild(row);
+        });
+        wrapper.appendChild(banner);
+      }
+    } else if (Auth.can('billing:request')) {
+      const myPendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'billing' && r.requestedBy === Auth.user.name);
+      const reqBanner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);display:flex;align-items:center;justify-content:space-between;' });
+      const reqInfo = el('span', { style: 'font-size:0.9rem;color:#333;' });
+      reqInfo.textContent = myPendingReqs.length > 0 ? `You have ${myPendingReqs.length} pending invoice request${myPendingReqs.length > 1 ? 's' : ''}.` : 'Need an invoice created? Submit a request to Accounting.';
+      reqBanner.appendChild(reqInfo);
+      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Invoice from Accounting', style: 'white-space:nowrap;' });
+      reqBtn.addEventListener('click', () => { Billing.view = 'request'; App.handleRoute(); });
+      reqBanner.appendChild(reqBtn);
+      wrapper.appendChild(reqBanner);
+    }
 
     // Filters
     const filters = el('div', { class: 'filters-bar' });
@@ -146,7 +184,7 @@ const Billing = {
     }).forEach(wr => {
       wrFilter.appendChild(el('option', { value: wr.id, text: wr.title }));
     });
-    filters.appendChild(wrFilter);
+    filters.appendChild(wrapFilterFieldWithClear(wrFilter));
 
     const clientOptions = [{ value: '', text: 'All Clients' }];
     DB.getWhere('clients', c => {
@@ -171,22 +209,28 @@ const Billing = {
     }).forEach(u => {
       empOptions.push({ value: u.id, text: u.name });
     });
+    (DB.getAll('tasks') || []).forEach(t => {
+      const name = (t.assigneeName || '').trim();
+      if (name && !empOptions.some(opt => opt.value === name || opt.text === name)) {
+        empOptions.push({ value: name, text: name });
+      }
+    });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions });
     filters.appendChild(empFilter);
 
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
     const dateTo = el('input', { type: 'date', class: 'form-select' });
     filters.appendChild(el('span', { text: 'From', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
-    filters.appendChild(dateFrom);
+    filters.appendChild(wrapFilterFieldWithClear(dateFrom));
     filters.appendChild(el('span', { text: 'To', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
-    filters.appendChild(dateTo);
+    filters.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const statusFilter = el('select', { class: 'form-select' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Draft', 'Pending', 'Approved', 'Sent', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'].forEach(s => {
       statusFilter.appendChild(el('option', { value: s, text: s }));
     });
-    filters.appendChild(statusFilter);
+    filters.appendChild(wrapFilterFieldWithClear(statusFilter));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
@@ -257,8 +301,7 @@ const Billing = {
         const inv = pc.proposedData;
         const matchesEntity = (entity === 'ALL' ? Auth.user.entities.includes(inv.entity) : inv.entity === entity);
         if (!matchesEntity) return false;
-        const role = Auth.user?.role;
-        if (role !== 'Admin' && role !== 'Manager' && pc.submittedBy !== Auth.user?.id) return false;
+        if (!Auth.can('billing:approve') && pc.submittedBy !== Auth.user?.id) return false;
         return true;
       }).map(pc => {
         const inv = deepClone(pc.proposedData);
@@ -273,8 +316,34 @@ const Billing = {
         const wr = DB.getById('workRequests', inv.workRequestId);
         return wr && wr.id === wrFilter.value;
       });
-      if (clientFilter.value) invoices = invoices.filter(inv => inv.clientId === clientFilter.value);
-      if (empFilter.value) invoices = invoices.filter(inv => inv.createdBy === empFilter.value);
+      const selectedClient = clientFilter.value ? DB.getById('clients', clientFilter.value) : null;
+      if (selectedClient && selectedClient.name === clientFilter.searchText) {
+        invoices = invoices.filter(inv => inv.clientId === clientFilter.value);
+      } else if (clientFilter.searchText && clientFilter.searchText.trim() !== '') {
+        const query = clientFilter.searchText.trim().toLowerCase();
+        invoices = invoices.filter(inv => {
+          const client = DB.getById('clients', inv.clientId);
+          return client && client.name.toLowerCase().includes(query);
+        });
+      }
+      if (empFilter.searchText && empFilter.searchText.trim() !== '') {
+        const query = empFilter.searchText.trim().toLowerCase();
+        invoices = invoices.filter(inv => {
+          const creator = inv.createdBy ? DB.getById('users', inv.createdBy) : null;
+          if (creator && creator.name.toLowerCase().includes(query)) return true;
+          const tasks = inv.workRequestId ? DB.getWhere('tasks', t => t.workRequestId === inv.workRequestId) : [];
+          return tasks.some(t => {
+            if (t.assigneeId) {
+              const u = DB.getById('users', t.assigneeId);
+              if (u && u.name.toLowerCase().includes(query)) return true;
+            }
+            if (t.assigneeName && t.assigneeName.toLowerCase().includes(query)) return true;
+            return false;
+          });
+        });
+      } else if (empFilter.value) {
+        invoices = invoices.filter(inv => inv.createdBy === empFilter.value);
+      }
       if (dateFrom.value) invoices = invoices.filter(inv => inv.issueDate >= dateFrom.value);
       if (dateTo.value) invoices = invoices.filter(inv => inv.issueDate <= dateTo.value);
       if (statusFilter.value) invoices = invoices.filter(inv => inv.status === statusFilter.value);
@@ -285,6 +354,7 @@ const Billing = {
     };
 
     [wrFilter, clientFilter, empFilter, dateFrom, dateTo, statusFilter].forEach(el => el.addEventListener('change', () => { saveCurrentFilters(); refresh(); }));
+    [empFilter, clientFilter].forEach(el => el.addEventListener('input', () => { saveCurrentFilters(); refresh(); }));
     refresh();
 
     return wrapper;
@@ -366,10 +436,7 @@ const Billing = {
       return;
     }
     const board = el('div', { class: 'board-v2' });
-    let statuses = ['Draft', 'Pending', 'Approved', 'Sent', 'Partially Paid', 'Paid', 'Overdue'];
-    if (Auth.user?.role === 'Admin') {
-      statuses = ['Approved', 'Sent', 'Partially Paid', 'Paid', 'Overdue'];
-    }
+    const statuses = ['Draft', 'Pending', 'Approved', 'Sent', 'Partially Paid', 'Paid', 'Overdue'];
     const statusColors = {
       'Draft': '#94a3b8',
       'Pending': '#f59e0b',
@@ -383,8 +450,8 @@ const Billing = {
     statuses.forEach(st => {
       const colColor = statusColors[st] || '#cbd5e1';
       const col = el('div', { class: 'board-column-v2' });
-      col.style.borderTop = `4px solid ${colColor}`;
-      
+      col.style.setProperty('--column-phase-color', colColor);
+
       const header = el('div', { class: 'board-column-header-v2' });
       header.appendChild(el('div', { class: 'board-column-title', text: st }));
       col.appendChild(header);
@@ -559,9 +626,15 @@ const Billing = {
   // Create / Edit Form
   // ============================================================
   renderForm() {
+    if (!Auth.can('billing:edit')) {
+      this.view = 'list';
+      App.handleRoute();
+      return el('div');
+    }
+
     const entity = Auth.activeEntity;
     const inv = this.detailId ? this.getInvoiceById(this.detailId) : null;
-    const prefill = this.pendingPrefill;
+    const prefill = this.pendingPrefill || (this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null);
     this.pendingPrefill = null; // consume once
     const container = el('div');
 
@@ -582,7 +655,9 @@ const Billing = {
     // Client
     const clientGroup = el('div', { class: 'form-group' });
     clientGroup.appendChild(el('label', { text: 'Client *' }));
-    const clientSel = el('select', { name: 'clientId', required: true });
+    const clientSelAttrs = { name: 'clientId', required: true };
+    if (prefill) clientSelAttrs.disabled = true;
+    const clientSel = el('select', clientSelAttrs);
     clientSel.appendChild(el('option', { value: '', text: '— Select Client —' }));
     DB.getWhere('clients', c => c.entity === entity).forEach(c => {
       const opt = el('option', { value: c.id, text: c.name });
@@ -591,12 +666,17 @@ const Billing = {
       clientSel.appendChild(opt);
     });
     clientGroup.appendChild(clientSel);
+    if (prefill) {
+      clientGroup.appendChild(el('input', { type: 'hidden', name: 'clientId', value: prefill.clientId }));
+    }
     form.appendChild(clientGroup);
 
     // Work Request link
     const wrGroup = el('div', { class: 'form-group' });
     wrGroup.appendChild(el('label', { text: 'Link to Work Request' }));
-    const wrSel = el('select', { name: 'workRequestId' });
+    const wrSelAttrs = { name: 'workRequestId' };
+    if (prefill) wrSelAttrs.disabled = true;
+    const wrSel = el('select', wrSelAttrs);
     wrSel.appendChild(el('option', { value: '', text: '— None —' }));
     DB.getWhere('workRequests', wr => wr.entity === entity).forEach(wr => {
       const opt = el('option', { value: wr.id, text: wr.title });
@@ -605,6 +685,9 @@ const Billing = {
       wrSel.appendChild(opt);
     });
     wrGroup.appendChild(wrSel);
+    if (prefill && prefill.workRequestId) {
+      wrGroup.appendChild(el('input', { type: 'hidden', name: 'workRequestId', value: prefill.workRequestId }));
+    }
     form.appendChild(wrGroup);
 
     // Task link (Dynamic based on WR)
@@ -860,6 +943,20 @@ const Billing = {
       );
     }
 
+    // Fulfill pending operations request if any
+    const reqId = this.prefilledRequestId || (data.workRequestId ? DB.getWhere('operationsRequests', r => r.workRequestId === data.workRequestId && r.type === 'billing' && r.status === 'pending')[0]?.id : null);
+    if (reqId) {
+      DB.update('operationsRequests', reqId, {
+        status: 'fulfilled',
+        fulfilledBy: Auth.user.id,
+        fulfilledAt: new Date().toISOString(),
+        linkedRecordId: record.id
+      });
+    }
+    this.prefilledRequestId = null;
+    this.prefilledWrId = null;
+    this.prefilledClientId = null;
+
     this.view = 'list';
     this.detailId = null;
     App.handleRoute();
@@ -1041,7 +1138,7 @@ const Billing = {
     }
 
     // Payment recording
-    if (inv.status !== 'Paid' && inv.status !== 'Cancelled' && inv.status !== 'Pending') {
+    if (Auth.can('billing:edit') && inv.status !== 'Paid' && inv.status !== 'Cancelled' && inv.status !== 'Pending') {
       const paySection = el('div', { class: 'form-section' });
       paySection.appendChild(el('h3', { text: 'Record Payment' }));
       const payForm = el('form', { class: 'form-stacked' });
@@ -1196,25 +1293,27 @@ const Billing = {
 
     // Status actions
     const actions = el('div', { class: 'form-actions' });
-    const role = Auth.user?.role;
-    const isAdminOrManager = role === 'Admin' || role === 'Manager';
+    const canApprove = Auth.can('billing:approve');
+    const canEdit = Auth.can('billing:edit');
     
     if (inv.status === 'Draft') {
-      const editBtn = el('button', { class: 'btn btn-secondary', text: 'Edit Invoice', style: 'margin-right:8px;' });
-      editBtn.addEventListener('click', () => {
-        this.view = 'form';
-        this.detailId = inv.id;
-        App.handleRoute();
-      });
-      actions.appendChild(editBtn);
+      if (canEdit) {
+        const editBtn = el('button', { class: 'btn btn-secondary', text: 'Edit Invoice', style: 'margin-right:8px;' });
+        editBtn.addEventListener('click', () => {
+          this.view = 'form';
+          this.detailId = inv.id;
+          App.handleRoute();
+        });
+        actions.appendChild(editBtn);
 
-      const trashBtn = el('button', { class: 'btn btn-danger', text: 'Trash', style: 'margin-right:8px;' });
-      trashBtn.addEventListener('click', () => {
-        this.trashInvoice(inv.id);
-      });
-      actions.appendChild(trashBtn);
+        const trashBtn = el('button', { class: 'btn btn-danger', text: 'Trash', style: 'margin-right:8px;' });
+        trashBtn.addEventListener('click', () => {
+          this.trashInvoice(inv.id);
+        });
+        actions.appendChild(trashBtn);
+      }
 
-      if (isAdminOrManager) {
+      if (canApprove) {
         const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve' });
         approveBtn.addEventListener('click', () => {
           DB.update('invoices', inv.id, { status: 'Approved', updatedAt: new Date().toISOString() });
@@ -1228,7 +1327,7 @@ const Billing = {
           App.handleRoute();
         });
         actions.appendChild(approveBtn);
-      } else {
+      } else if (canEdit) {
         const sendBtn = el('button', { class: 'btn btn-primary', text: 'Send for Approval' });
         sendBtn.addEventListener('click', () => {
           // Set local status to Pending
@@ -1241,7 +1340,7 @@ const Billing = {
         });
         actions.appendChild(sendBtn);
       }
-    } else if (inv.status === 'Approved') {
+    } else if (inv.status === 'Approved' && canEdit) {
       const sentBtn = el('button', { class: 'btn btn-primary', text: 'Mark as Sent' });
       sentBtn.addEventListener('click', () => {
         DB.update('invoices', inv.id, { status: 'Sent', updatedAt: new Date().toISOString() });

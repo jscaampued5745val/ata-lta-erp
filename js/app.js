@@ -24,19 +24,57 @@ const App = {
     
     this.handleRoute();
     this.updateSidebarNotifications();
+    this.setupStickyTrayResize();
+  },
+
+  updateStickyTrayOffset() {
+    const content = document.getElementById('content');
+    if (!content) return;
+    const tray = content.querySelector('.filters-bar, .task-view-toolbar');
+
+    const setHeight = (el) => {
+      const height = el ? el.getBoundingClientRect().height : 0;
+      content.style.setProperty('--sticky-tray-height', `${height}px`);
+    };
+
+    if (typeof ResizeObserver !== 'undefined') {
+      if (!this._trayObserver) {
+        this._trayObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) setHeight(entry.target);
+        });
+      }
+      if (this._trayTarget && this._trayTarget !== tray) {
+        this._trayObserver.unobserve(this._trayTarget);
+      }
+      if (tray) {
+        this._trayObserver.observe(tray);
+        this._trayTarget = tray;
+      } else {
+        this._trayTarget = null;
+      }
+    }
+
+    setHeight(tray);
+  },
+
+  setupStickyTrayResize() {
+    let raf = 0;
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => this.updateStickyTrayOffset());
+    });
   },
 
   updateSidebarNotifications() {
-    const role = Auth.user.role;
-    const isAdmin = role === 'Admin';
+    const canApprove = Auth.can('disbursement:approve');
     const entity = Auth.activeEntity;
 
     const items = DB.getWhere('disbursements', d => d.entity === entity);
     let count = 0;
 
     items.forEach(d => {
-      // Admin sees count of submissions awaiting their approval
-      if (isAdmin && (d.status === 'Submitted' || d.status === 'Under Review')) {
+      // Users with disbursement:approve permission see count of submissions awaiting approval
+      if (canApprove && (d.status === 'Submitted' || d.status === 'Under Review')) {
         count++;
       }
       // Handlers see count of disbursements awaiting their final release
@@ -61,7 +99,7 @@ const App = {
     }
 
     // Also badge the Admin nav link for pending changes and disbursement submissions
-    if (isAdmin) {
+    if (canApprove) {
       const pendingChanges = (typeof PendingChanges !== 'undefined' && typeof PendingChanges.getAllPending === 'function') ? PendingChanges.getAllPending() : [];
       const adminCount = count + pendingChanges.length;
       const adminNav = document.querySelector('nav a[href="#admin"]');
@@ -77,6 +115,46 @@ const App = {
         } else if (adminBadge) {
           adminBadge.remove();
         }
+      }
+    }
+
+    // Badge Billing nav for pending billing operations requests
+    const billingReqRole = Auth.user?.role;
+    if (billingReqRole === 'Accounting' || billingReqRole === 'Admin' || billingReqRole === 'Manager') {
+      const billingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'billing');
+      const billingNav = document.querySelector('nav a[href="#billing"]');
+      if (billingNav) {
+        let bBadge = billingNav.querySelector('.nav-badge');
+        if (billingReqs.length > 0) {
+          if (!bBadge) { bBadge = document.createElement('span'); bBadge.className = 'nav-badge'; billingNav.appendChild(bBadge); }
+          bBadge.textContent = billingReqs.length > 99 ? '99+' : billingReqs.length;
+        } else if (bBadge) { bBadge.remove(); }
+      }
+    }
+
+    // Badge Disbursement nav for pending disbursement operations requests
+    if (billingReqRole === 'Accounting' || billingReqRole === 'Admin' || billingReqRole === 'Manager') {
+      const disbReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'disbursement');
+      const disbNav = document.querySelector('nav a[href="#disbursement"]');
+      if (disbNav) {
+        let dBadge = disbNav.querySelector('.nav-badge');
+        if (disbReqs.length > 0) {
+          if (!dBadge) { dBadge = document.createElement('span'); dBadge.className = 'nav-badge'; disbNav.appendChild(dBadge); }
+          dBadge.textContent = disbReqs.length > 99 ? '99+' : disbReqs.length;
+        } else if (dBadge) { dBadge.remove(); }
+      }
+    }
+
+    // Badge Transmittal nav for pending transmittal operations requests
+    if (billingReqRole === 'Documentation' || billingReqRole === 'Admin' || billingReqRole === 'Manager') {
+      const transReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'transmittal');
+      const transNav = document.querySelector('nav a[href="#transmittal"]');
+      if (transNav) {
+        let tBadge = transNav.querySelector('.nav-badge');
+        if (transReqs.length > 0) {
+          if (!tBadge) { tBadge = document.createElement('span'); tBadge.className = 'nav-badge'; transNav.appendChild(tBadge); }
+          tBadge.textContent = transReqs.length > 99 ? '99+' : transReqs.length;
+        } else if (tBadge) { tBadge.remove(); }
       }
     }
   },
@@ -96,17 +174,26 @@ const App = {
     }
     this.renderEntitySwitcher();
 
-    // Hide Admin nav link for non-Admin users
+    // Configure Admin / My Submissions nav link dynamically based on role/permissions
     const adminNav = document.querySelector('nav a[href="#admin"]');
     if (adminNav) {
-      adminNav.parentElement.style.display = Auth.user.role === 'Admin' ? '' : 'none';
+      const canManageUsers = Auth.can('users:view');
+      const labelEl = adminNav.querySelector('.nav-link-text');
+      if (canManageUsers) {
+        adminNav.parentElement.style.display = '';
+        if (labelEl) labelEl.textContent = 'Admin';
+      } else {
+        // Staff-level user: show as "My Submissions"
+        adminNav.parentElement.style.display = '';
+        if (labelEl) labelEl.textContent = 'My Submissions';
+      }
     }
 
     // Hide Reports nav link for non-Managerial users
     const reportsNav = document.querySelector('nav a[href="#reports"]');
     if (reportsNav) {
-      const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
-      reportsNav.parentElement.style.display = isManagerial ? '' : 'none';
+      const canViewReports = Auth.can('reports:view');
+      reportsNav.parentElement.style.display = canViewReports ? '' : 'none';
     }
   },
 
@@ -114,7 +201,7 @@ const App = {
     const sel = document.getElementById('entity-switcher');
     sel.innerHTML = '';
     
-    if (Auth.user.entities.length > 1 && (Auth.user.role === 'Admin' || Auth.user.role === 'Manager')) {
+    if (Auth.user.entities.length > 1 && Auth.isManagerial()) {
       const opt = document.createElement('option');
       opt.value = 'ALL';
       opt.textContent = 'Consolidated View';
@@ -213,6 +300,7 @@ const App = {
   },
 
   handleRoute() {
+    if (window.SidePaneInstance) window.SidePaneInstance.close();
     const hash = location.hash || '#dashboard';
     const moduleMap = {
       '#dashboard': Dashboard,
@@ -226,7 +314,7 @@ const App = {
     };
 
     // RBAC: Restricted modules
-    if (hash === '#reports' && (Auth.user.role !== 'Admin' && Auth.user.role !== 'Manager')) {
+    if (hash === '#reports' && !Auth.can('reports:view')) {
        location.hash = '#dashboard';
        return;
     }
@@ -247,6 +335,7 @@ const App = {
       this.highlightNav(hash);
       this.updateEntityBadge();
       this.updateSidebarNotifications();
+      requestAnimationFrame(() => this.updateStickyTrayOffset());
     }
   },
 

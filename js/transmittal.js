@@ -32,7 +32,14 @@ const Transmittal = {
     }
 
     if (this.view === 'list') container.appendChild(this.renderList());
-    else if (this.view === 'form') container.appendChild(this.renderForm());
+    else if (this.view === 'form') {
+      if (!Auth.can('transmittal:edit')) {
+        this.view = 'list';
+        container.appendChild(this.renderList());
+      } else {
+        container.appendChild(this.renderForm());
+      }
+    }
     else if (this.view === 'detail') container.appendChild(this.renderDetail());
 
     return container;
@@ -82,12 +89,48 @@ const Transmittal = {
     const entity = Auth.activeEntity;
 
     const actions = el('div', { class: 'actions-bar' });
-    const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Transmittal' });
-    addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
-    actions.appendChild(addBtn);
+    if (Auth.can('transmittal:edit')) {
+      const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Transmittal' });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
+      actions.appendChild(addBtn);
+    }
 
     const wrapper = el('div');
     wrapper.appendChild(actions);
+
+    // Pending operations requests banner
+    if (Auth.can('transmittal:edit')) {
+      const pendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'transmittal');
+      if (pendingReqs.length > 0) {
+        const banner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);' });
+        const bannerTitle = el('div', { style: 'font-weight:600;color:#e65100;margin-bottom:var(--spacing-sm);font-size:0.95rem;' });
+        bannerTitle.textContent = `⚠ ${pendingReqs.length} Pending Transmittal Request${pendingReqs.length > 1 ? 's' : ''} from Operations`;
+        banner.appendChild(bannerTitle);
+        pendingReqs.forEach(req => {
+          const row = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-xs) 0;border-bottom:1px solid #ffe082;' });
+          const client = DB.getById('clients', req.clientId);
+          const wr = DB.getById('workRequests', req.workRequestId);
+          const info = el('span', { style: 'font-size:0.875rem;color:#333;' });
+          info.textContent = `${client ? client.name : 'Unknown Client'} – ${wr ? wr.title : 'Unknown WR'} (requested by ${req.requestedBy || 'N/A'})`;
+          row.appendChild(info);
+          const fulfillBtn = el('button', { class: 'btn btn-primary', text: 'Fulfill', style: 'padding:2px 12px;font-size:0.8rem;' });
+          fulfillBtn.addEventListener('click', () => { Transmittal.view = 'form'; Transmittal.prefilledWrId = req.workRequestId; Transmittal.prefilledClientId = req.clientId; Transmittal.prefilledRequestId = req.id; App.handleRoute(); });
+          row.appendChild(fulfillBtn);
+          banner.appendChild(row);
+        });
+        wrapper.appendChild(banner);
+      }
+    } else if (Auth.can('transmittal:request')) {
+      const myPendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'transmittal' && r.requestedBy === Auth.user.name);
+      const reqBanner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);display:flex;align-items:center;justify-content:space-between;' });
+      const reqInfo = el('span', { style: 'font-size:0.9rem;color:#333;' });
+      reqInfo.textContent = myPendingReqs.length > 0 ? `You have ${myPendingReqs.length} pending transmittal request${myPendingReqs.length > 1 ? 's' : ''}.` : 'Need a transmittal created? Submit a request to Documentation.';
+      reqBanner.appendChild(reqInfo);
+      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Transmittal from Documentation', style: 'white-space:nowrap;' });
+      reqBtn.addEventListener('click', () => { Transmittal.showRequestTransmittalModal(); });
+      reqBanner.appendChild(reqBtn);
+      wrapper.appendChild(reqBanner);
+    }
 
     // Filters bar
     const filtersBar = el('div', { class: 'filters-bar' });
@@ -103,7 +146,7 @@ const Transmittal = {
     }).forEach(wr => {
       wrFilter.appendChild(el('option', { value: wr.id, text: wr.title }));
     });
-    filtersBar.appendChild(wrFilter);
+    filtersBar.appendChild(wrapFilterFieldWithClear(wrFilter));
 
     const clientOptions = [{ value: '', text: 'All Clients' }];
     DB.getWhere('clients', c => {
@@ -128,20 +171,26 @@ const Transmittal = {
     }).forEach(u => {
       empOptions.push({ value: u.id, text: u.name });
     });
+    (DB.getAll('tasks') || []).forEach(t => {
+      const name = (t.assigneeName || '').trim();
+      if (name && !empOptions.some(opt => opt.value === name || opt.text === name)) {
+        empOptions.push({ value: name, text: name });
+      }
+    });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions, maxWidth: '200px' });
     filtersBar.appendChild(empFilter);
 
     const statusFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Draft', 'Sent', 'Acknowledged'].forEach(s => statusFilter.appendChild(el('option', { value: s, text: s })));
-    filtersBar.appendChild(statusFilter);
+    filtersBar.appendChild(wrapFilterFieldWithClear(statusFilter));
 
-    const dateFrom = el('input', { type: 'date', class: 'form-select', style: 'max-width:140px' });
-    const dateTo = el('input', { type: 'date', class: 'form-select', style: 'max-width:140px' });
+    const dateFrom = el('input', { type: 'date', class: 'form-select' });
+    const dateTo = el('input', { type: 'date', class: 'form-select' });
     filtersBar.appendChild(el('span', { text: 'From:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(dateFrom);
+    filtersBar.appendChild(wrapFilterFieldWithClear(dateFrom));
     filtersBar.appendChild(el('span', { text: 'To:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(dateTo);
+    filtersBar.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
@@ -200,22 +249,47 @@ const Transmittal = {
     const listContainer = el('div');
     wrapper.appendChild(listContainer);
 
-    const updateFilters = () => this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, statusFilter.value, dateFrom.value, dateTo.value);
+    const updateFilters = () => this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, statusFilter.value, dateFrom.value, dateTo.value, empFilter.searchText, clientFilter.searchText);
     [wrFilter, clientFilter, empFilter, statusFilter, dateFrom, dateTo].forEach(f => f.addEventListener('change', () => { saveCurrentFilters(); updateFilters(); }));
+    [empFilter, clientFilter].forEach(el => el.addEventListener('input', () => { saveCurrentFilters(); updateFilters(); }));
 
-    this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, statusFilter.value, dateFrom.value, dateTo.value);
+    this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, statusFilter.value, dateFrom.value, dateTo.value, empFilter.searchText, clientFilter.searchText);
     return wrapper;
   },
 
-  refreshList(container, wrFilter, clientFilter, empFilter, statusFilter, dateFrom, dateTo) {
+  refreshList(container, wrFilter, clientFilter, empFilter, statusFilter, dateFrom, dateTo, empSearchText, clientSearchText) {
     while (container.firstChild) container.removeChild(container.firstChild);
     const entity = Auth.activeEntity;
 
     let items = DB.getWhere('transmittals', t => (entity === 'ALL' ? Auth.user.entities.includes(t.entity) : t.entity === entity));
 
     if (wrFilter) items = items.filter(t => t.workRequestId === wrFilter);
-    if (clientFilter) items = items.filter(t => t.clientId === clientFilter);
-    if (empFilter) items = items.filter(t => t.createdBy === empFilter || t.sentBy === empFilter || t.acknowledgedBy === empFilter);
+    if (clientFilter || (clientSearchText && clientSearchText.trim() !== '')) {
+      const selectedClient = clientFilter ? DB.getById('clients', clientFilter) : null;
+      if (selectedClient && selectedClient.name === clientSearchText) {
+        items = items.filter(t => t.clientId === clientFilter);
+      } else if (clientSearchText && clientSearchText.trim() !== '') {
+        const query = clientSearchText.trim().toLowerCase();
+        items = items.filter(t => {
+          const client = DB.getById('clients', t.clientId);
+          return client && client.name.toLowerCase().includes(query);
+        });
+      }
+    }
+
+    if (empSearchText && empSearchText.trim() !== '') {
+      const query = empSearchText.trim().toLowerCase();
+      items = items.filter(t => {
+        const creator = t.createdBy ? DB.getById('users', t.createdBy) : null;
+        const sender = t.sentBy ? DB.getById('users', t.sentBy) : null;
+        const acknowledger = t.acknowledgedBy ? DB.getById('users', t.acknowledgedBy) : null;
+        return (creator && creator.name.toLowerCase().includes(query)) ||
+               (sender && sender.name.toLowerCase().includes(query)) ||
+               (acknowledger && acknowledger.name.toLowerCase().includes(query));
+      });
+    } else if (empFilter) {
+      items = items.filter(t => t.createdBy === empFilter || t.sentBy === empFilter || t.acknowledgedBy === empFilter);
+    }
     if (statusFilter) items = items.filter(t => t.status === statusFilter);
     if (dateFrom) {
       const fromTime = new Date(dateFrom).getTime();
@@ -298,8 +372,8 @@ const Transmittal = {
     statuses.forEach(st => {
       const colColor = statusColors[st] || '#cbd5e1';
       const col = el('div', { class: 'board-column-v2' });
-      col.style.borderTop = `4px solid ${colColor}`;
-      
+      col.style.setProperty('--column-phase-color', colColor);
+
       const header = el('div', { class: 'board-column-header-v2' });
       header.appendChild(el('div', { class: 'board-column-title', text: st }));
       col.appendChild(header);
@@ -395,6 +469,7 @@ const Transmittal = {
     DB.getWhere('workRequests', wr => wr.entity === entity).forEach(wr => {
       const opt = el('option', { value: wr.id, text: wr.title });
       if (existing && existing.workRequestId === wr.id) opt.selected = true;
+      else if (!existing && this.prefilledWrId && this.prefilledWrId === wr.id) opt.selected = true;
       wrSel.appendChild(opt);
     });
     wrGroup.appendChild(wrSel);
@@ -403,9 +478,10 @@ const Transmittal = {
     // Client display (auto-populated from WR)
     const clientGroup = el('div', { class: 'form-group' });
     clientGroup.appendChild(el('label', { text: 'Client' }));
-    const clientDisplay = el('input', { type: 'text', name: 'clientDisplay', disabled: true, value: existing ? this.getClientName(existing.clientId) : '' });
+    const prefilledClient = this.prefilledClientId ? this.getClientName(this.prefilledClientId) : '';
+    const clientDisplay = el('input', { type: 'text', name: 'clientDisplay', disabled: true, value: existing ? this.getClientName(existing.clientId) : prefilledClient });
     clientGroup.appendChild(clientDisplay);
-    const clientIdInput = el('input', { type: 'hidden', name: 'clientId', value: existing ? existing.clientId : '' });
+    const clientIdInput = el('input', { type: 'hidden', name: 'clientId', value: existing ? existing.clientId : (this.prefilledClientId || '') });
     clientGroup.appendChild(clientIdInput);
     form.appendChild(clientGroup);
 
@@ -585,6 +661,20 @@ const Transmittal = {
       }
     }
 
+    // Fulfill pending operations request if any
+    const reqId = this.prefilledRequestId || (record.workRequestId ? DB.getWhere('operationsRequests', r => r.workRequestId === record.workRequestId && r.type === 'transmittal' && r.status === 'pending')[0]?.id : null);
+    if (reqId) {
+      DB.update('operationsRequests', reqId, {
+        status: 'fulfilled',
+        fulfilledBy: Auth.user.id,
+        fulfilledAt: new Date().toISOString(),
+        linkedRecordId: record.id
+      });
+    }
+    this.prefilledRequestId = null;
+    this.prefilledWrId = null;
+    this.prefilledClientId = null;
+
     this.view = 'list';
     this.detailId = null;
     App.handleRoute();
@@ -593,6 +683,65 @@ const Transmittal = {
   // ============================================================
   // Detail View
   // ============================================================
+  showRequestTransmittalModal() {
+    const entity = Auth.activeEntity;
+    const wrs = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      return wrEnt === entity.toUpperCase();
+    });
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
+    const selectGroup = el('div', { class: 'form-group' });
+    selectGroup.appendChild(el('label', { text: 'Select Work Request *' }));
+    const wrSelect = el('select', { class: 'form-select', style: 'width:100%;' });
+    wrSelect.appendChild(el('option', { value: '', text: '— Select —' }));
+    wrs.forEach(wr => {
+      const client = DB.getById('clients', wr.clientId);
+      const pending = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'transmittal' && r.status === 'pending');
+      if (pending.length === 0) {
+        wrSelect.appendChild(el('option', { value: wr.id, text: `${wr.title} — ${client?.name || '—'}` }));
+      }
+    });
+    selectGroup.appendChild(wrSelect);
+    wrapper.appendChild(selectGroup);
+
+    const notesGroup = el('div', { class: 'form-group' });
+    notesGroup.appendChild(el('label', { text: 'Additional Notes (Optional)' }));
+    notesGroup.appendChild(el('textarea', { id: 'trans-opreq-notes', class: 'form-control', style: 'width: 100%; min-height: 80px;', placeholder: 'Provide any details for Documentation staff...' }));
+    wrapper.appendChild(notesGroup);
+
+    wrapper.appendChild(el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' }, [
+      el('button', { id: 'btn-cancel-trans-opreq', class: 'btn btn-ghost', text: 'Cancel' }),
+      el('button', { id: 'btn-save-trans-opreq', class: 'btn btn-primary', text: 'Submit Request' })
+    ]));
+
+    const overlay = Workflow.showModal('Request Transmittal', wrapper);
+
+    overlay.querySelector('#btn-cancel-trans-opreq').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#btn-save-trans-opreq').addEventListener('click', () => {
+      const wrId = wrSelect.value;
+      if (!wrId) { alert('Please select a work request.'); return; }
+      const wr = DB.getById('workRequests', wrId);
+      const notes = overlay.querySelector('#trans-opreq-notes').value.trim();
+      const record = {
+        id: generateId('opreq'),
+        type: 'transmittal',
+        workRequestId: wrId,
+        clientId: wr.clientId,
+        requestedBy: Auth.user.id,
+        requestedAt: new Date().toISOString(),
+        status: 'pending',
+        rejectionReason: '',
+        notes
+      };
+      DB.insert('operationsRequests', record);
+      overlay.remove();
+      Workflow.showMessage('Request Submitted', 'Your transmittal request has been submitted to Documentation for review.', 'success');
+      App.handleRoute();
+    });
+  },
+
   renderDetail() {
     const t = DB.getById('transmittals', this.detailId);
     if (!t) { this.view = 'list'; App.handleRoute(); return el('div'); }
@@ -641,52 +790,54 @@ const Transmittal = {
     // Actions
     const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border); padding-top: var(--spacing-lg);' });
 
-    if (t.status === 'Draft') {
-      const sendBtn = el('button', { class: 'btn btn-primary', text: 'Mark as Sent' });
-      sendBtn.addEventListener('click', () => {
-        Workflow.showConfirm('Confirm Sent', 'Are you sure you want to mark this transmittal as sent?', () => {
+    if (Auth.can('transmittal:edit')) {
+      if (t.status === 'Draft') {
+        const sendBtn = el('button', { class: 'btn btn-primary', text: 'Mark as Sent' });
+        sendBtn.addEventListener('click', () => {
+          Workflow.showConfirm('Confirm Sent', 'Are you sure you want to mark this transmittal as sent?', () => {
+            DB.update('transmittals', t.id, {
+              status: 'Sent',
+              sentAt: new Date().toISOString(),
+              sentBy: Auth.user.id
+            });
+            App.handleRoute();
+          }, 'success');
+        });
+        actions.appendChild(sendBtn);
+      } else if (t.status === 'Sent') {
+        const ackSection = el('div', { class: 'form-section' });
+        ackSection.appendChild(el('h4', { text: 'Acknowledgment' }));
+        const ackForm = el('form', { class: 'form-stacked' });
+
+        const nameGroup = el('div', { class: 'form-group' });
+        nameGroup.appendChild(el('label', { text: 'Received By (Name) *' }));
+        nameGroup.appendChild(el('input', { type: 'text', name: 'receivedBy', required: true }));
+        ackForm.appendChild(nameGroup);
+
+        const dateGroup = el('div', { class: 'form-group' });
+        dateGroup.appendChild(el('label', { text: 'Received Date *' }));
+        dateGroup.appendChild(el('input', { type: 'date', name: 'receivedDate', required: true, value: new Date().toISOString().slice(0, 10) }));
+        ackForm.appendChild(dateGroup);
+
+        const ackBtn = el('button', { type: 'submit', class: 'btn btn-success', text: 'Mark as Acknowledged' });
+        ackForm.appendChild(ackBtn);
+
+        ackForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          if (!validateRequiredFields(ackForm)) return;
+          const fd = new FormData(ackForm);
           DB.update('transmittals', t.id, {
-            status: 'Sent',
-            sentAt: new Date().toISOString(),
-            sentBy: Auth.user.id
+            status: 'Acknowledged',
+            acknowledgedAt: fd.get('receivedDate'),
+            acknowledgedBy: Auth.user.id,
+            receivedByName: fd.get('receivedBy')
           });
           App.handleRoute();
-        }, 'success');
-      });
-      actions.appendChild(sendBtn);
-    } else if (t.status === 'Sent') {
-      const ackSection = el('div', { class: 'form-section' });
-      ackSection.appendChild(el('h4', { text: 'Acknowledgment' }));
-      const ackForm = el('form', { class: 'form-stacked' });
-
-      const nameGroup = el('div', { class: 'form-group' });
-      nameGroup.appendChild(el('label', { text: 'Received By (Name) *' }));
-      nameGroup.appendChild(el('input', { type: 'text', name: 'receivedBy', required: true }));
-      ackForm.appendChild(nameGroup);
-
-      const dateGroup = el('div', { class: 'form-group' });
-      dateGroup.appendChild(el('label', { text: 'Received Date *' }));
-      dateGroup.appendChild(el('input', { type: 'date', name: 'receivedDate', required: true, value: new Date().toISOString().slice(0, 10) }));
-      ackForm.appendChild(dateGroup);
-
-      const ackBtn = el('button', { type: 'submit', class: 'btn btn-success', text: 'Mark as Acknowledged' });
-      ackForm.appendChild(ackBtn);
-
-      ackForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (!validateRequiredFields(ackForm)) return;
-        const fd = new FormData(ackForm);
-        DB.update('transmittals', t.id, {
-          status: 'Acknowledged',
-          acknowledgedAt: fd.get('receivedDate'),
-          acknowledgedBy: Auth.user.id,
-          receivedByName: fd.get('receivedBy')
         });
-        App.handleRoute();
-      });
 
-      ackSection.appendChild(ackForm);
-      actions.appendChild(ackSection);
+        ackSection.appendChild(ackForm);
+        actions.appendChild(ackSection);
+      }
     }
 
     container.appendChild(actions);

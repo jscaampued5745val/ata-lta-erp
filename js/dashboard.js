@@ -54,6 +54,11 @@ const Dashboard = {
     // 4. Upcoming Widgets (Below KPI Cards)
     bento.appendChild(this.renderUpcomingDisbursementsCard('ALL'));
     bento.appendChild(this.renderWorkRequestsDueThisWeekCard('ALL'));
+
+    const canSeeReqsConsolidated = ['Admin', 'Manager', 'Accounting', 'Documentation'].includes(Auth.user?.role);
+    if (canSeeReqsConsolidated) {
+      bento.appendChild(this.renderPendingOperationsRequestsCard('ALL'));
+    }
     
     container.appendChild(bento);
 
@@ -92,6 +97,11 @@ const Dashboard = {
     // 4. Upcoming Widgets (Below KPI Cards)
     bento.appendChild(this.renderUpcomingDisbursementsCard(Auth.activeEntity));
     bento.appendChild(this.renderWorkRequestsDueThisWeekCard(Auth.activeEntity));
+
+    const canSeeReqsScoped = ['Admin', 'Manager', 'Accounting', 'Documentation'].includes(Auth.user?.role);
+    if (canSeeReqsScoped) {
+      bento.appendChild(this.renderPendingOperationsRequestsCard(Auth.activeEntity));
+    }
 
     container.appendChild(bento);
     return container;
@@ -1527,5 +1537,90 @@ const Dashboard = {
     row.appendChild(el('span', { class: 'detail-lbl', text: label }));
     row.appendChild(el('span', { class: 'detail-val', text: value }));
     return row;
+  },
+
+  renderPendingOperationsRequestsCard(entity) {
+    const card = el('div', { class: 'bento-item bento-half', style: 'max-height: 350px; overflow-y: auto;' });
+    card.appendChild(el('h3', { text: 'Pending Operations Requests', style: 'margin-bottom: var(--spacing-md); font-size: 1.125rem; font-weight: 600;' }));
+
+    let requests = DB.getWhere('operationsRequests', r => r.status === 'pending');
+    
+    if (entity && entity !== 'ALL') {
+      requests = requests.filter(r => {
+        const wr = DB.getById('workRequests', r.workRequestId);
+        return wr && wr.entity.toUpperCase() === entity.toUpperCase();
+      });
+    }
+
+    const role = Auth.user?.role;
+    if (role === 'Accounting') {
+      requests = requests.filter(r => r.type === 'billing' || r.type === 'disbursement');
+    } else if (role === 'Documentation') {
+      requests = requests.filter(r => r.type === 'transmittal');
+    } else if (role !== 'Admin' && role !== 'Manager') {
+      requests = [];
+    }
+
+    if (requests.length === 0) {
+      card.appendChild(el('p', { class: 'empty-state', text: 'No pending operations requests.', style: 'margin: auto;' }));
+    } else {
+      const list = el('div', { style: 'display: flex; flex-direction: column; gap: var(--spacing-sm);' });
+      requests.forEach(r => {
+        const wr = DB.getById('workRequests', r.workRequestId);
+        const wrTitle = wr ? wr.title : 'Unknown Work Request';
+        const client = DB.getById('clients', r.clientId);
+        const clientName = client ? client.name : 'Unknown Client';
+        
+        const typeLabel = r.type === 'billing' ? 'Billing' : r.type === 'disbursement' ? 'Disbursement' : 'Transmittal';
+        const typeIcon = r.type === 'billing' ? '📄' : r.type === 'disbursement' ? '💸' : '📦';
+
+        const item = el('div', { class: 'detail-item-v2', style: 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 8px; background: var(--color-bg);' });
+        const left = el('div', { style: 'display: flex; flex-direction: column; gap: 2px;' });
+        left.appendChild(el('span', { text: `${typeIcon} Request for ${typeLabel}`, style: 'font-weight: 600; font-size: 0.875rem;' }));
+        left.appendChild(el('span', { text: `WR: ${wrTitle} • Client: ${clientName}`, style: 'font-size: 0.75rem; color: var(--color-text-muted);' }));
+        if (r.notes) {
+          left.appendChild(el('span', { text: `Note: "${r.notes}"`, style: 'font-size: 0.75rem; font-style: italic; color: var(--color-text-muted); margin-top: 2px;' }));
+        }
+        item.appendChild(left);
+
+        const right = el('div', { style: 'display: flex; gap: 8px; align-items: center;' });
+        const fulfillBtn = el('button', { class: 'btn btn-primary btn-xs', text: 'Fulfill' });
+        fulfillBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.fulfillOperationsRequest(r);
+        });
+        right.appendChild(fulfillBtn);
+        item.appendChild(right);
+
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+    }
+
+    return card;
+  },
+
+  fulfillOperationsRequest(req) {
+    if (req.type === 'billing') {
+      Billing.view = 'form';
+      Billing.detailId = null;
+      Billing.prefilledWrId = req.workRequestId;
+      Billing.prefilledClientId = req.clientId;
+      Billing.prefilledRequestId = req.id;
+      location.hash = '#billing';
+    } else if (req.type === 'disbursement') {
+      Disbursement.view = 'form';
+      Disbursement.detailId = null;
+      Disbursement.prefilledWrId = req.workRequestId;
+      Disbursement.prefilledClientId = req.clientId;
+      Disbursement.prefilledRequestId = req.id;
+      location.hash = '#disbursement';
+    } else if (req.type === 'transmittal') {
+      Workflow.view = 'detail';
+      Workflow.detailWrId = req.workRequestId;
+      Workflow.prefilledTransmittalRequestId = req.id;
+      location.hash = '#operations';
+    }
+    App.handleRoute();
   }
 };

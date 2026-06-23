@@ -16,13 +16,13 @@ const Users = {
     container.appendChild(titleBar);
     this.updateBreadcrumb(h1);
 
-    const isAdmin = Auth.user.role === 'Admin';
+    const canManageUsers = Auth.can('users:view');
 
     // Tabs
     const tabs = el('div', { class: 'admin-tabs' });
     tabs.style.marginBottom = '20px'; // align layout nicely below breadcrumb
 
-    if (isAdmin) {
+    if (canManageUsers) {
       const usersTab = el('button', {
         class: 'btn ' + (this.view === 'users' ? 'btn-primary' : 'btn-secondary'),
         text: 'Users'
@@ -31,14 +31,16 @@ const Users = {
       tabs.appendChild(usersTab);
     }
 
-    const auditTab = el('button', {
-      class: 'btn ' + (this.view === 'audit' ? 'btn-primary' : 'btn-secondary'),
-      text: 'Audit Log'
-    });
-    auditTab.addEventListener('click', () => { this.view = 'audit'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
-    tabs.appendChild(auditTab);
+    if (canManageUsers) {
+      const auditTab = el('button', {
+        class: 'btn ' + (this.view === 'audit' ? 'btn-primary' : 'btn-secondary'),
+        text: 'Audit Log'
+      });
+      auditTab.addEventListener('click', () => { this.view = 'audit'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+      tabs.appendChild(auditTab);
+    }
 
-    if (isAdmin) {
+    if (canManageUsers) {
       const entity = Auth.activeEntity;
       const pendingDisbursements = DB.getWhere('disbursements', d => d.entity === entity && (d.status === 'Submitted' || d.status === 'Under Review'));
       const pendingChanges = PendingChanges.getAllPending();
@@ -55,27 +57,49 @@ const Users = {
       pendingTab.addEventListener('click', () => { this.view = 'pending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
       tabs.appendChild(pendingTab);
     } else {
-      const myPendingTab = el('button', {
-        class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
-        text: 'My Pending Submissions'
+      const isOperations = Auth.user.role === 'Operations';
+      if (!isOperations) {
+        const myPendingTab = el('button', {
+          class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
+          text: 'My Pending Submissions'
+        });
+        myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+        tabs.appendChild(myPendingTab);
+      }
+      
+      const myRequestsTab = el('button', {
+        class: 'btn ' + (this.view === 'myRequests' ? 'btn-primary' : 'btn-secondary'),
+        text: 'My Requests'
       });
-      myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
-      tabs.appendChild(myPendingTab);
+      myRequestsTab.addEventListener('click', () => { this.view = 'myRequests'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+      tabs.appendChild(myRequestsTab);
+
+      if (isOperations && this.view !== 'myRequests') {
+        this.view = 'myRequests';
+      } else if (!isOperations && this.view !== 'myPending' && this.view !== 'myRequests') {
+        this.view = 'myPending';
+      }
     }
 
     container.appendChild(tabs);
 
-    if (this.view === 'users' && isAdmin) {
+    if (this.view === 'users' && canManageUsers) {
       container.appendChild(this.renderUsersSection());
-    } else if (this.view === 'audit') {
+    } else if (this.view === 'audit' && canManageUsers) {
       container.appendChild(this.renderAuditSection());
-    } else if (this.view === 'pending' && isAdmin) {
+    } else if (this.view === 'pending' && canManageUsers) {
       container.appendChild(this.renderPendingSection());
-    } else if (this.view === 'myPending' && !isAdmin) {
+    } else if (this.view === 'myPending' && !canManageUsers) {
       container.appendChild(this.renderMyPendingSection());
-    } else if (!isAdmin) {
-      this.view = 'myPending';
-      container.appendChild(this.renderMyPendingSection());
+    } else if (this.view === 'myRequests' && !canManageUsers) {
+      container.appendChild(this.renderMyRequestsSection());
+    } else if (!canManageUsers) {
+      this.view = Auth.user.role === 'Operations' ? 'myRequests' : 'myPending';
+      if (this.view === 'myRequests') {
+        container.appendChild(this.renderMyRequestsSection());
+      } else {
+        container.appendChild(this.renderMyPendingSection());
+      }
     } else {
       container.appendChild(this.renderUsersSection());
     }
@@ -189,8 +213,10 @@ const Users = {
     const map = {
       'Admin': 'badge-danger',
       'Manager': 'badge-warning',
-      'Staff': 'badge-info',
-      'Viewer': 'badge-success'
+      'Accounting': 'badge-info',
+      'Operations': 'badge-success',
+      'Documentation': 'badge-primary',
+      'HR': 'badge-secondary'
     };
     return el('span', { class: 'badge ' + (map[role] || ''), text: role });
   },
@@ -239,7 +265,7 @@ const Users = {
     const roleGroup = el('div', { class: 'form-group' });
     roleGroup.appendChild(el('label', { text: 'Role *' }));
     const roleSel = el('select', { name: 'role', required: true });
-    ['Admin', 'Manager', 'Staff', 'Viewer'].forEach(r => {
+    Auth.ALL_ROLES.forEach(r => {
       const opt = el('option', { value: r, text: r });
       if (user && user.role === r) opt.selected = true;
       roleSel.appendChild(opt);
@@ -384,7 +410,7 @@ const Users = {
   // ============================================================
   renderAuditSection() {
     const wrapper = el('div');
-    const isAdmin = Auth.user.role === 'Admin';
+    const canViewAllAudit = Auth.can('audit:view_all');
 
     // Filters
     const filters = el('div', { class: 'audit-filters' });
@@ -396,30 +422,35 @@ const Users = {
       const opt = el('option', { value: u.id, text: u.name });
       userFilter.appendChild(opt);
     });
-    if (!isAdmin) {
+    if (!canViewAllAudit) {
       userFilter.value = Auth.user.id;
       userFilter.disabled = true;
     }
-    filters.appendChild(userFilter);
+    filters.appendChild(wrapFilterFieldWithClear(userFilter));
+
+    // Client Filter
+    const clientOptions = [{ value: '', text: 'All Clients' }];
+    DB.getAll('clients').forEach(c => {
+      clientOptions.push({ value: c.id, text: c.name });
+    });
+    const clientFilter = createSearchableDropdown({ placeholder: 'All Clients', options: clientOptions });
+    filters.appendChild(clientFilter);
 
     filters.appendChild(el('span', { text: 'From:', style: 'font-size: 0.875rem; color: var(--color-text-muted);' }));
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
-    filters.appendChild(dateFrom);
+    filters.appendChild(wrapFilterFieldWithClear(dateFrom));
 
     filters.appendChild(el('span', { text: 'To:', style: 'font-size: 0.875rem; color: var(--color-text-muted);' }));
     const dateTo = el('input', { type: 'date', class: 'form-select' });
-    filters.appendChild(dateTo);
-
-    const filterBtn = el('button', { class: 'btn btn-primary', text: 'Filter' });
-    filterBtn.addEventListener('click', () => this.refreshAuditLog(tableContainer, userFilter.value, dateFrom.value, dateTo.value));
-    filters.appendChild(filterBtn);
+    filters.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const clearBtn = el('button', { class: 'btn btn-secondary', text: 'Clear' });
     clearBtn.addEventListener('click', () => {
-      if (isAdmin) userFilter.value = '';
+      if (canViewAllAudit) userFilter.value = '';
+      clientFilter.value = '';
       dateFrom.value = '';
       dateTo.value = '';
-      this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '');
+      this.refreshAuditLog(tableContainer, canViewAllAudit ? '' : Auth.user.id, '', '', '', '');
     });
     filters.appendChild(clearBtn);
 
@@ -427,17 +458,53 @@ const Users = {
 
     const tableContainer = el('div');
     wrapper.appendChild(tableContainer);
-    this.refreshAuditLog(tableContainer, isAdmin ? '' : Auth.user.id, '', '');
+
+    const triggerRefresh = () => {
+      this.refreshAuditLog(tableContainer, userFilter.value, clientFilter.value, clientFilter.searchText, dateFrom.value, dateTo.value);
+    };
+
+    userFilter.addEventListener('change', triggerRefresh);
+    clientFilter.addEventListener('change', triggerRefresh);
+    clientFilter.addEventListener('input', triggerRefresh);
+    dateFrom.addEventListener('change', triggerRefresh);
+    dateTo.addEventListener('change', triggerRefresh);
+
+    this.refreshAuditLog(tableContainer, canViewAllAudit ? '' : Auth.user.id, '', '', '', '');
 
     return wrapper;
   },
 
-  refreshAuditLog(container, userId, dateFrom, dateTo) {
+  refreshAuditLog(container, userId, clientId, clientSearchText, dateFrom, dateTo) {
     this.clearNode(container);
     let logs = DB.getAll('auditLog');
 
     if (userId) {
       logs = logs.filter(l => l.userId === userId);
+    }
+
+    if (clientId || (clientSearchText && clientSearchText.trim() !== '')) {
+      const selectedClient = clientId ? DB.getById('clients', clientId) : null;
+      if (selectedClient && selectedClient.name === clientSearchText) {
+        logs = logs.filter(l => {
+          if (!l.details) return false;
+          const detailsLower = l.details.toLowerCase();
+          return detailsLower.includes(clientId.toLowerCase()) ||
+                 detailsLower.includes(selectedClient.name.toLowerCase());
+        });
+      } else if (clientSearchText && clientSearchText.trim() !== '') {
+        const query = clientSearchText.trim().toLowerCase();
+        const matchingClients = DB.getAll('clients').filter(c =>
+          c.id.toLowerCase().includes(query) || c.name.toLowerCase().includes(query)
+        );
+        logs = logs.filter(l => {
+          if (!l.details) return false;
+          const detailsLower = l.details.toLowerCase();
+          if (detailsLower.includes(query)) return true;
+          return matchingClients.some(c =>
+            detailsLower.includes(c.id.toLowerCase()) || detailsLower.includes(c.name.toLowerCase())
+          );
+        });
+      }
     }
 
     if (dateFrom) {
@@ -583,7 +650,7 @@ const Users = {
     
     // Column 1: Expenses
     const expCol = el('div', { class: 'board-column-v2' });
-    expCol.style.borderTop = '4px solid #f59e0b';
+    expCol.style.setProperty('--column-phase-color', '#f59e0b');
     const expHeader = el('div', { class: 'board-column-header-v2' });
     expHeader.appendChild(el('div', { class: 'board-column-title', text: 'Expense Submissions' }));
     expCol.appendChild(expHeader);
@@ -592,7 +659,7 @@ const Users = {
     
     // Column 2: Billing Submissions
     const changeCol = el('div', { class: 'board-column-v2' });
-    changeCol.style.borderTop = '4px solid #3b82f6';
+    changeCol.style.setProperty('--column-phase-color', '#3b82f6');
     const changeHeader = el('div', { class: 'board-column-header-v2' });
     changeHeader.appendChild(el('div', { class: 'board-column-title', text: 'Billing Submissions' }));
     changeCol.appendChild(changeHeader);
@@ -877,7 +944,7 @@ const Users = {
       return el('p', { text: 'Pending change not found.', class: 'empty-state' });
     }
 
-    const canApprove = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const canApprove = Auth.can('users:view');
     const isSubmitter = pc.submittedBy === Auth.user.id;
 
     const wrapper = el('div', { style: 'max-width: 800px; margin: 0 auto;' });
@@ -1066,6 +1133,73 @@ const Users = {
     }
 
     wrapper.appendChild(actions);
+    return wrapper;
+  },
+
+  renderMyRequestsSection() {
+    const wrapper = el('div');
+    const requests = DB.getWhere('operationsRequests', r => r.requestedBy === Auth.user.id);
+    
+    if (requests.length === 0) {
+      wrapper.appendChild(el('p', { text: 'No requests submitted yet.', class: 'empty-state' }));
+      return wrapper;
+    }
+
+    const table = el('table', { class: 'data-table' });
+    const thead = el('thead');
+    const thr = el('tr');
+    ['Request Type', 'Work Request', 'Client', 'Requested At', 'Status', 'Fulfill Info / Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
+    thead.appendChild(thr);
+    table.appendChild(thead);
+
+    const tbody = el('tbody');
+    requests.forEach(r => {
+      const tr = el('tr');
+      
+      const typeLabel = r.type === 'billing' ? 'Billing' : r.type === 'disbursement' ? 'Disbursement' : 'Transmittal';
+      tr.appendChild(el('td', { text: typeLabel }));
+      
+      const wr = DB.getById('workRequests', r.workRequestId);
+      tr.appendChild(el('td', { text: wr ? wr.title : '—' }));
+      
+      const client = DB.getById('clients', r.clientId);
+      tr.appendChild(el('td', { text: client ? client.name : '—' }));
+      
+      tr.appendChild(el('td', { text: formatDate(r.requestedAt) }));
+      
+      const st = r.status;
+      const badge = el('span', { 
+        class: 'badge', 
+        text: st,
+        style: `font-size: 11px; padding: 2px 6px; border-radius: var(--radius-sm); background: ${st === 'fulfilled' ? 'color-mix(in oklab, var(--success), transparent 88%)' : st === 'rejected' ? 'color-mix(in oklab, var(--danger), transparent 88%)' : 'color-mix(in oklab, var(--warn), transparent 88%)'}; color: ${st === 'fulfilled' ? 'var(--success)' : st === 'rejected' ? 'var(--danger)' : 'color-mix(in oklab, var(--warn), black 30%)'};`
+      });
+      const tdSt = el('td');
+      tdSt.appendChild(badge);
+      tr.appendChild(tdSt);
+
+      const tdAct = el('td');
+      if (st === 'pending') {
+        const cancelBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Cancel Request' });
+        cancelBtn.addEventListener('click', () => {
+          Workflow.showConfirm('Cancel Request', 'Are you sure you want to cancel this request?', () => {
+            DB.delete('operationsRequests', r.id);
+            App.handleRoute();
+          }, 'danger');
+        });
+        tdAct.appendChild(cancelBtn);
+      } else if (st === 'fulfilled') {
+        const fulfiller = DB.getById('users', r.fulfilledBy);
+        tdAct.textContent = `Fulfilled by ${fulfiller ? fulfiller.name : 'System'} on ${formatDate(r.fulfilledAt)}`;
+      } else if (st === 'rejected') {
+        tdAct.textContent = r.rejectionReason ? `Reason: ${r.rejectionReason}` : 'No reason provided';
+      }
+      tr.appendChild(tdAct);
+      
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+
     return wrapper;
   }
 };

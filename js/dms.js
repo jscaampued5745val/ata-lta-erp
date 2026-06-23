@@ -67,13 +67,10 @@ const DMS = {
   renderList() {
     const entity = Auth.activeEntity;
 
-    // Restrict Documents module to Admin and Documentation Staff
-    const isAdmin = Auth.user.role === 'Admin';
-    const isDocStaff = Auth.user.role === 'Staff' && Auth.can('dms:handover');
-    
-    if (!isAdmin && !isDocStaff) {
+    // Restrict Documents module to roles with dms:edit or dms:handover
+    if (!Auth.can('dms:edit') && !Auth.can('dms:handover')) {
       const wrapper = el('div');
-      wrapper.appendChild(el('p', { text: 'Documents are restricted to Admin and Documentation users.', class: 'empty-state' }));
+      wrapper.appendChild(el('p', { text: 'Documents are restricted to Admin, Manager, and Documentation users.', class: 'empty-state' }));
       return wrapper;
     }
 
@@ -93,14 +90,14 @@ const DMS = {
         saveCurrentFilters();
         App.setPreferredViewMode('documents', mode);
         this.listViewMode = mode;
-        this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, dateFrom.value, dateTo.value);
+        this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, dateFrom.value, dateTo.value, empFilter.searchText, clientFilter.searchText);
       });
       viewToggle.appendChild(btn);
     });
     actions.appendChild(viewToggle);
 
-    const isManagerial = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
-    const canCrossEntity = isManagerial && Auth.user.entities.length > 1;
+    // Entity-scope filter — intentional direct check (entity-scope, not permission)
+    const canCrossEntity = Auth.isManagerial() && Auth.user.entities.length > 1;
 
     let entityFilter = null;
     if (canCrossEntity) {
@@ -128,7 +125,7 @@ const DMS = {
     }).forEach(wr => {
       wrFilter.appendChild(el('option', { value: wr.id, text: wr.title }));
     });
-    filtersBar.appendChild(wrFilter);
+    filtersBar.appendChild(wrapFilterFieldWithClear(wrFilter));
 
     const clientOptions = [{ value: '', text: 'All Clients' }];
     DB.getWhere('clients', c => {
@@ -144,18 +141,24 @@ const DMS = {
     filtersBar.appendChild(clientFilter);
 
     const empOptions = [{ value: '', text: 'All Uploaders' }];
-    DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role)).forEach(u => {
+    DB.getWhere('users', u => Auth.ALL_ROLES.includes(u.role)).forEach(u => {
       empOptions.push({ value: u.id, text: u.name });
+    });
+    (DB.getAll('tasks') || []).forEach(t => {
+      const name = (t.assigneeName || '').trim();
+      if (name && !empOptions.some(opt => opt.value === name || opt.text === name)) {
+        empOptions.push({ value: name, text: name });
+      }
     });
     const empFilter = createSearchableDropdown({ placeholder: 'All Uploaders', options: empOptions, maxWidth: '180px' });
     filtersBar.appendChild(empFilter);
 
-    const dateFrom = el('input', { type: 'date', class: 'form-select', style: 'max-width:140px' });
-    const dateTo = el('input', { type: 'date', class: 'form-select', style: 'max-width:140px' });
+    const dateFrom = el('input', { type: 'date', class: 'form-select' });
+    const dateTo = el('input', { type: 'date', class: 'form-select' });
     filtersBar.appendChild(el('span', { text: 'From:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(dateFrom);
+    filtersBar.appendChild(wrapFilterFieldWithClear(dateFrom));
     filtersBar.appendChild(el('span', { text: 'To:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(dateTo);
+    filtersBar.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
@@ -197,17 +200,18 @@ const DMS = {
     const listContainer = el('div');
     wrapper.appendChild(listContainer);
 
-    const updateFilters = () => this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, dateFrom.value, dateTo.value);
+    const updateFilters = () => this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, dateFrom.value, dateTo.value, empFilter.searchText, clientFilter.searchText);
     [wrFilter, clientFilter, empFilter, dateFrom, dateTo].forEach(f => f.addEventListener('change', () => { saveCurrentFilters(); updateFilters(); }));
+    [empFilter, clientFilter].forEach(el => el.addEventListener('input', () => { saveCurrentFilters(); updateFilters(); }));
     if (entityFilter) {
-      entityFilter.addEventListener('change', () => { saveCurrentFilters(); this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, dateFrom.value, dateTo.value); });
+      entityFilter.addEventListener('change', () => { saveCurrentFilters(); this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, dateFrom.value, dateTo.value, empFilter.searchText, clientFilter.searchText); });
     }
 
-    this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, dateFrom.value, dateTo.value);
+    this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, dateFrom.value, dateTo.value, empFilter.searchText, clientFilter.searchText);
     return wrapper;
   },
 
-  refreshList(container, wrFilter, clientFilter, empFilter, dateFrom, dateTo) {
+  refreshList(container, wrFilter, clientFilter, empFilter, dateFrom, dateTo, empSearchText, clientSearchText) {
     while (container.firstChild) container.removeChild(container.firstChild);
     const entity = Auth.activeEntity;
 
@@ -220,13 +224,32 @@ const DMS = {
     });
 
     if (wrFilter) docs = docs.filter(d => d.workRequestId === wrFilter);
-    if (clientFilter) {
-      docs = docs.filter(d => {
-        const wr = DB.getById('workRequests', d.workRequestId);
-        return wr && wr.clientId === clientFilter;
-      });
+    if (clientFilter || (clientSearchText && clientSearchText.trim() !== '')) {
+      const selectedClient = clientFilter ? DB.getById('clients', clientFilter) : null;
+      if (selectedClient && selectedClient.name === clientSearchText) {
+        docs = docs.filter(d => {
+          const wr = DB.getById('workRequests', d.workRequestId);
+          return wr && wr.clientId === clientFilter;
+        });
+      } else if (clientSearchText && clientSearchText.trim() !== '') {
+        const query = clientSearchText.trim().toLowerCase();
+        docs = docs.filter(d => {
+          const wr = DB.getById('workRequests', d.workRequestId);
+          if (!wr) return false;
+          const client = DB.getById('clients', wr.clientId);
+          return client && client.name.toLowerCase().includes(query);
+        });
+      }
     }
-    if (empFilter) docs = docs.filter(d => d.uploader === empFilter);
+    if (empSearchText && empSearchText.trim() !== '') {
+      const query = empSearchText.trim().toLowerCase();
+      docs = docs.filter(d => {
+        const u = d.uploader ? DB.getById('users', d.uploader) : null;
+        return u && u.name.toLowerCase().includes(query);
+      });
+    } else if (empFilter) {
+      docs = docs.filter(d => d.uploader === empFilter);
+    }
     if (dateFrom) {
       const fromTime = new Date(dateFrom).getTime();
       docs = docs.filter(d => new Date(d.uploadDate).getTime() >= fromTime);
@@ -531,8 +554,8 @@ const DMS = {
   // Detail View
   // ============================================================
   renderDetail() {
-    // Only Admin users may view document details
-    if (Auth.user.role !== 'Admin') {
+    // Only roles with dms:edit or dms:handover may view document details
+    if (!Auth.can('dms:edit') && !Auth.can('dms:handover')) {
       this.view = 'list';
       App.handleRoute();
       return el('div');
@@ -643,7 +666,7 @@ const DMS = {
       commentsSection.appendChild(el('p', { class: 'empty-state', text: 'No comments yet.' }));
     }
 
-    if (Auth.user.role === 'Admin') {
+    if (Auth.can('dms:edit')) {
       const commentForm = el('form', { class: 'form-stacked' });
       const textGroup = el('div', { class: 'form-group' });
       textGroup.appendChild(el('label', { text: 'Add Comment' }));

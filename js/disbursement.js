@@ -117,13 +117,15 @@ const Disbursement = {
     const viewMode = App.getPreferredViewMode('disbursement');
 
     const actions = el('div', { class: 'actions-bar' });
-    const addBtn = el('button', { class: 'btn btn-primary', text: 'File Expense' });
-    addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
-    actions.appendChild(addBtn);
+    if (Auth.can('disbursement:create')) {
+      const addBtn = el('button', { class: 'btn btn-primary', text: 'File Expense' });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
+      actions.appendChild(addBtn);
 
-    const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
-    templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
-    actions.appendChild(templatesBtn);
+      const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
+      templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
+      actions.appendChild(templatesBtn);
+    }
 
     const reportBtn = el('button', { class: 'btn btn-secondary', text: 'Summary Report' });
     reportBtn.addEventListener('click', () => { this.view = 'report'; App.handleRoute(); });
@@ -131,6 +133,40 @@ const Disbursement = {
 
     const wrapper = el('div');
     wrapper.appendChild(actions);
+
+    // Pending operations requests banner
+    if (Auth.can('disbursement:create')) {
+      const pendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'disbursement');
+      if (pendingReqs.length > 0) {
+        const banner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);' });
+        const bannerTitle = el('div', { style: 'font-weight:600;color:#e65100;margin-bottom:var(--spacing-sm);font-size:0.95rem;' });
+        bannerTitle.textContent = `⚠ ${pendingReqs.length} Pending Disbursement Request${pendingReqs.length > 1 ? 's' : ''} from Operations`;
+        banner.appendChild(bannerTitle);
+        pendingReqs.forEach(req => {
+          const row = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-xs) 0;border-bottom:1px solid #ffe082;' });
+          const client = DB.getById('clients', req.clientId);
+          const wr = DB.getById('workRequests', req.workRequestId);
+          const info = el('span', { style: 'font-size:0.875rem;color:#333;' });
+          info.textContent = `${client ? client.name : 'Unknown Client'} – ${wr ? wr.title : 'Unknown WR'} (requested by ${req.requestedBy || 'N/A'})`;
+          row.appendChild(info);
+          const fulfillBtn = el('button', { class: 'btn btn-primary', text: 'Fulfill', style: 'padding:2px 12px;font-size:0.8rem;' });
+          fulfillBtn.addEventListener('click', () => { Disbursement.view = 'form'; Disbursement.prefilledWrId = req.workRequestId; Disbursement.prefilledClientId = req.clientId; Disbursement.prefilledRequestId = req.id; App.handleRoute(); });
+          row.appendChild(fulfillBtn);
+          banner.appendChild(row);
+        });
+        wrapper.appendChild(banner);
+      }
+    } else if (Auth.can('disbursement:request')) {
+      const myPendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'disbursement' && r.requestedBy === Auth.user.name);
+      const reqBanner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);display:flex;align-items:center;justify-content:space-between;' });
+      const reqInfo = el('span', { style: 'font-size:0.9rem;color:#333;' });
+      reqInfo.textContent = myPendingReqs.length > 0 ? `You have ${myPendingReqs.length} pending disbursement request${myPendingReqs.length > 1 ? 's' : ''}.` : 'Need an expense filed? Submit a request to Accounting.';
+      reqBanner.appendChild(reqInfo);
+      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Disbursement from Accounting', style: 'white-space:nowrap;' });
+      reqBtn.addEventListener('click', () => { Disbursement.showRequestDisbursementModal(); });
+      reqBanner.appendChild(reqBtn);
+      wrapper.appendChild(reqBanner);
+    }
 
     // "Pending for Release" Section for Handlers
     const pendingForRelease = DB.getWhere('disbursements', d => d.entity === entity && d.status === 'Approved' && d.paymentHandledBy === Auth.user.id);
@@ -182,7 +218,7 @@ const Disbursement = {
       const client = DB.getById('clients', wr.clientId);
       wrFilter.appendChild(el('option', { value: wr.id, text: wr.title + ' — ' + (client?.name || '—') }));
     });
-    filtersBar.appendChild(wrFilter);
+    filtersBar.appendChild(wrapFilterFieldWithClear(wrFilter));
 
     const clientOptions = [{ value: '', text: 'All Clients' }];
     DB.getWhere('clients', c => {
@@ -198,8 +234,14 @@ const Disbursement = {
     filtersBar.appendChild(clientFilter);
 
     const empOptions = [{ value: '', text: 'All Employees' }];
-    DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role)).forEach(u => {
+    DB.getWhere('users', u => Auth.ALL_ROLES.includes(u.role)).forEach(u => {
       empOptions.push({ value: u.id, text: u.name });
+    });
+    (DB.getAll('tasks') || []).forEach(t => {
+      const name = (t.assigneeName || '').trim();
+      if (name && !empOptions.some(opt => opt.value === name || opt.text === name)) {
+        empOptions.push({ value: name, text: name });
+      }
     });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions, maxWidth: '180px' });
     filtersBar.appendChild(empFilter);
@@ -207,21 +249,21 @@ const Disbursement = {
     const fundFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     fundFilter.appendChild(el('option', { value: '', text: 'All Funds' }));
     ['Firm Fund', 'Client Fund'].forEach(f => fundFilter.appendChild(el('option', { value: f, text: f })));
-    filtersBar.appendChild(fundFilter);
+    filtersBar.appendChild(wrapFilterFieldWithClear(fundFilter));
 
     const statusFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Pending', 'Approved', 'Released', 'Rejected'].forEach(s => {
       statusFilter.appendChild(el('option', { value: s, text: s }));
     });
-    filtersBar.appendChild(statusFilter);
+    filtersBar.appendChild(wrapFilterFieldWithClear(statusFilter));
 
-    const dateFrom = el('input', { type: 'date', class: 'form-select', style: 'max-width:140px' });
-    const dateTo = el('input', { type: 'date', class: 'form-select', style: 'max-width:140px' });
+    const dateFrom = el('input', { type: 'date', class: 'form-select' });
+    const dateTo = el('input', { type: 'date', class: 'form-select' });
     filtersBar.appendChild(el('span', { text: 'From:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(dateFrom);
+    filtersBar.appendChild(wrapFilterFieldWithClear(dateFrom));
     filtersBar.appendChild(el('span', { text: 'To:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(dateTo);
+    filtersBar.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
@@ -283,28 +325,50 @@ const Disbursement = {
     const listContainer = el('div');
     wrapper.appendChild(listContainer);
 
-    const refresh = () => this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, fundFilter.value, statusFilter.value, dateFrom.value, dateTo.value, viewMode);
+    const refresh = () => this.refreshList(listContainer, wrFilter.value, clientFilter.value, empFilter.value, fundFilter.value, statusFilter.value, dateFrom.value, dateTo.value, viewMode, empFilter.searchText, clientFilter.searchText);
     [wrFilter, clientFilter, empFilter, fundFilter, statusFilter, dateFrom, dateTo].forEach(f => f.addEventListener('change', () => { saveCurrentFilters(); refresh(); }));
+    [empFilter, clientFilter].forEach(el => el.addEventListener('input', () => { saveCurrentFilters(); refresh(); }));
 
     refresh();
 
     return wrapper;
   },
 
-  refreshList(container, wrFilter, clientFilter, empFilter, fundFilter, statusFilter, dateFrom, dateTo, viewMode) {
+  refreshList(container, wrFilter, clientFilter, empFilter, fundFilter, statusFilter, dateFrom, dateTo, viewMode, empSearchText, clientSearchText) {
     while (container.firstChild) container.removeChild(container.firstChild);
     const entity = Auth.activeEntity;
     let items = DB.getWhere('disbursements', d => (entity === 'ALL' ? Auth.user.entities.includes(d.entity) : d.entity === entity));
 
     if (wrFilter) items = items.filter(d => d.linkedWorkRequestId === wrFilter);
-    if (clientFilter) {
-      items = items.filter(d => {
-        if (!d.linkedWorkRequestId) return false;
-        const wr = DB.getById('workRequests', d.linkedWorkRequestId);
-        return wr && wr.clientId === clientFilter;
-      });
+    if (clientFilter || (clientSearchText && clientSearchText.trim() !== '')) {
+      const selectedClient = clientFilter ? DB.getById('clients', clientFilter) : null;
+      if (selectedClient && selectedClient.name === clientSearchText) {
+        items = items.filter(d => {
+          if (!d.linkedWorkRequestId) return false;
+          const wr = DB.getById('workRequests', d.linkedWorkRequestId);
+          return wr && wr.clientId === clientFilter;
+        });
+      } else if (clientSearchText && clientSearchText.trim() !== '') {
+        const query = clientSearchText.trim().toLowerCase();
+        items = items.filter(d => {
+          if (!d.linkedWorkRequestId) return false;
+          const wr = DB.getById('workRequests', d.linkedWorkRequestId);
+          if (!wr) return false;
+          const client = DB.getById('clients', wr.clientId);
+          return client && client.name.toLowerCase().includes(query);
+        });
+      }
     }
-    if (empFilter) items = items.filter(d => this.getEmployeeId(d) === empFilter);
+    if (empSearchText && empSearchText.trim() !== '') {
+      const query = empSearchText.trim().toLowerCase();
+      items = items.filter(d => {
+        const empId = d.employeeId || d.requestedBy;
+        const u = empId ? DB.getById('users', empId) : null;
+        return u && u.name.toLowerCase().includes(query);
+      });
+    } else if (empFilter) {
+      items = items.filter(d => this.getEmployeeId(d) === empFilter);
+    }
     if (fundFilter) items = items.filter(d => this.getFundSource(d) === fundFilter);
     if (statusFilter) {
       if (statusFilter === 'Pending') {
@@ -403,8 +467,7 @@ const Disbursement = {
       return;
     }
     const board = el('div', { class: 'board-v2' });
-    const isAdmin = Auth.user.role === 'Admin';
-    const statuses = isAdmin ? ['Approved', 'Released', 'Rejected'] : ['Pending', 'Approved', 'Released', 'Rejected'];
+    const statuses = ['Pending', 'Approved', 'Released', 'Rejected'];
     const statusColors = {
       'Pending': '#f59e0b',
       'Approved': '#3b82f6',
@@ -415,7 +478,7 @@ const Disbursement = {
     statuses.forEach(st => {
       const colColor = statusColors[st] || '#cbd5e1';
       const col = el('div', { class: 'board-column-v2' });
-      col.style.borderTop = `4px solid ${colColor}`;
+      col.style.setProperty('--column-phase-color', colColor);
 
       const header = el('div', { class: 'board-column-header-v2' });
       header.appendChild(el('div', { class: 'board-column-title', text: st }));
@@ -524,9 +587,16 @@ const Disbursement = {
   // Expense Filing Form
   // ============================================================
   renderForm() {
+    if (!Auth.can('disbursement:create')) {
+      this.view = 'list';
+      App.handleRoute();
+      return el('div');
+    }
+
     const entity = Auth.activeEntity;
     const isNew = !this.detailId;
     const existing = this.detailId ? DB.getById('disbursements', this.detailId) : null;
+    const prefill = this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null;
 
     const container = el('div');
 
@@ -578,15 +648,21 @@ const Disbursement = {
     // Linked Work Request
     const wrGroup = el('div', { class: 'form-group' });
     wrGroup.appendChild(el('label', { text: 'Linked Work Request' }));
-    const wrSel = el('select', { name: 'linkedWorkRequestId', class: 'form-select' });
+    const wrSelAttrs = { name: 'linkedWorkRequestId', class: 'form-select' };
+    if (prefill) wrSelAttrs.disabled = true;
+    const wrSel = el('select', wrSelAttrs);
     wrSel.appendChild(el('option', { value: '', text: '— None —' }));
     DB.getWhere('workRequests', wr => wr.entity === entity).forEach(wr => {
       const client = DB.getById('clients', wr.clientId);
       const opt = el('option', { value: wr.id, text: wr.title + ' — ' + (client?.name || '—') });
       if (existing && existing.linkedWorkRequestId === wr.id) opt.selected = true;
+      else if (!existing && prefill && prefill.workRequestId === wr.id) opt.selected = true;
       wrSel.appendChild(opt);
     });
     wrGroup.appendChild(wrSel);
+    if (prefill && prefill.workRequestId) {
+      wrGroup.appendChild(el('input', { type: 'hidden', name: 'linkedWorkRequestId', value: prefill.workRequestId }));
+    }
     form.appendChild(wrGroup);
 
     // Task link (Dynamic based on WR)
@@ -723,9 +799,82 @@ const Disbursement = {
       DB.update('disbursements', record.id, record);
     }
 
+    // Fulfill pending operations request if any
+    const reqId = this.prefilledRequestId || (record.linkedWorkRequestId ? DB.getWhere('operationsRequests', r => r.workRequestId === record.linkedWorkRequestId && r.type === 'disbursement' && r.status === 'pending')[0]?.id : null);
+    if (reqId) {
+      DB.update('operationsRequests', reqId, {
+        status: 'fulfilled',
+        fulfilledBy: Auth.user.id,
+        fulfilledAt: new Date().toISOString(),
+        linkedRecordId: record.id
+      });
+    }
+    this.prefilledRequestId = null;
+    this.prefilledWrId = null;
+    this.prefilledClientId = null;
+
     this.view = 'list';
     this.detailId = null;
     App.handleRoute();
+  },
+
+  showRequestDisbursementModal() {
+    const entity = Auth.activeEntity;
+    const wrs = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      return wrEnt === entity.toUpperCase();
+    });
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
+    const selectGroup = el('div', { class: 'form-group' });
+    selectGroup.appendChild(el('label', { text: 'Select Work Request *' }));
+    const wrSelect = el('select', { class: 'form-select', style: 'width:100%;' });
+    wrSelect.appendChild(el('option', { value: '', text: '— Select —' }));
+    wrs.forEach(wr => {
+      const client = DB.getById('clients', wr.clientId);
+      const pending = DB.getWhere('operationsRequests', r => r.workRequestId === wr.id && r.type === 'disbursement' && r.status === 'pending');
+      if (pending.length === 0) {
+        wrSelect.appendChild(el('option', { value: wr.id, text: `${wr.title} — ${client?.name || '—'}` }));
+      }
+    });
+    selectGroup.appendChild(wrSelect);
+    wrapper.appendChild(selectGroup);
+
+    const notesGroup = el('div', { class: 'form-group' });
+    notesGroup.appendChild(el('label', { text: 'Additional Notes (Optional)' }));
+    notesGroup.appendChild(el('textarea', { id: 'disb-opreq-notes', class: 'form-control', style: 'width: 100%; min-height: 80px;', placeholder: 'Provide any details for Accounting staff...' }));
+    wrapper.appendChild(notesGroup);
+
+    wrapper.appendChild(el('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' }, [
+      el('button', { id: 'btn-cancel-disb-opreq', class: 'btn btn-ghost', text: 'Cancel' }),
+      el('button', { id: 'btn-save-disb-opreq', class: 'btn btn-primary', text: 'Submit Request' })
+    ]));
+
+    const overlay = Workflow.showModal('Request Disbursement', wrapper);
+
+    overlay.querySelector('#btn-cancel-disb-opreq').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#btn-save-disb-opreq').addEventListener('click', () => {
+      const wrId = wrSelect.value;
+      if (!wrId) { alert('Please select a work request.'); return; }
+      const wr = DB.getById('workRequests', wrId);
+      const notes = overlay.querySelector('#disb-opreq-notes').value.trim();
+      const record = {
+        id: generateId('opreq'),
+        type: 'disbursement',
+        workRequestId: wrId,
+        clientId: wr.clientId,
+        requestedBy: Auth.user.id,
+        requestedAt: new Date().toISOString(),
+        status: 'pending',
+        rejectionReason: '',
+        notes
+      };
+      DB.insert('operationsRequests', record);
+      overlay.remove();
+      Workflow.showMessage('Request Submitted', 'Your disbursement request has been submitted to Accounting for review.', 'success');
+      App.handleRoute();
+    });
   },
 
   // ============================================================
@@ -880,13 +1029,13 @@ const Disbursement = {
     }
 
     // Approval Actions
-    const isAdmin = Auth.user.role === 'Admin';
+    const canApprove = Auth.can('disbursement:approve');
     const isPending = ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status);
 
-    if (isPending && isAdmin) {
+    if (isPending && canApprove) {
       const isRequester = Auth.isSelfApprover(this.getEmployeeId(d));
       if (isRequester) {
-        container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve your own expense. Wait for another Admin.' }));
+        container.appendChild(el('p', { class: 'field-error', text: 'You cannot approve your own expense. Wait for another Admin or Manager.' }));
       } else {
         const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-xl); border-top: 1px solid #e2e8f0; padding-top: var(--spacing-lg);' });
 
@@ -941,7 +1090,7 @@ const Disbursement = {
     handlerGroup.appendChild(el('label', { text: 'Assign Release Handler *' }));
     const handlerSel = el('select', { name: 'handlerId', required: true, class: 'form-select' });
     handlerSel.appendChild(el('option', { value: '', text: '— Select Handler —' }));
-    DB.getWhere('users', u => ['Admin', 'Manager', 'Staff'].includes(u.role) && u.id !== d.requestedBy).forEach(u => {
+    DB.getWhere('users', u => Auth.ALL_ROLES.includes(u.role) && u.id !== d.requestedBy).forEach(u => {
       handlerSel.appendChild(el('option', { value: u.id, text: u.name + ' (' + u.role + ')' }));
     });
     handlerGroup.appendChild(handlerSel);
