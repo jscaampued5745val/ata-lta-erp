@@ -634,6 +634,7 @@ const Billing = {
 
     const entity = Auth.activeEntity;
     const inv = this.detailId ? this.getInvoiceById(this.detailId) : null;
+    const opReq = this.prefilledRequestId ? DB.getById('operationsRequests', this.prefilledRequestId) : null;
     const prefill = this.pendingPrefill || (this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null);
     this.pendingPrefill = null; // consume once
     const container = el('div');
@@ -706,6 +707,7 @@ const Billing = {
         DB.getWhere('tasks', t => t.workRequestId === wrId).forEach(t => {
           const opt = el('option', { value: t.id, text: t.title });
           if (inv && inv.linkedTaskId === t.id) opt.selected = true;
+          else if (!inv && opReq && opReq.linkedTaskId === t.id) opt.selected = true;
           taskSel.appendChild(opt);
         });
       }
@@ -745,6 +747,12 @@ const Billing = {
     // Pre-populate existing line items
     if (inv && inv.lineItems) {
       inv.lineItems.forEach(item => this.addLineItemRow(itemsList, item));
+    } else if (opReq) {
+      this.addLineItemRow(itemsList, { 
+        type: 'Professional Fee', 
+        description: opReq.notes || 'Operations Request Billing', 
+        amount: opReq.amount ? String(opReq.amount) : '' 
+      });
     } else {
       this.addLineItemRow(itemsList, { type: 'Professional Fee', description: '', amount: '' });
       this.addLineItemRow(itemsList, { type: 'Government Fee', description: '', amount: '' });

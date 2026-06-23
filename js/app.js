@@ -116,6 +116,26 @@ const App = {
           adminBadge.remove();
         }
       }
+    } else {
+      // Staff-level: badge count of user's own pending changes, rejected changes, and pending requests
+      const pendingChanges = (typeof PendingChanges !== 'undefined' && typeof PendingChanges.getPendingForUser === 'function') ? PendingChanges.getPendingForUser(Auth.user.id) : [];
+      const rejectedChanges = (typeof PendingChanges !== 'undefined' && typeof PendingChanges.getRejectedForUser === 'function') ? PendingChanges.getRejectedForUser(Auth.user.id) : [];
+      const myReqs = (typeof DB !== 'undefined' && typeof DB.getWhere === 'function') ? DB.getWhere('operationsRequests', r => r.requestedBy === Auth.user.id && r.status === 'pending') : [];
+      const staffCount = pendingChanges.length + rejectedChanges.length + myReqs.length;
+      const adminNav = document.querySelector('nav a[href="#admin"]');
+      if (adminNav) {
+        let adminBadge = adminNav.querySelector('.nav-badge');
+        if (staffCount > 0) {
+          if (!adminBadge) {
+            adminBadge = document.createElement('span');
+            adminBadge.className = 'nav-badge';
+            adminNav.appendChild(adminBadge);
+          }
+          adminBadge.textContent = staffCount > 99 ? '99+' : staffCount;
+        } else if (adminBadge) {
+          adminBadge.remove();
+        }
+      }
     }
 
     // Badge Billing nav for pending billing operations requests

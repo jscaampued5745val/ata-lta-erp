@@ -58,14 +58,13 @@ const Users = {
       tabs.appendChild(pendingTab);
     } else {
       const isOperations = Auth.user.role === 'Operations';
-      if (!isOperations) {
-        const myPendingTab = el('button', {
-          class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
-          text: 'My Pending Submissions'
-        });
-        myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
-        tabs.appendChild(myPendingTab);
-      }
+      
+      const myPendingTab = el('button', {
+        class: 'btn ' + (this.view === 'myPending' ? 'btn-primary' : 'btn-secondary'),
+        text: 'My Pending Submissions'
+      });
+      myPendingTab.addEventListener('click', () => { this.view = 'myPending'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
+      tabs.appendChild(myPendingTab);
       
       const myRequestsTab = el('button', {
         class: 'btn ' + (this.view === 'myRequests' ? 'btn-primary' : 'btn-secondary'),
@@ -74,10 +73,9 @@ const Users = {
       myRequestsTab.addEventListener('click', () => { this.view = 'myRequests'; this.editingId = null; this.pendingDetailId = null; App.handleRoute(); });
       tabs.appendChild(myRequestsTab);
 
-      if (isOperations && this.view !== 'myRequests') {
-        this.view = 'myRequests';
-      } else if (!isOperations && this.view !== 'myPending' && this.view !== 'myRequests') {
-        this.view = 'myPending';
+      const validStaffViews = ['myRequests', 'myPending'];
+      if (!validStaffViews.includes(this.view)) {
+        this.view = isOperations ? 'myRequests' : 'myPending';
       }
     }
 
@@ -94,7 +92,9 @@ const Users = {
     } else if (this.view === 'myRequests' && !canManageUsers) {
       container.appendChild(this.renderMyRequestsSection());
     } else if (!canManageUsers) {
-      this.view = Auth.user.role === 'Operations' ? 'myRequests' : 'myPending';
+      if (!['myRequests', 'myPending'].includes(this.view)) {
+        this.view = Auth.user.role === 'Operations' ? 'myRequests' : 'myPending';
+      }
       if (this.view === 'myRequests') {
         container.appendChild(this.renderMyRequestsSection());
       } else {
