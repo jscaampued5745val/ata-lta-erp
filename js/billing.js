@@ -121,17 +121,7 @@ const Billing = {
     const actions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-md);' });
     if (Auth.can('billing:edit')) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
-      addBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '🧾', title: 'Create Sales Invoice',
-          formContent: this.renderForm(), formId: 'invoice-form',
-          actions: [
-            { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
-          ]
-        });
-      });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
       actions.appendChild(addBtn);
       const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
       templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });

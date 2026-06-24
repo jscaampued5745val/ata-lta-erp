@@ -119,17 +119,7 @@ const Disbursement = {
     const actions = el('div', { class: 'actions-bar' });
     if (Auth.can('disbursement:create')) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'File Expense' });
-      addBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '💸', title: 'File Expense',
-          formContent: this.renderForm(), formId: 'disbursement-form',
-          actions: [
-            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
-          ]
-        });
-      });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
       actions.appendChild(addBtn);
 
       const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });

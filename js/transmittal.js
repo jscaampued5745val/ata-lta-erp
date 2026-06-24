@@ -91,17 +91,7 @@ const Transmittal = {
     const actions = el('div', { class: 'actions-bar' });
     if (Auth.can('transmittal:edit')) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Transmittal' });
-      addBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '📨', title: 'Create Transmittal',
-          formContent: this.renderForm(), formId: 'transmittal-form',
-          actions: [
-            { text: 'Create Transmittal', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
-          ]
-        });
-      });
+      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
       actions.appendChild(addBtn);
     }
 
