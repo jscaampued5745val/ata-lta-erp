@@ -1347,7 +1347,7 @@ const Disbursement = {
           <div style="font-weight: 700; color: #dc2626; margin-top: 4px; text-transform: uppercase; font-size: 10pt; letter-spacing: 1px;">Reimbursable Pass-Through Cost</div>
         </div>` : `
         <div class="logo-box">
-          <img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-logo.png' : 'ATA-logo.png'}" alt="${entity} Logo">
+          <img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg'}" alt="${entity} Logo">
         </div>
         <div class="title-box">
           <h1 class="doc-title">Expense Report</h1>
@@ -1607,7 +1607,7 @@ const Disbursement = {
           <div style="font-weight: 700; color: #dc2626; margin-top: 4px; text-transform: uppercase; font-size: 10pt; letter-spacing: 1px;">Reimbursable Pass-Through Cost</div>
         </div>` : `
         <div class="logo-box">
-          <img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-logo.png' : 'ATA-logo.png'}" alt="${entity} Logo">
+          <img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg'}" alt="${entity} Logo">
         </div>
         <div class="title-box">
           <h1 class="doc-title">Payment Voucher</h1>
