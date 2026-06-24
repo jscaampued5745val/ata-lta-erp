@@ -1,6 +1,6 @@
 const { chromium } = require('playwright');
 
-const BASE = 'http://127.0.0.1:8888';
+const BASE = 'http://127.0.0.1:8899';
 const ADMIN_USER = { email: 'admin@ata-lta.ph', password: 'password123' };
 
 async function runVerification() {
