@@ -1601,7 +1601,12 @@ const Billing = {
       }
       .logo-img-lta {
         height: 40px;
+        width: 40px;
+        border-radius: 4px;
+        background: #fff;
+        padding: 2px;
         margin-right: 12px;
+        object-fit: contain;
       }
       .company-name-lta {
         font-size: 13pt;
@@ -1887,11 +1892,8 @@ const Billing = {
     } else if (entity === 'ATA') {
       headerHtml = `
         <div class="header-container-ata">
-          <div class="logo-area-ata">
-            <div class="logo-oval-ata">
-              <img src="ERP_Assets/ATA-logo-clean.png" alt="ATA Logo">
-            </div>
-            <div class="company-name-ata">A.T.A. BUSINESS CONSULTANCY</div>
+          <div style="display: flex; align-items: center;">
+            <img src="ERP_Assets/ATA-LOGO.jpg" alt="ATA Logo" style="height: 65px; object-fit: contain;">
           </div>
           <div class="statement-title-ata">STATEMENT</div>
         </div>
@@ -1901,7 +1903,7 @@ const Billing = {
       headerHtml = `
         <div class="header-container-lta">
           <div class="logo-banner-lta">
-            <img src="ERP_Assets/LTA-logo-clean.png" class="logo-img-lta" alt="LTA Logo">
+            <img src="ERP_Assets/LTA-LOGO.jpg" class="logo-img-lta" alt="LTA Logo">
             <span class="company-name-lta">LTA BUSINESS MANAGEMENT CORP</span>
           </div>
           <div class="slanted-block-lta">STATEMENT</div>
