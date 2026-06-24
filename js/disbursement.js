@@ -1568,19 +1568,16 @@ const Disbursement = {
 
   showTemplateForm() {
     const entity = Auth.activeEntity;
+    const container = el('div');
 
-    const overlay = el('div', { class: 'modal-overlay' });
-    const modal = el('div', { class: 'modal' });
+    // Notion-style title section
+    const titleSec = el('div', { class: 'side-pane-form-title' });
+    titleSec.appendChild(el('div', { class: 'side-pane-icon', text: '📋' }));
+    titleSec.appendChild(el('h2', { text: 'New Disbursement Template' }));
+    container.appendChild(titleSec);
 
-    const modalHeader = el('div', { class: 'modal-header' });
-    modalHeader.appendChild(el('h3', { class: 'modal-title', text: 'New Disbursement Template' }));
-    const closeBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '×' });
-    closeBtn.addEventListener('click', () => overlay.remove());
-    modalHeader.appendChild(closeBtn);
-    modal.appendChild(modalHeader);
-
-    const modalBody = el('div', { class: 'modal-body' });
-    const form = el('form', { class: 'form-stacked' });
+    const formWrap = el('div', { class: 'side-pane-form-content' });
+    const form = el('form', { class: 'form-stacked', id: 'disb-tpl-form' });
 
     const nameGroup = el('div', { class: 'form-group' });
     nameGroup.appendChild(el('label', { text: 'Template Name *' }));
@@ -1647,9 +1644,6 @@ const Disbursement = {
     invGroup.appendChild(invSel);
     form.appendChild(invGroup);
 
-    const submitBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Template' });
-    form.appendChild(submitBtn);
-
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       if (!validateRequiredFields(form)) return;
@@ -1669,15 +1663,23 @@ const Disbursement = {
         createdBy: Auth.user.id
       };
       DB.insert('disbursementTemplates', template);
-      overlay.remove();
+      window.SidePaneInstance.close();
       this.view = 'templates';
       App.handleRoute();
     });
 
-    modalBody.appendChild(form);
-    modal.appendChild(modalBody);
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
+    formWrap.appendChild(form);
+    container.appendChild(formWrap);
+
+    // Sticky footer
+    const footer = el('div', { class: 'side-pane-form-footer' });
+    footer.appendChild(el('button', { type: 'submit', form: 'disb-tpl-form', class: 'btn btn-primary', text: 'Save Template' }));
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
+    cancelBtn.addEventListener('click', () => window.SidePaneInstance.close());
+    footer.appendChild(cancelBtn);
+    container.appendChild(footer);
+
+    window.SidePaneInstance.open({ content: container });
   },
 
   generateFromTemplate(template) {
