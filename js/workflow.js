@@ -1466,7 +1466,17 @@ const Workflow = {
     const topActions = el('div', { class: 'form-actions-top' });
     if (canEdit) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Work Request' });
-      addBtn.addEventListener('click', () => { this.view = 'form'; this.editingId = null; App.handleRoute(); });
+      addBtn.addEventListener('click', () => {
+        this.editingId = null;
+        openFormPanel({
+          icon: '📝', title: 'Add Work Request',
+          formContent: this.renderForm(), formId: 'wr-form',
+          actions: [
+            { text: 'Save Work Request', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
+          ]
+        });
+      });
       topActions.appendChild(addBtn);
     }
     if (canApprove) {
@@ -7719,7 +7729,17 @@ const Workflow = {
 
     const actions = el('div', { class: 'actions-bar' });
     const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Template' });
-    addBtn.addEventListener('click', () => { this.view = 'templateForm'; this.templateEditingId = null; App.handleRoute(); });
+    addBtn.addEventListener('click', () => {
+      this.templateEditingId = null;
+      openFormPanel({
+        icon: '📋', title: 'Create Template',
+        formContent: this.renderTemplateForm(), formId: 'template-form',
+        actions: [
+          { text: 'Save Template', class: 'btn btn-primary', type: 'submit', form: 'template-form' },
+          { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
+        ]
+      });
+    });
     actions.appendChild(addBtn);
     wrapper.appendChild(actions);
 
@@ -7747,7 +7767,18 @@ const Workflow = {
       const tdAct = el('td');
 
       const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit' });
-      editBtn.addEventListener('click', () => { this.view = 'templateForm'; this.templateEditingId = t.id; App.handleRoute(); });
+      editBtn.addEventListener('click', () => {
+        this.templateEditingId = t.id;
+        const tpl = DB.getById('retainerTemplates', t.id);
+        openFormPanel({
+          icon: '📋', title: tpl ? tpl.name : 'Edit Template',
+          formContent: this.renderTemplateForm(), formId: 'template-form',
+          actions: [
+            { text: 'Save Template', class: 'btn btn-primary', type: 'submit', form: 'template-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
+          ]
+        });
+      });
       tdAct.appendChild(editBtn);
       tr.appendChild(tdAct);
       tbody.appendChild(tr);

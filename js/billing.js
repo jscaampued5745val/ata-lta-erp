@@ -121,7 +121,17 @@ const Billing = {
     const actions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-md);' });
     if (Auth.can('billing:edit')) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
-      addBtn.addEventListener('click', () => { this.view = 'form'; this.detailId = null; App.handleRoute(); });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '🧾', title: 'Create Sales Invoice',
+          formContent: this.renderForm(), formId: 'invoice-form',
+          actions: [
+            { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
+          ]
+        });
+      });
       actions.appendChild(addBtn);
       const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
       templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
@@ -1847,7 +1857,16 @@ const Billing = {
 
   showTemplateForm(existing = null) {
     const entity = Auth.activeEntity;
-    const form = el('form', { class: 'form-stacked' });
+    const container = el('div');
+
+    // Notion-style title section
+    const titleSec = el('div', { class: 'side-pane-form-title' });
+    titleSec.appendChild(el('div', { class: 'side-pane-icon', text: '📋' }));
+    titleSec.appendChild(el('h2', { text: existing ? 'Edit Template' : 'New Billing Template' }));
+    container.appendChild(titleSec);
+
+    const formWrap = el('div', { class: 'side-pane-form-content' });
+    const form = el('form', { class: 'form-stacked', id: 'billing-tpl-form' });
     
     form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Template Name *' }), el('input', { type: 'text', name: 'name', required: true, value: existing?.name || '' })]));
 
@@ -1876,11 +1895,6 @@ const Billing = {
 
     form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Professional Fee Amount *' }), el('input', { type: 'number', name: 'pfAmount', min: 0, step: 0.01, required: true, value: existing?.pfAmount || '' })]));
 
-    const submitBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Template' });
-    form.appendChild(submitBtn);
-
-    const overlay = Workflow.showModal(existing ? 'Edit Template' : 'New Billing Template', form);
-
     form.addEventListener('submit', e => {
       e.preventDefault();
       const fd = new FormData(form);
@@ -1903,9 +1917,22 @@ const Billing = {
         record.createdAt = new Date().toISOString();
         DB.insert('billingTemplates', record);
       }
-      overlay.remove();
+      window.SidePaneInstance.close();
       App.handleRoute();
     });
+
+    formWrap.appendChild(form);
+    container.appendChild(formWrap);
+
+    // Sticky footer
+    const footer = el('div', { class: 'side-pane-form-footer' });
+    footer.appendChild(el('button', { type: 'submit', form: 'billing-tpl-form', class: 'btn btn-primary', text: 'Save Template' }));
+    const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
+    cancelBtn.addEventListener('click', () => window.SidePaneInstance.close());
+    footer.appendChild(cancelBtn);
+    container.appendChild(footer);
+
+    window.SidePaneInstance.open({ content: container });
   },
 
   generateFromTemplate(t) {

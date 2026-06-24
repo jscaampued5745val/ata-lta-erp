@@ -502,8 +502,26 @@ class SidePane {
     // Close when clicking outside (since overlay is hidden/non-blocking)
     document.addEventListener('click', (e) => {
       if (this.isOpen()) {
-        const clickedTrigger = e.target.closest('.board-card') || e.target.closest('.list-item') || e.target.closest('.task-row') || e.target.closest('.status-select') || e.target.closest('.modal-overlay') || e.target.closest('.modal') || e.target.closest('.searchable-dropdown') || e.target.closest('.mdp-wrapper') || e.target.closest('.mtp-wrapper') || e.target.closest('.sidebar') || e.target.closest('.sidebar-collapse-btn') || e.target.closest('.notion-embed-popover');
-        if (!this.pane.contains(e.target) && !clickedTrigger) {
+        const path = e.composedPath ? e.composedPath() : [];
+        const clickedTrigger = path.some(el => {
+          if (!el || !el.classList) return false;
+          return el.classList.contains('board-card') ||
+                 el.classList.contains('list-item') ||
+                 el.classList.contains('task-row') ||
+                 el.classList.contains('status-select') ||
+                 el.classList.contains('modal-overlay') ||
+                 el.classList.contains('modal') ||
+                 el.classList.contains('searchable-dropdown') ||
+                 el.classList.contains('mdp-wrapper') ||
+                 el.classList.contains('mtp-wrapper') ||
+                 el.classList.contains('mdp-overlay') ||
+                 el.classList.contains('mtp-overlay') ||
+                 el.classList.contains('sidebar') ||
+                 el.classList.contains('sidebar-collapse-btn') ||
+                 el.classList.contains('notion-embed-popover');
+        });
+        const clickedInsidePane = path.some(el => el === this.pane);
+        if (!clickedInsidePane && !clickedTrigger) {
           this.close();
         }
       }
@@ -596,3 +614,44 @@ class SidePane {
 }
 
 window.SidePaneInstance = new SidePane();
+
+/**
+ * Opens a form inside the side panel with Notion-style layout:
+ * Icon + Title at top, form content in body, action buttons in sticky footer.
+ *
+ * @param {Object} opts
+ * @param {string} opts.icon - Emoji icon for the title
+ * @param {string} opts.title - Panel title text
+ * @param {HTMLElement} opts.formContent - The rendered form DOM (from renderForm())
+ * @param {string} opts.formId - The form element's ID to find within the content
+ * @param {Array<{text: string, class: string, type?: string, onClick?: Function}>} opts.actions - Footer buttons
+ */
+function openFormPanel({ icon, title, formContent, formId, actions }) {
+  const wrapper = el('div');
+
+  // Notion-style title section
+  const titleSec = el('div', { class: 'side-pane-form-title' });
+  titleSec.appendChild(el('div', { class: 'side-pane-icon', text: icon || '📝' }));
+  titleSec.appendChild(el('h2', { text: title }));
+  wrapper.appendChild(titleSec);
+
+  // Form content area — wrap to hide the form's built-in header
+  const contentArea = el('div', { class: 'side-pane-form-content' });
+  formContent.classList.add('side-pane-form-wrapper');
+  contentArea.appendChild(formContent);
+  wrapper.appendChild(contentArea);
+
+  // Sticky footer with action buttons
+  if (actions && actions.length > 0) {
+    const footer = el('div', { class: 'side-pane-form-footer' });
+    actions.forEach(a => {
+      const btn = el('button', { type: a.type || 'button', class: a.class || 'btn btn-secondary', text: a.text });
+      if (a.form) btn.setAttribute('form', a.form);
+      if (a.onClick) btn.addEventListener('click', a.onClick);
+      footer.appendChild(btn);
+    });
+    wrapper.appendChild(footer);
+  }
+
+  window.SidePaneInstance.open({ content: wrapper });
+}
