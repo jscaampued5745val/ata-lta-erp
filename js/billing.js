@@ -1893,7 +1893,8 @@ const Billing = {
       headerHtml = `
         <div class="header-container-ata">
           <div style="display: flex; align-items: center;">
-            <img src="ERP_Assets/ATA-LOGO.jpg" alt="ATA Logo" style="height: 65px; object-fit: contain;">
+            <img src="ERP_Assets/ATA-LOGO.jpg" alt="ATA Logo" style="height: 65px; object-fit: contain; margin-right: 12px;">
+            <span class="company-name-ata">A.T.A. BUSINESS CONSULTANCY</span>
           </div>
           <div class="statement-title-ata">STATEMENT</div>
         </div>
