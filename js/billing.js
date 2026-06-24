@@ -135,6 +135,11 @@ const Billing = {
       trashBtn.addEventListener('click', () => { this.view = 'trash'; App.handleRoute(); });
       actions.appendChild(trashBtn);
     }
+    if (Auth.can('billing:request')) {
+      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Invoice from Accounting' });
+      reqBtn.addEventListener('click', () => { Billing.showRequestInvoiceModal(); });
+      actions.appendChild(reqBtn);
+    }
     wrapper.appendChild(actions);
 
     // Pending operations requests banner
@@ -159,16 +164,6 @@ const Billing = {
         });
         wrapper.appendChild(banner);
       }
-    } else if (Auth.can('billing:request')) {
-      const myPendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'billing' && r.requestedBy === Auth.user.name);
-      const reqBanner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);display:flex;align-items:center;justify-content:space-between;' });
-      const reqInfo = el('span', { style: 'font-size:0.9rem;color:#333;' });
-      reqInfo.textContent = myPendingReqs.length > 0 ? `You have ${myPendingReqs.length} pending invoice request${myPendingReqs.length > 1 ? 's' : ''}.` : 'Need an invoice created? Submit a request to Accounting.';
-      reqBanner.appendChild(reqInfo);
-      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Invoice from Accounting', style: 'white-space:nowrap;' });
-      reqBtn.addEventListener('click', () => { Billing.showRequestInvoiceModal(); });
-      reqBanner.appendChild(reqBtn);
-      wrapper.appendChild(reqBanner);
     }
 
     // Filters

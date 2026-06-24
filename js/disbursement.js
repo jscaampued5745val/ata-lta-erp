@@ -131,6 +131,12 @@ const Disbursement = {
     reportBtn.addEventListener('click', () => { this.view = 'report'; App.handleRoute(); });
     actions.appendChild(reportBtn);
 
+    if (Auth.can('disbursement:request')) {
+      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Disbursement from Accounting' });
+      reqBtn.addEventListener('click', () => { Disbursement.showRequestDisbursementModal(); });
+      actions.appendChild(reqBtn);
+    }
+
     const wrapper = el('div');
     wrapper.appendChild(actions);
 
@@ -156,16 +162,6 @@ const Disbursement = {
         });
         wrapper.appendChild(banner);
       }
-    } else if (Auth.can('disbursement:request')) {
-      const myPendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'disbursement' && r.requestedBy === Auth.user.name);
-      const reqBanner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);display:flex;align-items:center;justify-content:space-between;' });
-      const reqInfo = el('span', { style: 'font-size:0.9rem;color:#333;' });
-      reqInfo.textContent = myPendingReqs.length > 0 ? `You have ${myPendingReqs.length} pending disbursement request${myPendingReqs.length > 1 ? 's' : ''}.` : 'Need an expense filed? Submit a request to Accounting.';
-      reqBanner.appendChild(reqInfo);
-      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Disbursement from Accounting', style: 'white-space:nowrap;' });
-      reqBtn.addEventListener('click', () => { Disbursement.showRequestDisbursementModal(); });
-      reqBanner.appendChild(reqBtn);
-      wrapper.appendChild(reqBanner);
     }
 
     // "Pending for Release" Section for Handlers

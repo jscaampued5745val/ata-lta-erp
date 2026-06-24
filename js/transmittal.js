@@ -94,6 +94,11 @@ const Transmittal = {
       addBtn.addEventListener('click', () => { location.hash = '#transmittal/form'; });
       actions.appendChild(addBtn);
     }
+    if (Auth.can('transmittal:request')) {
+      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Transmittal from Documentation' });
+      reqBtn.addEventListener('click', () => { Transmittal.showRequestTransmittalModal(); });
+      actions.appendChild(reqBtn);
+    }
 
     const wrapper = el('div');
     wrapper.appendChild(actions);
@@ -120,16 +125,6 @@ const Transmittal = {
         });
         wrapper.appendChild(banner);
       }
-    } else if (Auth.can('transmittal:request')) {
-      const myPendingReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'transmittal' && r.requestedBy === Auth.user.name);
-      const reqBanner = el('div', { class: 'pending-requests-banner', style: 'background:linear-gradient(135deg,#fff8e1,#ffecb3);border:1px solid #ffc107;border-radius:var(--radius-md);padding:var(--spacing-md);margin-bottom:var(--spacing-md);display:flex;align-items:center;justify-content:space-between;' });
-      const reqInfo = el('span', { style: 'font-size:0.9rem;color:#333;' });
-      reqInfo.textContent = myPendingReqs.length > 0 ? `You have ${myPendingReqs.length} pending transmittal request${myPendingReqs.length > 1 ? 's' : ''}.` : 'Need a transmittal created? Submit a request to Documentation.';
-      reqBanner.appendChild(reqInfo);
-      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Transmittal from Documentation', style: 'white-space:nowrap;' });
-      reqBtn.addEventListener('click', () => { Transmittal.showRequestTransmittalModal(); });
-      reqBanner.appendChild(reqBtn);
-      wrapper.appendChild(reqBanner);
     }
 
     // Filters bar
