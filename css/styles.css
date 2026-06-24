@@ -1016,7 +1016,7 @@ tbody tr:hover {
 .entity-comparison h2 { margin-bottom: var(--spacing-md); }
 
 /* Actions Bar */
-.actions-bar { display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); }
+.actions-bar { display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); position: relative; z-index: 26; }
 .search-input { flex: 1; max-width: 320px; padding: 10px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); font-family: inherit; font-size: 0.875rem; background: var(--color-surface); }
 .empty-state { color: var(--color-text-muted); font-style: italic; text-align: center; padding: var(--spacing-lg); }
 
