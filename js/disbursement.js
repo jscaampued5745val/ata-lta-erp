@@ -1340,19 +1340,14 @@ const Disbursement = {
       : '';
 
     doc.body.innerHTML = `
-      <div class="header-container" style="${noLogo ? 'justify-content: center; border-bottom: 2px solid #1e293b; padding-bottom: 12px; margin-bottom: 20px;' : 'display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #1e293b; padding-bottom: 12px;'}">
-        ${noLogo ? `
-        <div style="text-align: center;">
-          <h1 class="doc-title" style="font-size: 18pt; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: #0f172a; margin: 0;">Expense Report</h1>
-          <div style="font-weight: 700; color: #dc2626; margin-top: 4px; text-transform: uppercase; font-size: 10pt; letter-spacing: 1px;">Reimbursable Pass-Through Cost</div>
-        </div>` : `
+      <div class="header-container" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #1e293b; padding-bottom: 12px;">
         <div class="logo-box">
-          <img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg'}" alt="${entity} Logo">
+          ${noLogo ? '' : `<img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg'}" alt="${entity} Logo">`}
           <span style="font-size: 14pt; font-weight: 700; color: #0f172a; letter-spacing: 0.5px; white-space: nowrap;">${entity} Accounting Services Firm</span>
         </div>
         <div class="title-box">
           <h1 class="doc-title">Expense Report</h1>
-        </div>`}
+        </div>
       </div>
 
       <div class="two-col">
@@ -1601,19 +1596,14 @@ const Disbursement = {
       : '';
 
     doc.body.innerHTML = `
-      <div class="header-container" style="${noLogo ? 'justify-content: center; border-bottom: 2px solid #1e293b; padding-bottom: 12px; margin-bottom: 20px;' : 'display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #1e293b; padding-bottom: 12px;'}">
-        ${noLogo ? `
-        <div style="text-align: center;">
-          <h1 class="doc-title" style="font-size: 18pt; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: #0f172a; margin: 0;">Payment Voucher</h1>
-          <div style="font-weight: 700; color: #dc2626; margin-top: 4px; text-transform: uppercase; font-size: 10pt; letter-spacing: 1px;">Reimbursable Pass-Through Cost</div>
-        </div>` : `
+      <div class="header-container" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #1e293b; padding-bottom: 12px;">
         <div class="logo-box">
-          <img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg'}" alt="${entity} Logo">
+          ${noLogo ? '' : `<img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg'}" alt="${entity} Logo">`}
           <span style="font-size: 14pt; font-weight: 700; color: #0f172a; letter-spacing: 0.5px; white-space: nowrap;">${entity} Accounting Services Firm</span>
         </div>
         <div class="title-box">
           <h1 class="doc-title">Payment Voucher</h1>
-        </div>`}
+        </div>
       </div>
 
       <div class="two-col">
