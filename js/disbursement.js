@@ -50,6 +50,22 @@ const Disbursement = {
       backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
       titleBar.appendChild(backBtn);
       container.appendChild(titleBar);
+    } else if (this.view === 'report') {
+      const titleBar = el('div', { class: 'page-title-bar-v2' });
+      const h1 = el('h1', { class: 'breadcrumb-h1' });
+      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Disbursement' });
+      baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
+      h1.appendChild(baseLink);
+      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
+      h1.appendChild(document.createTextNode('Summary Report'));
+      titleBar.appendChild(h1);
+
+      const actions = el('div', { class: 'title-bar-actions' });
+      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
+      backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
+      actions.appendChild(backBtn);
+      titleBar.appendChild(actions);
+      container.appendChild(titleBar);
     } else {
       container.appendChild(el('h1', { text: 'Disbursement' }));
     }
@@ -1720,13 +1736,6 @@ const Disbursement = {
     const items = DB.getWhere('disbursements', d => d.entity === entity && d.status === 'Released');
 
     const container = el('div', { class: 'page' });
-
-    // Top actions bar
-    const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });
-    const topBackBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
-    topBackBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-    topActions.appendChild(topBackBtn);
-    container.appendChild(topActions);
 
     container.appendChild(el('h2', { text: 'Reimbursement Summary', style: 'margin-bottom: var(--spacing-lg);' }));
 

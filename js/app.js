@@ -261,7 +261,21 @@ const App = {
     document.querySelectorAll('nav a[data-module]').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        location.hash = link.getAttribute('href');
+        const href = link.getAttribute('href');
+        // Reset module view to 'list' when clicking a nav link directly
+        const moduleViewMap = {
+          '#operations': () => { Workflow.view = 'list'; Workflow.detailWrId = null; Workflow.editingId = null; },
+          '#billing': () => { Billing.view = 'list'; Billing.detailId = null; },
+          '#disbursement': () => { Disbursement.view = 'list'; Disbursement.detailId = null; },
+          '#transmittal': () => { if (typeof Transmittal !== 'undefined') { Transmittal.view = 'list'; Transmittal.detailId = null; } }
+        };
+        if (moduleViewMap[href]) moduleViewMap[href]();
+        if (location.hash === href) {
+          // Hash won't change, so hashchange won't fire — call handleRoute manually
+          this.handleRoute();
+        } else {
+          location.hash = href;
+        }
       });
     });
   },
@@ -327,6 +341,10 @@ const App = {
     const baseHash = pathParts[0];
 
     // Auto-update module view state from route detail/form paths
+    // Only override module views when the URL explicitly specifies a sub-path (detail/form).
+    // When there's no sub-path, only reset to 'list' if the current view is a URL-driven
+    // view (detail/form) — this preserves internal module views like 'templates', 'archive',
+    // 'aging', 'trash', 'report', 'templateForm' that buttons set before calling handleRoute().
     if (baseHash === '#operations') {
       if (pathParts[1] === 'detail' && pathParts[2]) {
         Workflow.view = 'detail';
@@ -334,7 +352,7 @@ const App = {
       } else if (pathParts[1] === 'form') {
         Workflow.view = 'form';
         Workflow.editingId = pathParts[2] || null;
-      } else {
+      } else if (!Workflow.view || Workflow.view === 'detail' || Workflow.view === 'form') {
         Workflow.view = 'list';
         Workflow.detailWrId = null;
         Workflow.editingId = null;
@@ -346,7 +364,7 @@ const App = {
       } else if (pathParts[1] === 'form') {
         Billing.view = 'form';
         Billing.detailId = pathParts[2] || null;
-      } else {
+      } else if (!Billing.view || Billing.view === 'detail' || Billing.view === 'form') {
         Billing.view = 'list';
         Billing.detailId = null;
       }
@@ -357,7 +375,7 @@ const App = {
       } else if (pathParts[1] === 'form') {
         Disbursement.view = 'form';
         Disbursement.detailId = pathParts[2] || null;
-      } else {
+      } else if (!Disbursement.view || Disbursement.view === 'detail' || Disbursement.view === 'form') {
         Disbursement.view = 'list';
         Disbursement.detailId = null;
       }
@@ -368,7 +386,7 @@ const App = {
       } else if (pathParts[1] === 'form') {
         Transmittal.view = 'form';
         Transmittal.detailId = pathParts[2] || null;
-      } else {
+      } else if (!Transmittal.view || Transmittal.view === 'detail' || Transmittal.view === 'form') {
         Transmittal.view = 'list';
         Transmittal.detailId = null;
       }

@@ -79,6 +79,20 @@ const Billing = {
       backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
       titleBar.appendChild(backBtn);
       container.appendChild(titleBar);
+    } else if (this.view === 'aging') {
+      const titleBar = el('div', { class: 'page-title-bar-v2' });
+      const h1 = el('h1', { class: 'breadcrumb-h1' });
+      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Billing' });
+      baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
+      h1.appendChild(baseLink);
+      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
+      h1.appendChild(document.createTextNode('Aging Report'));
+      titleBar.appendChild(h1);
+
+      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Invoices' });
+      backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
+      titleBar.appendChild(backBtn);
+      container.appendChild(titleBar);
     } else {
       container.appendChild(el('h1', { text: 'Billing' }));
     }
@@ -2176,12 +2190,6 @@ const Billing = {
     });
 
     const container = el('div');
-    const topActions = el('div', { class: 'form-header-bar', style: 'margin-bottom: var(--spacing-lg);' });
-    topActions.appendChild(el('h2', { text: 'Aging Report' }));
-    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
-    backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-    topActions.appendChild(backBtn);
-    container.appendChild(topActions);
 
     const grid = el('div', { class: 'kpi-grid' });
     Object.entries(buckets).forEach(([label, invs]) => {
