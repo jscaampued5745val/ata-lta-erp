@@ -840,72 +840,306 @@ const Transmittal = {
   buildLetterPreview(t) {
     const client = DB.getById('clients', t.clientId);
     const wr = DB.getById('workRequests', t.workRequestId);
-    const entityName = t.entity === 'ATA' ? 'ATA Accounting' : 'LTA Accounting';
+    const entity = t.entity || 'ATA';
+    const fromEntity = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
 
-    const letter = el('div', { class: 'transmittal-letter' });
-
-    const header = el('div', { style: 'text-align:center; margin-bottom: var(--spacing-lg); border-bottom: 2px solid var(--color-border); padding-bottom: var(--spacing-md);' });
-    header.appendChild(el('h2', { text: entityName, style: 'margin:0; font-size:1.25rem;' }));
-    header.appendChild(el('p', { text: 'Transmittal', style: 'margin:0; font-size:0.875rem; color:var(--color-text-muted);' }));
-    letter.appendChild(header);
-
-    const metaBlock = el('div', { style: 'margin-bottom: var(--spacing-lg);' });
-    metaBlock.appendChild(el('p', { text: 'Date: ' + (t.sentAt ? formatDate(t.sentAt) : formatDate(new Date().toISOString())) }));
-    metaBlock.appendChild(el('p', { text: 'To: ' + (client?.name || '—') }));
-    metaBlock.appendChild(el('p', { text: 'Re: Work Request — ' + (wr?.title || '—') }));
-    metaBlock.appendChild(el('p', { text: 'Tracking Number: ' + t.trackingNumber, class: 'tracking-number' }));
-    letter.appendChild(metaBlock);
-
-    const intro = el('p', { text: 'Please find below the itemized list of documents being transmitted:' });
-    letter.appendChild(intro);
-
-    const itemTable = el('table', { style: 'width:100%; border-collapse:collapse; margin: var(--spacing-md) 0;' });
-    const itemThead = el('thead');
-    const itemThr = el('tr');
-    ['Document Type', 'Description'].forEach(h => {
-      const th = el('th', { text: h });
-      th.style.borderBottom = '2px solid #333';
-      th.style.textAlign = 'left';
-      th.style.padding = '8px';
-      itemThr.appendChild(th);
-    });
-    itemThead.appendChild(itemThr);
-    itemTable.appendChild(itemThead);
-
-    const itemTbody = el('tbody');
-    (t.items || []).forEach((item, idx) => {
-      const tr = el('tr');
-      [item.documentType, item.description].forEach(val => {
-        const td = el('td', { text: val });
-        td.style.borderBottom = '1px solid #ddd';
-        td.style.padding = '8px';
-        tr.appendChild(td);
-      });
-      itemTbody.appendChild(tr);
-    });
-    itemTable.appendChild(itemTbody);
-    letter.appendChild(itemTable);
-
-    const notesBlock = el('div', { style: 'margin: var(--spacing-md) 0; font-style:italic; color:var(--color-text-muted);' });
-    if (t.notes) {
-      notesBlock.appendChild(el('p', { text: 'Notes: ' + t.notes }));
+    // Date formatting (Entity-aware)
+    let formattedDate = '';
+    const dateObj = new Date(t.sentAt || t.createdAt || new Date());
+    if (entity === 'ATA') {
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      formattedDate = dateObj.toLocaleDateString('en-US', options).toUpperCase();
+    } else {
+      formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
     }
-    letter.appendChild(notesBlock);
 
-    const sigBlock = el('div', { style: 'margin-top: var(--spacing-xl);' });
-    sigBlock.appendChild(el('p', { text: 'Prepared by:' }));
-    sigBlock.appendChild(el('div', { style: 'height: 48px;' }));
-    sigBlock.appendChild(el('p', { text: '_______________________________', style: 'margin:0;' }));
-    sigBlock.appendChild(el('p', { text: 'Authorized Representative', style: 'margin:0; font-size:0.8125rem; color:var(--color-text-muted);' }));
-    letter.appendChild(sigBlock);
+    // TO Field parsing
+    const pocUser = DB.getById('users', client?.contactUserId);
+    const pocName = pocUser?.name || client?.contactPerson || '';
+    const clientName = client?.name || '';
+    const tradeName = client?.tradeName || '';
 
-    const ackBlock = el('div', { style: 'margin-top: var(--spacing-xl); border-top: 1px dashed var(--color-border); padding-top: var(--spacing-lg);' });
-    ackBlock.appendChild(el('p', { text: 'Received by:' }));
-    ackBlock.appendChild(el('div', { style: 'height: 48px;' }));
-    ackBlock.appendChild(el('p', { text: '_______________________________', style: 'margin:0;' }));
-    ackBlock.appendChild(el('p', { text: 'Name / Signature / Date', style: 'margin:0; font-size:0.8125rem; color:var(--color-text-muted);' }));
-    letter.appendChild(ackBlock);
+    let toLine1 = pocName || clientName || '';
+    let toLine2 = '';
+    if (tradeName) {
+      toLine2 = entity === 'ATA' ? `(${tradeName})` : tradeName;
+    } else if (pocName && clientName) {
+      toLine2 = entity === 'ATA' ? `(${clientName})` : clientName;
+    }
 
+    const address = client?.address || '';
+    let toLine3 = '';
+    let toLine4 = '';
+    if (address) {
+      const firstComma = address.indexOf(',');
+      if (firstComma !== -1) {
+        toLine3 = address.substring(0, firstComma).trim();
+        toLine4 = address.substring(firstComma + 1).trim();
+      } else {
+        toLine3 = address;
+      }
+    }
+
+    // Build the table rows for the documents
+    const rows = [];
+    const totalRows = 12;
+    let usedRows = 0;
+
+    (t.items || []).forEach(item => {
+      if (usedRows < totalRows) {
+        rows.push({ text: (item.documentType || '').toUpperCase(), isEmpty: false });
+        usedRows++;
+      }
+      if (usedRows < totalRows) {
+        rows.push({ text: (item.description || '').toUpperCase(), isEmpty: false });
+        usedRows++;
+      }
+    });
+
+    while (usedRows < totalRows) {
+      rows.push({ text: '', isEmpty: true });
+      usedRows++;
+    }
+
+    // Acknowledgment info for the signature
+    let sigName = '';
+    let sigDate = '';
+    if (t.status === 'Acknowledged' && t.receivedByName) {
+      sigName = t.receivedByName.toUpperCase();
+      if (t.acknowledgedAt) {
+        const dObj = new Date(t.acknowledgedAt);
+        sigDate = `${dObj.getMonth() + 1}/${dObj.getDate()}/${String(dObj.getFullYear()).slice(-2)}`;
+      }
+    }
+
+    const letter = el('div', { class: 'transmittal-letter', style: 'background:#fff; color:#000; font-family:Arial, sans-serif; padding:20px; border:1px solid #ccc; max-width:700px; margin:0 auto; box-sizing:border-box;' });
+
+    // Styles local to the preview to ensure styling matches
+    const styleEl = el('style', { textContent: `
+      .preview-container {
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      .preview-header-table {
+        width: 100%;
+        border: 2px solid #000;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+      }
+      .preview-header-table td {
+        border: 2px solid #000;
+        padding: 6px 10px;
+        vertical-align: top;
+      }
+      .preview-title-cell {
+        text-align: center;
+        font-weight: bold;
+        font-size: 12pt;
+        letter-spacing: 0.5px;
+        padding: 8px !important;
+      }
+      .preview-label-red {
+        color: #c2272d;
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .preview-label-bold {
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .preview-underline-line {
+        border-bottom: 1.5px solid #000;
+        min-height: 16px;
+        margin-top: 3px;
+        padding-bottom: 1px;
+        font-weight: bold;
+      }
+      .preview-document-box {
+        border: 2px solid #000;
+        position: relative;
+        margin-bottom: 15px;
+      }
+      .preview-document-title {
+        font-weight: bold;
+        padding: 6px 10px;
+        border-bottom: 2px solid #000;
+        background-color: #fff;
+        font-size: 10pt;
+      }
+      .preview-document-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .preview-doc-row {
+        height: 22px;
+      }
+      .preview-doc-cell {
+        border-bottom: 1px solid #000;
+        text-align: center;
+        font-weight: bold;
+        padding: 2px 4px;
+        font-size: 10pt;
+      }
+      .preview-document-table tr:last-child .preview-doc-cell {
+        border-bottom: none;
+      }
+      .preview-received-stamp {
+        position: absolute;
+        right: 12%;
+        top: 50%;
+        transform: translateY(-50%) rotate(-7deg);
+        border: 4px double #1e40af;
+        color: #1e40af;
+        padding: 6px 12px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 4px;
+        font-family: 'Courier New', Courier, monospace;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 100;
+      }
+      .preview-stamp-title {
+        font-size: 14pt;
+        letter-spacing: 2px;
+        border-bottom: 2px solid #1e40af;
+        margin-bottom: 4px;
+        padding-bottom: 1px;
+      }
+      .preview-stamp-date {
+        font-size: 11pt;
+      }
+      .preview-signature-container {
+        margin-top: 30px;
+        width: 100%;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+      }
+      .preview-sig-info {
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+        font-weight: bold;
+        font-size: 11pt;
+        min-height: 20px;
+      }
+      .preview-sig-name {
+        flex: 2;
+        text-align: center;
+      }
+      .preview-sig-date {
+        flex: 1;
+        text-align: right;
+      }
+      .preview-sig-line {
+        border-top: 1.5px solid #000;
+        margin-top: 2px;
+      }
+      .preview-sig-label {
+        font-size: 9pt;
+        color: #333;
+        margin-top: 6px;
+      }
+    ` });
+    letter.appendChild(styleEl);
+
+    // Main layout container
+    const container = el('div', { class: 'preview-container' });
+
+    // Table Header Box
+    const headerTable = el('table', { class: 'preview-header-table' });
+    
+    // Row 1: Title
+    const r1 = el('tr');
+    r1.appendChild(el('td', { colspan: '2', class: 'preview-title-cell', text: 'DOCUMENT TRANSMITTAL FORM' }));
+    headerTable.appendChild(r1);
+
+    // Row 2: Doc No & Date
+    const r2 = el('tr');
+    const tdDocNo = el('td', { style: 'width: 55%;' }, [
+      el('span', { class: 'preview-label-red', text: 'TRANSMITTAL DOC NO.:' }),
+      el('span', { class: 'value-bold', text: t.trackingNumber })
+    ]);
+    const tdDate = el('td', { style: 'width: 45%;' }, [
+      el('span', { class: 'preview-label-bold', text: 'DATE:' }),
+      el('span', { class: 'value-bold', text: formattedDate })
+    ]);
+    r2.appendChild(tdDocNo);
+    r2.appendChild(tdDate);
+    headerTable.appendChild(r2);
+
+    // Row 3: FROM & TO
+    const r3 = el('tr');
+    const tdFrom = el('td', { style: 'width: 55%; line-height: 1.4;' }, [
+      el('strong', { text: 'FROM:' }),
+      document.createTextNode(' '),
+      el('strong', { text: fromEntity }),
+      el('br'),
+      document.createTextNode('RM 307 Republic Supermarket Bldg,'),
+      el('br'),
+      document.createTextNode('Soler St., cor. F.Torres St.,'),
+      el('br'),
+      document.createTextNode('Sta. Cruz, Manila')
+    ]);
+    const tdTo = el('td', { style: 'width: 45%;' }, [
+      el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
+        el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
+        el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
+          el('div', { class: 'preview-underline-line', text: toLine1 }),
+          el('div', { class: 'preview-underline-line', text: toLine2 }),
+          el('div', { class: 'preview-underline-line', text: toLine3 }),
+          el('div', { class: 'preview-underline-line', text: toLine4 })
+        ])
+      ])
+    ]);
+    r3.appendChild(tdFrom);
+    r3.appendChild(tdTo);
+    headerTable.appendChild(r3);
+
+    container.appendChild(headerTable);
+
+    // Document Box
+    const docBox = el('div', { class: 'preview-document-box' });
+    docBox.appendChild(el('div', { class: 'preview-document-title', text: 'Received the following documents and/or records:' }));
+    
+    const docTable = el('table', { class: 'preview-document-table' });
+    rows.forEach(r => {
+      const tr = el('tr', { class: 'preview-doc-row' });
+      tr.appendChild(el('td', { class: 'preview-doc-cell', html: r.isEmpty ? '&nbsp;' : r.text }));
+      docTable.appendChild(tr);
+    });
+    docBox.appendChild(docTable);
+
+    // RECEIVED STAMP (if acknowledged)
+    if (t.status === 'Acknowledged' && t.acknowledgedAt) {
+      const stampDateObj = new Date(t.acknowledgedAt);
+      const stampDateStr = stampDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+      
+      const stamp = el('div', { class: 'preview-received-stamp' }, [
+        el('div', { class: 'preview-stamp-title', text: 'RECEIVED' }),
+        el('div', { class: 'preview-stamp-date', text: stampDateStr })
+      ]);
+      docBox.appendChild(stamp);
+    }
+    container.appendChild(docBox);
+
+    // Notes (if any)
+    if (t.notes) {
+      container.appendChild(el('div', { style: 'margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;', text: `Notes: ${t.notes}` }));
+    }
+
+    // Signature Box
+    const sigContainer = el('div', { class: 'preview-signature-container' });
+    sigContainer.appendChild(el('div', { class: 'preview-sig-info' }, [
+      el('span', { class: 'preview-sig-name', text: sigName }),
+      el('span', { class: 'preview-sig-date', text: sigDate })
+    ]));
+    sigContainer.appendChild(el('div', { class: 'preview-sig-line' }));
+    sigContainer.appendChild(el('div', { class: 'preview-sig-label', text: 'Signature over Printed name / Date Received' }));
+    container.appendChild(sigContainer);
+
+    letter.appendChild(container);
     return letter;
   },
 
@@ -921,112 +1155,315 @@ const Transmittal = {
     title.textContent = 'Transmittal — ' + t.trackingNumber;
     doc.head.appendChild(title);
 
-    const style = doc.createElement('style');
-    style.textContent = 'body { font-family: Georgia, serif; margin: 40px; color: #333; line-height: 1.6; } h2 { margin: 0 0 4px 0; font-size: 1.25rem; } .sub { font-size: 0.875rem; color: #666; margin: 0 0 24px 0; } table { width: 100%; border-collapse: collapse; margin: 16px 0; } th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; } th { border-bottom: 2px solid #333; } .tracking-number { font-family: monospace; font-size: 0.875rem; color: #666; letter-spacing: 0.05em; } .sig-space { height: 48px; } .dashed-top { border-top: 1px dashed #ccc; padding-top: 24px; margin-top: 32px; }';
-    doc.head.appendChild(style);
-
     const client = DB.getById('clients', t.clientId);
     const wr = DB.getById('workRequests', t.workRequestId);
-    const entityName = t.entity === 'ATA' ? 'ATA Accounting' : 'LTA Accounting';
+    const entity = t.entity || 'ATA';
+    const fromEntity = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
 
-    const body = doc.body;
-
-    const h2 = doc.createElement('h2');
-    h2.textContent = entityName;
-    body.appendChild(h2);
-    const sub = doc.createElement('p');
-    sub.className = 'sub';
-    sub.textContent = 'Transmittal';
-    body.appendChild(sub);
-
-    const metaP = doc.createElement('div');
-    const pDate = doc.createElement('p');
-    pDate.textContent = 'Date: ' + (t.sentAt ? formatDate(t.sentAt) : formatDate(new Date().toISOString()));
-    metaP.appendChild(pDate);
-    const pTo = doc.createElement('p');
-    pTo.textContent = 'To: ' + (client?.name || '—');
-    metaP.appendChild(pTo);
-    const pRe = doc.createElement('p');
-    pRe.textContent = 'Re: Work Request — ' + (wr?.title || '—');
-    metaP.appendChild(pRe);
-    const pTrack = doc.createElement('p');
-    pTrack.className = 'tracking-number';
-    pTrack.textContent = 'Tracking Number: ' + t.trackingNumber;
-    metaP.appendChild(pTrack);
-    body.appendChild(metaP);
-
-    const intro = doc.createElement('p');
-    intro.textContent = 'Please find below the itemized list of documents being transmitted:';
-    body.appendChild(intro);
-
-    const table = doc.createElement('table');
-    const thead = doc.createElement('thead');
-    const thr = doc.createElement('tr');
-    ['Document Type', 'Description'].forEach(h => {
-      const th = doc.createElement('th');
-      th.textContent = h;
-      thr.appendChild(th);
-    });
-    thead.appendChild(thr);
-    table.appendChild(thead);
-
-    const tbody = doc.createElement('tbody');
-    (t.items || []).forEach((item, idx) => {
-      const tr = doc.createElement('tr');
-      [item.documentType, item.description].forEach(val => {
-        const td = doc.createElement('td');
-        td.textContent = val;
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    body.appendChild(table);
-
-    if (t.notes) {
-      const notes = doc.createElement('p');
-      notes.style.fontStyle = 'italic';
-      notes.style.color = '#666';
-      notes.textContent = 'Notes: ' + t.notes;
-      body.appendChild(notes);
+    // Date formatting (Entity-aware)
+    let formattedDate = '';
+    const dateObj = new Date(t.sentAt || t.createdAt || new Date());
+    if (entity === 'ATA') {
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      formattedDate = dateObj.toLocaleDateString('en-US', options).toUpperCase();
+    } else {
+      formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
     }
 
-    const sig = doc.createElement('div');
-    const sigP1 = doc.createElement('p');
-    sigP1.textContent = 'Prepared by:';
-    sig.appendChild(sigP1);
-    const sigSpace = doc.createElement('div');
-    sigSpace.className = 'sig-space';
-    sig.appendChild(sigSpace);
-    const sigLine = doc.createElement('p');
-    sigLine.textContent = '_______________________________';
-    sig.appendChild(sigLine);
-    const sigLabel = doc.createElement('p');
-    sigLabel.style.fontSize = '0.8125rem';
-    sigLabel.style.color = '#666';
-    sigLabel.style.margin = '0';
-    sigLabel.textContent = 'Authorized Representative';
-    sig.appendChild(sigLabel);
-    body.appendChild(sig);
+    // TO Field parsing
+    const pocUser = DB.getById('users', client?.contactUserId);
+    const pocName = pocUser?.name || client?.contactPerson || '';
+    const clientName = client?.name || '';
+    const tradeName = client?.tradeName || '';
 
-    const ack = doc.createElement('div');
-    ack.className = 'dashed-top';
-    const ackP1 = doc.createElement('p');
-    ackP1.textContent = 'Received by:';
-    ack.appendChild(ackP1);
-    const ackSpace = doc.createElement('div');
-    ackSpace.className = 'sig-space';
-    ack.appendChild(ackSpace);
-    const ackLine = doc.createElement('p');
-    ackLine.textContent = '_______________________________';
-    ack.appendChild(ackLine);
-    const ackLabel = doc.createElement('p');
-    ackLabel.style.fontSize = '0.8125rem';
-    ackLabel.style.color = '#666';
-    ackLabel.style.margin = '0';
-    ackLabel.textContent = 'Name / Signature / Date';
-    ack.appendChild(ackLabel);
-    body.appendChild(ack);
+    let toLine1 = pocName || clientName || '';
+    let toLine2 = '';
+    if (tradeName) {
+      toLine2 = entity === 'ATA' ? `(${tradeName})` : tradeName;
+    } else if (pocName && clientName) {
+      toLine2 = entity === 'ATA' ? `(${clientName})` : clientName;
+    }
+
+    const address = client?.address || '';
+    let toLine3 = '';
+    let toLine4 = '';
+    if (address) {
+      const firstComma = address.indexOf(',');
+      if (firstComma !== -1) {
+        toLine3 = address.substring(0, firstComma).trim();
+        toLine4 = address.substring(firstComma + 1).trim();
+      } else {
+        toLine3 = address;
+      }
+    }
+
+    // Build the table rows for the documents
+    const totalRows = 12;
+    let usedRows = 0;
+    let rowsHtml = '';
+
+    (t.items || []).forEach(item => {
+      if (usedRows < totalRows) {
+        rowsHtml += `<tr class="doc-row"><td class="doc-cell">${(item.documentType || '').toUpperCase()}</td></tr>`;
+        usedRows++;
+      }
+      if (usedRows < totalRows) {
+        rowsHtml += `<tr class="doc-row"><td class="doc-cell">${(item.description || '').toUpperCase()}</td></tr>`;
+        usedRows++;
+      }
+    });
+
+    while (usedRows < totalRows) {
+      rowsHtml += `<tr class="doc-row"><td class="doc-cell">&nbsp;</td></tr>`;
+      usedRows++;
+    }
+
+    // RECEIVED STAMP (if acknowledged)
+    let stampHtml = '';
+    if (t.status === 'Acknowledged' && t.acknowledgedAt) {
+      const stampDateObj = new Date(t.acknowledgedAt);
+      const stampDateStr = stampDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+      stampHtml = `
+        <div class="received-stamp">
+          <div class="stamp-title">RECEIVED</div>
+          <div class="stamp-date">${stampDateStr}</div>
+        </div>
+      `;
+    }
+
+    // Acknowledgment info for the signature
+    let sigName = '';
+    let sigDate = '';
+    if (t.status === 'Acknowledged' && t.receivedByName) {
+      sigName = t.receivedByName.toUpperCase();
+      if (t.acknowledgedAt) {
+        const dObj = new Date(t.acknowledgedAt);
+        sigDate = `${dObj.getMonth() + 1}/${dObj.getDate()}/${String(dObj.getFullYear()).slice(-2)}`;
+      }
+    }
+
+    const style = doc.createElement('style');
+    style.textContent = `
+      @page {
+        size: letter;
+        margin: 12mm 15mm;
+      }
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #000;
+        background-color: #fff;
+        font-size: 10pt;
+        line-height: 1.35;
+      }
+      .container {
+        width: 100%;
+        max-width: 680px;
+        margin: 0 auto;
+        position: relative;
+      }
+      .header-table {
+        width: 100%;
+        border: 2px solid #000;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+      }
+      .header-table td {
+        border: 2px solid #000;
+        padding: 6px 10px;
+        vertical-align: top;
+      }
+      .title-cell {
+        text-align: center;
+        font-weight: bold;
+        font-size: 12pt;
+        letter-spacing: 0.5px;
+        padding: 8px !important;
+      }
+      .doc-no-cell {
+        width: 55%;
+      }
+      .date-cell {
+        width: 45%;
+      }
+      .label-red {
+        color: #c2272d;
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .label-bold {
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .value-bold {
+        font-weight: bold;
+      }
+      .from-cell {
+        width: 55%;
+        line-height: 1.4;
+      }
+      .to-cell {
+        width: 45%;
+        line-height: 1.4;
+      }
+      .underline-line {
+        border-bottom: 1.5px solid #000;
+        min-height: 16px;
+        margin-top: 3px;
+        padding-bottom: 1px;
+        font-weight: bold;
+      }
+      .document-box {
+        border: 2px solid #000;
+        position: relative;
+        margin-bottom: 15px;
+      }
+      .document-title {
+        font-weight: bold;
+        padding: 6px 10px;
+        border-bottom: 2px solid #000;
+        background-color: #fff;
+        font-size: 10pt;
+      }
+      .document-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .doc-row {
+        height: 22px;
+      }
+      .doc-cell {
+        border-bottom: 1px solid #000;
+        text-align: center;
+        font-weight: bold;
+        padding: 2px 4px;
+        font-size: 10pt;
+      }
+      .document-table tr:last-child .doc-cell {
+        border-bottom: none;
+      }
+      .received-stamp {
+        position: absolute;
+        right: 12%;
+        top: 50%;
+        transform: translateY(-50%) rotate(-7deg);
+        border: 4px double #1e40af;
+        color: #1e40af;
+        padding: 6px 12px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 4px;
+        font-family: 'Courier New', Courier, monospace;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 100;
+      }
+      .stamp-title {
+        font-size: 14pt;
+        letter-spacing: 2px;
+        border-bottom: 2px solid #1e40af;
+        margin-bottom: 4px;
+        padding-bottom: 1px;
+      }
+      .stamp-date {
+        font-size: 11pt;
+        letter-spacing: 1px;
+      }
+      .signature-container {
+        margin-top: 30px;
+        width: 100%;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+      }
+      .sig-info {
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+        font-weight: bold;
+        font-size: 11pt;
+        min-height: 20px;
+      }
+      .sig-name {
+        flex: 2;
+        text-align: center;
+      }
+      .sig-date {
+        flex: 1;
+        text-align: right;
+      }
+      .sig-line {
+        border-top: 1.5px solid #000;
+        margin-top: 2px;
+      }
+      .sig-label {
+        font-size: 9pt;
+        color: #333;
+        margin-top: 6px;
+      }
+    `;
+    doc.head.appendChild(style);
+
+    const body = doc.body;
+    body.innerHTML = `
+      <div class="container">
+        <table class="header-table">
+          <tr>
+            <td colspan="2" class="title-cell">DOCUMENT TRANSMITTAL FORM</td>
+          </tr>
+          <tr>
+            <td class="doc-no-cell">
+              <span class="label-red">TRANSMITTAL DOC NO.:</span>
+              <span class="value-bold">${t.trackingNumber}</span>
+            </td>
+            <td class="date-cell">
+              <span class="label-bold">DATE:</span>
+              <span class="value-bold">${formattedDate}</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="from-cell">
+              <strong>FROM:</strong> <strong>${fromEntity}</strong><br>
+              RM 307 Republic Supermarket Bldg,<br>
+              Soler St., cor. F.Torres St.,<br>
+              Sta. Cruz, Manila
+            </td>
+            <td class="to-cell">
+              <div style="display: flex; gap: 8px; align-items: flex-start;">
+                <strong style="margin-top: 3px;">TO:</strong>
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                  <div class="underline-line">${toLine1}</div>
+                  <div class="underline-line">${toLine2}</div>
+                  <div class="underline-line">${toLine3}</div>
+                  <div class="underline-line">${toLine4}</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <div class="document-box">
+          <div class="document-title">Received the following documents and/or records:</div>
+          <table class="document-table">
+            ${rowsHtml}
+          </table>
+          ${stampHtml}
+        </div>
+
+        ${t.notes ? `<div style="margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;">Notes: ${t.notes}</div>` : ''}
+
+        <div class="signature-container">
+          <div class="sig-info">
+            <span class="sig-name">${sigName}</span>
+            <span class="sig-date">${sigDate}</span>
+          </div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Signature over Printed name / Date Received</div>
+        </div>
+      </div>
+    `;
 
     win.focus();
     setTimeout(() => win.print(), 300);

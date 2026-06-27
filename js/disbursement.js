@@ -1231,6 +1231,7 @@ const Disbursement = {
     }
     const approver = approverId ? DB.getById('users', approverId) : null;
     const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
+    const releaser = d.releasedBy ? DB.getById('users', d.releasedBy) : null;
     const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
     const client = wr ? DB.getById('clients', wr.clientId) : null;
     const entity = d.entity || 'ATA';
@@ -1434,7 +1435,7 @@ const Disbursement = {
         <div class="signature-box">
           <div style="height: 50px;"></div>
           <div class="line">
-            ${handler?.name || '________________________'}
+            ${releaser ? releaser.name : (handler ? handler.name : '________________________')}
             <span>Released By / Date</span>
           </div>
         </div>
@@ -1462,6 +1463,7 @@ const Disbursement = {
     }
     const approver = approverId ? DB.getById('users', approverId) : null;
     const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
+    const releaser = d.releasedBy ? DB.getById('users', d.releasedBy) : null;
     const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
     const client = wr ? DB.getById('clients', wr.clientId) : null;
     const entity = d.entity || 'ATA';
@@ -1553,7 +1555,7 @@ const Disbursement = {
 
       if (pd.reference) detailRows += addRow('Reference / Check No.', pd.reference);
       if (pd.bank) detailRows += addRow('Bank', pd.bank);
-      detailRows += addRow('Processed By', handler ? handler.name : '—');
+      detailRows += addRow('Released By', releaser ? releaser.name : (handler ? handler.name : '—'));
       detailRows += addRow('Date of Release', formatDate(pd.date || d.releasedAt));
 
       paymentDetailsHtml = `
@@ -1574,7 +1576,7 @@ const Disbursement = {
               <div style="display:flex; flex-direction:column; gap:4px;">${detailRows}</div>
             </div>
             <div class="payment-status-box" style="display: flex; flex-direction: column; justify-content: center; height: 100%; box-sizing: border-box;">
-              <p style="margin: 0; font-size:9.5pt; line-height: 1.5; color: #1e293b;">Payment has been authorized and released by <strong>${handler?.name || 'assigned handler'}</strong>.</p>
+              <p style="margin: 0; font-size:9.5pt; line-height: 1.5; color: #1e293b;">Payment has been authorized by <strong>${approver?.name || 'Authorized Approver'}</strong> and released by <strong>${releaser?.name || handler?.name || 'assigned handler'}</strong>.</p>
             </div>
           </div>
         </div>`;
@@ -1703,7 +1705,7 @@ const Disbursement = {
         <div class="approval-box">
           <div style="height: 45px;"></div>
           <div class="line">
-            ${handler?.name || '________________________'}
+            ${releaser ? releaser.name : (handler ? handler.name : '________________________')}
             <span>Released By / Date</span>
           </div>
         </div>
