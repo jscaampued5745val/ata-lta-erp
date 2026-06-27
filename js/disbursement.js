@@ -35,10 +35,6 @@ const Disbursement = {
         const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Generate Voucher', style: 'margin-right:8px;' });
         genVouchBtn.addEventListener('click', () => this.generateVoucher(d));
         actions.appendChild(genVouchBtn);
-
-        const genVouchNoLogoBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Generate Voucher (No Logo)', style: 'margin-right:8px;' });
-        genVouchNoLogoBtn.addEventListener('click', () => this.generateVoucher(d, true));
-        actions.appendChild(genVouchNoLogoBtn);
       }
       const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { location.hash = '#disbursement'; });
@@ -1228,7 +1224,12 @@ const Disbursement = {
   generateExpensePDF(d, noLogo = false) {
     const emp = DB.getById('users', this.getEmployeeId(d));
     const requester = DB.getById('users', d.requestedBy);
-    const approver = d.approvedBy ? DB.getById('users', d.approvedBy) : null;
+    let approverId = d.approvedBy || d.accountingApprovedBy;
+    if (!approverId && (d.status === 'Approved' || d.status === 'Released')) {
+      const adminUser = DB.getWhere('users', u => u.role === 'Admin')[0];
+      if (adminUser) approverId = adminUser.id;
+    }
+    const approver = approverId ? DB.getById('users', approverId) : null;
     const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
     const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
     const client = wr ? DB.getById('clients', wr.clientId) : null;
@@ -1450,10 +1451,16 @@ const Disbursement = {
     setTimeout(() => w.print(), 300);
   },
 
-  generateVoucher(d, noLogo = false) {
+  generateVoucher(d) {
+    const noLogo = true;
     const emp = DB.getById('users', this.getEmployeeId(d));
     const requester = DB.getById('users', d.requestedBy);
-    const approver = d.approvedBy ? DB.getById('users', d.approvedBy) : null;
+    let approverId = d.approvedBy || d.accountingApprovedBy;
+    if (!approverId && (d.status === 'Approved' || d.status === 'Released')) {
+      const adminUser = DB.getWhere('users', u => u.role === 'Admin')[0];
+      if (adminUser) approverId = adminUser.id;
+    }
+    const approver = approverId ? DB.getById('users', approverId) : null;
     const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
     const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
     const client = wr ? DB.getById('clients', wr.clientId) : null;
