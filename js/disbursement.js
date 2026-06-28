@@ -135,7 +135,17 @@ const Disbursement = {
     const actions = el('div', { class: 'actions-bar' });
     if (Auth.can('disbursement:create')) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'File Expense' });
-      addBtn.addEventListener('click', () => { location.hash = '#disbursement/form'; });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '💰', title: 'File Expense',
+          formContent: this.renderForm(), formId: 'disbursement-form',
+          actions: [
+            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement') }
+          ]
+        });
+      });
       actions.appendChild(addBtn);
 
       const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
@@ -830,7 +840,14 @@ const Disbursement = {
     this.prefilledWrId = null;
     this.prefilledClientId = null;
 
-    location.hash = '#disbursement';
+    closeFormPanelAndRoute('#disbursement');
+    if (typeof Workflow !== 'undefined' && Workflow.showMessage) {
+      Workflow.showMessage(
+        isNew ? 'Expense Submitted' : 'Expense Updated',
+        'Disbursement expense has been ' + (isNew ? 'submitted' : 'updated') + ' successfully.',
+        'success'
+      );
+    }
   },
 
   showRequestDisbursementModal() {
@@ -1671,9 +1688,8 @@ const Disbursement = {
         createdBy: Auth.user.id
       };
       DB.insert('disbursementTemplates', template);
-      window.SidePaneInstance.close();
       this.view = 'templates';
-      App.handleRoute();
+      closeFormPanelAndRoute();
     });
 
     formWrap.appendChild(form);
@@ -1683,11 +1699,13 @@ const Disbursement = {
     const footer = el('div', { class: 'side-pane-form-footer' });
     footer.appendChild(el('button', { type: 'submit', form: 'disb-tpl-form', class: 'btn btn-primary', text: 'Save Template' }));
     const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
-    cancelBtn.addEventListener('click', () => window.SidePaneInstance.close());
+    cancelBtn.addEventListener('click', () => closeFormPanelAndRoute());
     footer.appendChild(cancelBtn);
     container.appendChild(footer);
 
-    window.SidePaneInstance.open({ content: container });
+    if (window.SidePaneInstance && typeof window.SidePaneInstance.open === 'function') {
+      window.SidePaneInstance.open({ content: container });
+    }
   },
 
   generateFromTemplate(template) {

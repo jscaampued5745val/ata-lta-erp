@@ -91,7 +91,17 @@ const Transmittal = {
     const actions = el('div', { class: 'actions-bar' });
     if (Auth.can('transmittal:edit')) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Transmittal' });
-      addBtn.addEventListener('click', () => { location.hash = '#transmittal/form'; });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '📨', title: 'Create Transmittal',
+          formContent: this.renderForm(), formId: 'transmittal-form',
+          actions: [
+            { text: 'Create Transmittal', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#transmittal') }
+          ]
+        });
+      });
       actions.appendChild(addBtn);
     }
     if (Auth.can('transmittal:request')) {
@@ -670,7 +680,14 @@ const Transmittal = {
     this.prefilledWrId = null;
     this.prefilledClientId = null;
 
-    location.hash = '#transmittal';
+    closeFormPanelAndRoute('#transmittal');
+    if (typeof Workflow !== 'undefined' && Workflow.showMessage) {
+      Workflow.showMessage(
+        isNew ? 'Transmittal Created' : 'Transmittal Updated',
+        'Transmittal has been ' + (isNew ? 'created' : 'updated') + ' successfully.',
+        'success'
+      );
+    }
   },
 
   // ============================================================
