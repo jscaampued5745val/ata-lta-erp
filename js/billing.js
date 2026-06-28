@@ -135,7 +135,17 @@ const Billing = {
     const actions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-md);' });
     if (Auth.can('billing:edit')) {
       const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
-      addBtn.addEventListener('click', () => { location.hash = '#billing/form'; });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '🧾', title: 'Create Sales Invoice',
+          formContent: this.renderForm(), formId: 'invoice-form',
+          actions: [
+            { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
+          ]
+        });
+      });
       actions.appendChild(addBtn);
       const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
       templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
@@ -974,7 +984,7 @@ const Billing = {
     this.prefilledWrId = null;
     this.prefilledClientId = null;
 
-    location.hash = '#billing';
+    closeFormPanelAndRoute('#billing');
   },
 
   showRequestInvoiceModal() {
@@ -2044,8 +2054,7 @@ const Billing = {
         record.createdAt = new Date().toISOString();
         DB.insert('billingTemplates', record);
       }
-      window.SidePaneInstance.close();
-      App.handleRoute();
+      closeFormPanelAndRoute();
     });
 
     formWrap.appendChild(form);
@@ -2055,11 +2064,13 @@ const Billing = {
     const footer = el('div', { class: 'side-pane-form-footer' });
     footer.appendChild(el('button', { type: 'submit', form: 'billing-tpl-form', class: 'btn btn-primary', text: 'Save Template' }));
     const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
-    cancelBtn.addEventListener('click', () => window.SidePaneInstance.close());
+    cancelBtn.addEventListener('click', () => closeFormPanelAndRoute());
     footer.appendChild(cancelBtn);
     container.appendChild(footer);
 
-    window.SidePaneInstance.open({ content: container });
+    if (window.SidePaneInstance && typeof window.SidePaneInstance.open === 'function') {
+      window.SidePaneInstance.open({ content: container });
+    }
   },
 
   generateFromTemplate(t) {

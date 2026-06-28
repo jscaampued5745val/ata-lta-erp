@@ -1473,7 +1473,7 @@ const Workflow = {
           formContent: this.renderForm(), formId: 'wr-form',
           actions: [
             { text: 'Save Work Request', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#operations') }
           ]
         });
       });
@@ -3743,7 +3743,12 @@ const Workflow = {
       });
     }
 
-    location.hash = '#operations';
+    closeFormPanelAndRoute('#operations');
+    this.showMessage(
+      isNew ? 'Work Request Created' : 'Work Request Saved',
+      isNew ? 'Work Request has been successfully created.' : 'Work Request has been successfully updated.',
+      'success'
+    );
   },
 
   /**
@@ -7736,7 +7741,7 @@ const Workflow = {
         formContent: this.renderTemplateForm(), formId: 'template-form',
         actions: [
           { text: 'Save Template', class: 'btn btn-primary', type: 'submit', form: 'template-form' },
-          { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
+          { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute() }
         ]
       });
     });
@@ -7775,7 +7780,7 @@ const Workflow = {
           formContent: this.renderTemplateForm(), formId: 'template-form',
           actions: [
             { text: 'Save Template', class: 'btn btn-primary', type: 'submit', form: 'template-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => window.SidePaneInstance.close() }
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute() }
           ]
         });
       });
@@ -7998,7 +8003,7 @@ const Workflow = {
 
     this.view = 'templates';
     this.templateEditingId = null;
-    App.handleRoute();
+    closeFormPanelAndRoute();
   },
 
   renderArchive() {

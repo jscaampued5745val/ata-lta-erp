@@ -502,8 +502,36 @@ class SidePane {
     // Close when clicking outside (since overlay is hidden/non-blocking)
     document.addEventListener('click', (e) => {
       if (this.isOpen()) {
-        const clickedTrigger = e.target.closest('.board-card') || e.target.closest('.list-item') || e.target.closest('.task-row') || e.target.closest('.status-select') || e.target.closest('.modal-overlay') || e.target.closest('.modal') || e.target.closest('.searchable-dropdown') || e.target.closest('.mdp-wrapper') || e.target.closest('.mtp-wrapper') || e.target.closest('.sidebar') || e.target.closest('.sidebar-collapse-btn') || e.target.closest('.notion-embed-popover');
-        if (!this.pane.contains(e.target) && !clickedTrigger) {
+        let path = e.composedPath ? e.composedPath() : null;
+        if (!path) {
+          path = [];
+          let currentEl = e.target;
+          while (currentEl) {
+            path.push(currentEl);
+            currentEl = currentEl.parentNode;
+          }
+          path.push(document);
+          path.push(window);
+        }
+        const clickedTrigger = path.some(el => {
+          if (!el || !el.classList) return false;
+          return el.classList.contains('board-card') ||
+                 el.classList.contains('list-item') ||
+                 el.classList.contains('task-row') ||
+                 el.classList.contains('status-select') ||
+                 el.classList.contains('modal-overlay') ||
+                 el.classList.contains('modal') ||
+                 el.classList.contains('searchable-dropdown') ||
+                 el.classList.contains('mdp-wrapper') ||
+                 el.classList.contains('mtp-wrapper') ||
+                 el.classList.contains('mdp-overlay') ||
+                 el.classList.contains('mtp-overlay') ||
+                 el.classList.contains('sidebar') ||
+                 el.classList.contains('sidebar-collapse-btn') ||
+                 el.classList.contains('notion-embed-popover');
+        });
+        const clickedInsidePane = path.some(el => el === this.pane);
+        if (!clickedInsidePane && !clickedTrigger) {
           this.close();
         }
       }
@@ -635,6 +663,26 @@ function openFormPanel({ icon, title, formContent, formId, actions }) {
     wrapper.appendChild(footer);
   }
 
-  window.SidePaneInstance.open({ content: wrapper });
+  if (window.SidePaneInstance && typeof window.SidePaneInstance.open === 'function') {
+    window.SidePaneInstance.open({ content: wrapper });
+  }
+}
+
+/**
+ * Safely closes the side panel (if initialized), updates the location hash,
+ * and triggers global module re-routing to sync the lists underneath.
+ *
+ * @param {string} hash - The URL hash path to navigate to (e.g. '#billing')
+ */
+function closeFormPanelAndRoute(hash) {
+  if (window.SidePaneInstance && typeof window.SidePaneInstance.close === 'function') {
+    window.SidePaneInstance.close();
+  }
+  if (hash) {
+    location.hash = hash;
+  }
+  if (window.App && typeof window.App.handleRoute === 'function') {
+    window.App.handleRoute();
+  }
 }
 
