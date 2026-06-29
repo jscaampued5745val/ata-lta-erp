@@ -146,8 +146,8 @@ const Disbursement = {
           icon: '💰', title: 'File Expense',
           formContent: this.renderForm(), formId: 'disbursement-form',
           actions: [
-            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement') }
+            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form', testId: 'submit-expense-btn' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement'), testId: 'cancel-expense-btn' }
           ]
         });
       });

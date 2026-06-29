@@ -2004,18 +2004,18 @@ const Billing = {
       const unit = parseFloat(li.unitCost || li.amount) || 0;
       const total = qty * unit;
       const dateStr = idx === 0 ? formatDate(inv.issueDate) : '';
-      let descStr = li.description || '—';
+      let descStr = escapeHtml(li.description || '—');
       if (qty > 1) {
         descStr += ` (Qty: ${qty} x ${formatPHP(unit)})`;
       }
       if (li.type) {
-        descStr = `[${li.type}] ${descStr}`;
+        descStr = `[${escapeHtml(li.type)}] ${descStr}`;
       }
 
       if (noLogo || entity === 'ATA') {
         return `
           <tr>
-            <td>${dateStr}</td>
+            <td>${escapeHtml(dateStr)}</td>
             <td>${descStr}</td>
             <td class="num">${formatPHP(total)}</td>
           </tr>
@@ -2023,7 +2023,7 @@ const Billing = {
       } else {
         return `
           <tr>
-            <td>${dateStr}</td>
+            <td>${escapeHtml(dateStr)}</td>
             <td>${descStr}</td>
             <td></td>
             <td class="num">${formatPHP(total)}</td>
@@ -2043,6 +2043,17 @@ const Billing = {
         </div>`
       : '';
 
+    const clientNameEscaped = escapeHtml(client?.name || '—');
+    const clientTradeNameEscaped = client?.tradeName ? `<p>(${escapeHtml(client.tradeName)})</p>` : '';
+    const clientAddressEscaped = escapeHtml(client?.address || '—');
+    const clientTinEscaped = client?.tin ? `<p>TIN: ${escapeHtml(client.tin)}</p>` : '';
+    const invoiceNumberEscaped = escapeHtml(inv.invoiceNumber);
+    const invoiceDateEscaped = escapeHtml(formatDate(inv.issueDate));
+    const dateValEscaped = escapeHtml(dateVal);
+    const cashValEscaped = escapeHtml(cashVal);
+    const checkValEscaped = escapeHtml(checkVal);
+    const bankValEscaped = escapeHtml(bankVal);
+
     d.body.innerHTML = `
       ${headerHtml}
 
@@ -2050,21 +2061,21 @@ const Billing = {
         <div class="col-bill-to">
           <div class="bill-to-title">${entity === 'ATA' ? 'BILL TO' : 'BILL TO:'}</div>
           <div class="bill-to-content">
-            <p><strong>${client?.name || '—'}</strong></p>
-            ${client?.tradeName ? `<p>(${client.tradeName})</p>` : ''}
-            <p>${client?.address || '—'}</p>
-            ${client?.tin ? `<p>TIN: ${client.tin}</p>` : ''}
+            <p><strong>${clientNameEscaped}</strong></p>
+            ${clientTradeNameEscaped}
+            <p>${clientAddressEscaped}</p>
+            ${clientTinEscaped}
           </div>
         </div>
         <div class="col-details">
           <table class="details-table">
             <tr>
               <td class="details-label">STATEMENT NUMBER</td>
-              <td class="details-value">${inv.invoiceNumber}</td>
+              <td class="details-value">${invoiceNumberEscaped}</td>
             </tr>
             <tr>
               <td class="details-label">STATEMENT DATE</td>
-              <td class="details-value">${formatDate(inv.issueDate)}</td>
+              <td class="details-value">${invoiceDateEscaped}</td>
             </tr>
           </table>
         </div>
@@ -2083,10 +2094,10 @@ const Billing = {
       <div class="bottom-container">
         <div class="payment-details-box">
           <div class="payment-details-title">PAYMENT DETAILS:</div>
-          <div class="payment-details-row"><span>DATE:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${dateVal}</span></div>
-          <div class="payment-details-row"><span>CASH:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${cashVal}</span></div>
-          <div class="payment-details-row"><span>DATE/CHECK NO.:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${checkVal}</span></div>
-          <div class="payment-details-row"><span>BANK/BRANCH:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${bankVal}</span></div>
+          <div class="payment-details-row"><span>DATE:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${dateValEscaped}</span></div>
+          <div class="payment-details-row"><span>CASH:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${cashValEscaped}</span></div>
+          <div class="payment-details-row"><span>DATE/CHECK NO.:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${checkValEscaped}</span></div>
+          <div class="payment-details-row"><span>BANK/BRANCH:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${bankValEscaped}</span></div>
         </div>
         <div class="total-box-container" style="width: 50%;">
           <table class="total-table">
@@ -2184,37 +2195,37 @@ const Billing = {
         let detailRows = '';
         if (p.method === 'Check') {
           detailRows = `
-            <tr><td><strong>Check Number</strong></td><td>${p.checkNumber || '—'}</td></tr>
-            <tr><td><strong>Drawee Bank</strong></td><td>${p.bankName || '—'}</td></tr>`;
+            <tr><td><strong>Check Number</strong></td><td>${escapeHtml(p.checkNumber || '—')}</td></tr>
+            <tr><td><strong>Drawee Bank</strong></td><td>${escapeHtml(p.bankName || '—')}</td></tr>`;
         } else if (p.method === 'Bank Transfer') {
           detailRows = `
-            <tr><td><strong>Bank Name</strong></td><td>${p.bankName || '—'}</td></tr>
-            <tr><td><strong>Account Number</strong></td><td>${p.bankAccount || '—'}</td></tr>
-            <tr><td><strong>Transaction Reference</strong></td><td>${p.transactionId || '—'}</td></tr>`;
+            <tr><td><strong>Bank Name</strong></td><td>${escapeHtml(p.bankName || '—')}</td></tr>
+            <tr><td><strong>Account Number</strong></td><td>${escapeHtml(p.bankAccount || '—')}</td></tr>
+            <tr><td><strong>Transaction Reference</strong></td><td>${escapeHtml(p.transactionId || '—')}</td></tr>`;
         } else if (['GCash','Maya','PayPal','Other Digital'].includes(p.method)) {
           detailRows = `
-            <tr><td><strong>Wallet / Account</strong></td><td>${p.digitalAccount || '—'}</td></tr>
-            <tr><td><strong>Transaction Reference</strong></td><td>${p.transactionId || '—'}</td></tr>`;
+            <tr><td><strong>Wallet / Account</strong></td><td>${escapeHtml(p.digitalAccount || '—')}</td></tr>
+            <tr><td><strong>Transaction Reference</strong></td><td>${escapeHtml(p.transactionId || '—')}</td></tr>`;
         } else if (['Credit Card','Debit Card'].includes(p.method)) {
           detailRows = `
-            <tr><td><strong>Card Last 4 Digits</strong></td><td>**** ${p.cardLast4 || '—'}</td></tr>
-            <tr><td><strong>Authorization Code</strong></td><td>${p.transactionId || '—'}</td></tr>
-            <tr><td><strong>Card Issuer</strong></td><td>${p.bankName || '—'}</td></tr>`;
+            <tr><td><strong>Card Last 4 Digits</strong></td><td>**** ${escapeHtml(p.cardLast4 || '—')}</td></tr>
+            <tr><td><strong>Authorization Code</strong></td><td>${escapeHtml(p.transactionId || '—')}</td></tr>
+            <tr><td><strong>Card Issuer</strong></td><td>${escapeHtml(p.bankName || '—')}</td></tr>`;
         }
         return `
           <div class="box" style="margin-bottom:12px;">
-            <p><strong>Payment ${idx + 1} — ${p.method}</strong> <span style="font-size:9pt;color:#475569;">(${formatDate(p.date)})</span></p>
+            <p><strong>Payment ${idx + 1} — ${escapeHtml(p.method)}</strong> <span style="font-size:9pt;color:#475569;">(${formatDate(p.date)})</span></p>
             <div class="grid-2">
               <div>
                 <p><strong>Amount:</strong> ${formatPHP(p.amount)}</p>
-                <p class="amount-words">${pAmountWords}</p>
+                <p class="amount-words">${escapeHtml(pAmountWords)}</p>
               </div>
               <div>
                 <table style="margin:0;">${detailRows}</table>
               </div>
             </div>
-            ${p.reference ? `<p style="margin-top:6px; font-size:9pt; color:#64748b;">General Ref: ${p.reference}</p>` : ''}
-            ${p.notes ? `<p style="font-size:9pt; color:#64748b; font-style:italic;">Notes: ${p.notes}</p>` : ''}
+            ${p.reference ? `<p style="margin-top:6px; font-size:9pt; color:#64748b;">General Ref: ${escapeHtml(p.reference)}</p>` : ''}
+            ${p.notes ? `<p style="font-size:9pt; color:#64748b; font-style:italic;">Notes: ${escapeHtml(p.notes)}</p>` : ''}
           </div>`;
       }).join('');
 
@@ -2242,7 +2253,7 @@ const Billing = {
           <div class="grid-2">
             <div class="box">
               <p><strong>Amount in Figures:</strong> ${formatPHP(inv.total)}</p>
-              <p class="amount-words"><strong>Amount in Words:</strong> ${amountWords}</p>
+              <p class="amount-words"><strong>Amount in Words:</strong> ${escapeHtml(amountWords)}</p>
             </div>
             <div class="box">
               <p><strong>Payment Mode:</strong> ___________________</p>
@@ -2254,9 +2265,14 @@ const Billing = {
         </div>`;
     }
 
+    const clientNameEscaped = escapeHtml(client?.name || '—');
+    const clientTinEscaped = escapeHtml(client?.tin || '—');
+    const clientAddressEscaped = escapeHtml(client?.address || '—');
+    const invoiceNumberEscaped = escapeHtml(inv.invoiceNumber);
+
     d.body.innerHTML = `
       <div style="text-align:center; margin-bottom:4px;">
-        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${entity} Accounting Services Firm</div>
+        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${escapeHtml(entity)} Accounting Services Firm</div>
       </div>
       <div style="border-bottom:2px solid #1e293b; margin-bottom:16px;"></div>
 
@@ -2265,15 +2281,15 @@ const Billing = {
       <div class="grid-2">
         <div class="box">
           <h3>Voucher Details</h3>
-          <p><strong>Voucher No.:</strong> PV-${inv.invoiceNumber}</p>
+          <p><strong>Voucher No.:</strong> PV-${invoiceNumberEscaped}</p>
           <p><strong>Date:</strong> ${formatDate(new Date().toISOString().slice(0, 10))}</p>
-          <p><strong>Reference Invoice:</strong> ${inv.invoiceNumber}</p>
+          <p><strong>Reference Invoice:</strong> ${invoiceNumberEscaped}</p>
         </div>
         <div class="box">
           <h3>Payee Information</h3>
-          <p><strong>${client?.name || '—'}</strong></p>
-          <p>TIN: ${client?.tin || '—'}</p>
-          <p>${client?.address || '—'}</p>
+          <p><strong>${clientNameEscaped}</strong></p>
+          <p>TIN: ${clientTinEscaped}</p>
+          <p>${clientAddressEscaped}</p>
         </div>
       </div>
 
@@ -2295,7 +2311,7 @@ const Billing = {
 
       <div class="section page-break">
         <h3>Supporting Documents</h3>
-        <p>☐ Service Invoice No. ${inv.invoiceNumber} dated ${formatDate(inv.issueDate)}</p>
+        <p>☐ Service Invoice No. ${invoiceNumberEscaped} dated ${formatDate(inv.issueDate)}</p>
         <p>☐ Purchase Order / Contract Reference: _________________</p>
         <p>☐ BIR Form 2307 (Certificate of Creditable Tax Withheld at Source): _________________</p>
       </div>

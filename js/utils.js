@@ -11,6 +11,16 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function debounce(fn, ms) {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
@@ -657,6 +667,8 @@ function openFormPanel({ icon, title, formContent, formId, actions }) {
     actions.forEach(a => {
       const btn = el('button', { type: a.type || 'button', class: a.class || 'btn btn-secondary', text: a.text });
       if (a.form) btn.setAttribute('form', a.form);
+      if (a.id) btn.id = a.id;
+      if (a.testId) btn.setAttribute('data-testid', a.testId);
       if (a.onClick) btn.addEventListener('click', a.onClick);
       footer.appendChild(btn);
     });
