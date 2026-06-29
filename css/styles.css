@@ -1179,6 +1179,47 @@ tbody tr:hover {
   top: calc(var(--billing-title-bar-height, 48px) + var(--billing-tab-nav-height, 45px) + var(--billing-toolbar-height, 0px));
   z-index: 20;
 }
+
+.operations-tab-page .board-v2 {
+  overflow: visible;
+  min-height: auto;
+}
+
+.operations-tab-page .board-column-v2 {
+  max-height: none;
+}
+
+.operations-tab-page .board-cards-scroll {
+  overflow-y: visible;
+}
+
+.operations-tab-page .toolbar-sticky-container {
+  position: sticky;
+  top: calc(var(--operations-title-bar-height, 48px) + var(--operations-tab-nav-height, 45px));
+  z-index: 24;
+  background: var(--color-bg, #f4f6fb);
+  padding-top: 8px;
+  padding-bottom: 12px;
+  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+.operations-tab-page .toolbar-sticky-container .filters-bar {
+  position: static;
+  margin-bottom: 8px;
+  background: transparent;
+  padding: 0;
+}
+
+.operations-tab-page .toolbar-sticky-container .view-mode-toggle {
+  margin-bottom: 0;
+}
+
+.operations-tab-page .board-column-header-v2 {
+  position: sticky;
+  top: calc(var(--operations-title-bar-height, 48px) + var(--operations-tab-nav-height, 45px) + var(--operations-toolbar-height, 0px));
+  z-index: 20;
+}
 .module-tab-link {
   display: inline-flex;
   align-items: center;
@@ -2383,9 +2424,7 @@ tbody tr:hover {
   top: 132px;
 }
 
-.operations-list-page .board-column-header-v2 {
-  top: 0;
-}
+
 
 .board-column-title {
   font-weight: 700;

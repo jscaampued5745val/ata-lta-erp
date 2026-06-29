@@ -1412,12 +1412,12 @@ const Workflow = {
         el('span', { class: 'detail-info-value', text: client?.name || 'Unknown Client' })
       ]));
       container.appendChild(subHeader);
-    } else if (this.view === 'templates' || this.view === 'templateForm') {
-        // Do nothing here, these views render their own breadcrumb title bar
-    } else if (this.view === 'list') {
-        // Do nothing here, renderList will render the page-title-bar-v2
-    } else if (this.view !== 'archive') {
-      container.appendChild(el('h1', { text: 'Operations' }));
+    } else if (this.view === 'list' || this.view === 'templates' || this.view === 'archive') {
+      container.classList.add('operations-tab-page');
+      const titleBar = el('div', { class: 'page-title-bar-v2' });
+      titleBar.appendChild(el('h1', { text: 'Operations' }));
+      container.appendChild(titleBar);
+      container.appendChild(this.renderTabNav());
     }
 
     if (this.view === 'list') {
@@ -1434,10 +1434,16 @@ const Workflow = {
       container.appendChild(this.renderArchive());
     }
 
+    setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
   },
 
   init() {
+    this.updateStickyOffsets();
+    window.addEventListener('resize', () => this.updateStickyOffsets());
+    window.addEventListener('scroll', () => this.updateStickyOffsets());
+    window.addEventListener('load', () => this.updateStickyOffsets());
+
     document.addEventListener('click', () => {
       document.querySelectorAll('.multi-select-menu.show').forEach(m => m.classList.remove('show'));
       document.querySelectorAll('.action-menu-list').forEach(m => {
@@ -1455,6 +1461,100 @@ const Workflow = {
     }
   },
 
+  updateStickyOffsets() {
+    const titleBar = document.querySelector('.page-title-bar-v2');
+    let titleBarHeight = 48; // default fallback
+    if (titleBar) {
+      // Subtract the -20px top offset
+      titleBarHeight = titleBar.getBoundingClientRect().height - 20;
+    }
+    document.documentElement.style.setProperty('--operations-title-bar-height', `${titleBarHeight}px`);
+
+    const tabNav = document.querySelector('.module-tab-nav');
+    let tabNavHeight = 45; // default fallback
+    if (tabNav) {
+      tabNavHeight = tabNav.getBoundingClientRect().height;
+    }
+    document.documentElement.style.setProperty('--operations-tab-nav-height', `${tabNavHeight}px`);
+
+    const toolbar = document.querySelector('.operations-tab-page .toolbar-sticky-container');
+    let toolbarHeight = 0;
+    if (toolbar) {
+      toolbarHeight = toolbar.getBoundingClientRect().height;
+    }
+    document.documentElement.style.setProperty('--operations-toolbar-height', `${toolbarHeight}px`);
+  },
+
+  renderTabNav() {
+    const tabNav = el('div', { class: 'module-tab-nav' });
+
+    const entity = Auth.activeEntity;
+    const wrCount = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      }
+      return wrEnt === entity.toUpperCase();
+    }).filter(wr => wr.status !== 'Cancelled').length;
+
+    const templateCount = DB.getWhere('retainerTemplates', t => {
+      const tEnt = (t.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(tEnt);
+      }
+      return tEnt === entity.toUpperCase();
+    }).length;
+
+    const trashCount = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      }
+      return wrEnt === entity.toUpperCase();
+    }).filter(wr => wr.status === 'Cancelled').length;
+
+    const tabs = [
+      { key: 'list', label: 'Work Requests', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', count: wrCount },
+      { key: 'templates', label: 'Retainer Templates', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>', count: templateCount },
+      { key: 'archive', label: 'Trash', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>', count: trashCount }
+    ];
+
+    tabs.forEach(tab => {
+      const btn = el('button', { class: 'module-tab-link' + (this.view === tab.key ? ' active' : '') });
+      btn.innerHTML = tab.icon + ' ' + tab.label;
+      if (tab.count !== undefined) {
+        btn.innerHTML += ' <span class="module-badge-count">' + tab.count + '</span>';
+      }
+      btn.addEventListener('click', () => {
+        this.view = tab.key;
+        App.handleRoute();
+      });
+      tabNav.appendChild(btn);
+    });
+
+    if (Auth.can('workflow:edit')) {
+      const addBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Work Request'
+      });
+      addBtn.addEventListener('click', () => {
+        this.editingId = null;
+        openFormPanel({
+          icon: '📝', title: 'Add Work Request',
+          formContent: this.renderForm(), formId: 'wr-form',
+          actions: [
+            { text: 'Save Work Request', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => { closeFormPanelAndRoute('#operations'); } }
+          ]
+        });
+      });
+      tabNav.appendChild(addBtn);
+    }
+
+    return tabNav;
+  },
+
   // ============================================================
   // List View
   // ============================================================
@@ -1464,59 +1564,27 @@ const Workflow = {
     const canEdit = Auth.can('workflow:edit');
 
     const wrapper = el('div');
+    const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
+    const filters = el('div', { class: 'filters-bar' });
 
-    // Page Title Bar V2 consistent with system redesign
-    const titleBar = el('div', { class: 'page-title-bar-v2' });
-    titleBar.appendChild(el('h1', { text: 'Operations' }));
-    const actions = el('div', { class: 'title-bar-actions' });
-    if (canEdit) {
-      const addBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Add Work Request' });
-      addBtn.addEventListener('click', () => {
-        this.editingId = null;
-        openFormPanel({
-          icon: '📝', title: 'Add Work Request',
-          formContent: this.renderForm(), formId: 'wr-form',
-          actions: [
-            { text: 'Save Work Request', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#operations') }
-          ]
-        });
-      });
-      actions.appendChild(addBtn);
-    }
-    if (canApprove) {
-      const templateBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Retainer Templates' });
-      templateBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
-      actions.appendChild(templateBtn);
-    }
-    const archiveBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Archive' });
-    archiveBtn.addEventListener('click', () => { this.view = 'archive'; App.handleRoute(); });
-    actions.appendChild(archiveBtn);
-    titleBar.appendChild(actions);
-    wrapper.appendChild(titleBar);
-
-    // Toolbar (Modular components redesigned)
-    const toolbar = el('div', { class: 'task-view-toolbar' });
-
-    // View switcher toggle inside the toolbar
-    const viewMode = App.getPreferredViewMode('operations');
-    const viewToggle = el('div', { class: 'group-toggle', style: 'margin-right: 8px;' });
+    // View mode toggle
+    const viewMode = App.getPreferredViewMode('operations') || 'table';
+    const vmToggle = el('div', { class: 'view-mode-toggle' });
     const vmTable = el('button', { html: ViewIcons.table + ' Table', class: viewMode === 'table' ? 'active' : '', type: 'button' });
     const vmBoard = el('button', { html: ViewIcons.board + ' Board', class: viewMode === 'board' ? 'active' : '', type: 'button' });
     const vmList = el('button', { html: ViewIcons.list + ' List', class: viewMode === 'list' ? 'active' : '', type: 'button' });
     vmTable.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'table'); App.handleRoute(); });
     vmBoard.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'board'); App.handleRoute(); });
     vmList.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'list'); App.handleRoute(); });
-    viewToggle.appendChild(vmTable);
-    viewToggle.appendChild(vmBoard);
-    viewToggle.appendChild(vmList);
-    toolbar.appendChild(viewToggle);
+    vmToggle.appendChild(vmTable);
+    vmToggle.appendChild(vmBoard);
+    vmToggle.appendChild(vmList);
 
     // Filters inside the toolbar
     const priorityFilter = el('select', { class: 'form-select' });
     priorityFilter.appendChild(el('option', { value: '', text: 'All Priorities' }));
     ['Urgent', 'Priority', 'Low Priority'].forEach(p => priorityFilter.appendChild(el('option', { value: p, text: p })));
-    toolbar.appendChild(wrapFilterFieldWithClear(priorityFilter));
+    filters.appendChild(wrapFilterFieldWithClear(priorityFilter));
 
     const empOptions = [{ value: '', text: 'All Employees' }];
     DB.getWhere('users', u => {
@@ -1535,7 +1603,7 @@ const Workflow = {
       }
     });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions });
-    toolbar.appendChild(empFilter);
+    filters.appendChild(empFilter);
 
     const clientOptions = [{ value: '', text: 'All Clients' }];
     DB.getWhere('clients', c => {
@@ -1548,21 +1616,21 @@ const Workflow = {
       clientOptions.push({ value: c.id, text: c.name });
     });
     const clientFilter = createSearchableDropdown({ placeholder: 'All Clients', options: clientOptions });
-    toolbar.appendChild(clientFilter);
+    filters.appendChild(clientFilter);
 
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
     const dateTo = el('input', { type: 'date', class: 'form-select' });
-    toolbar.appendChild(el('span', { text: 'Due From', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
-    toolbar.appendChild(wrapFilterFieldWithClear(dateFrom));
-    toolbar.appendChild(el('span', { text: 'Due To', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
-    toolbar.appendChild(wrapFilterFieldWithClear(dateTo));
+    filters.appendChild(el('span', { text: 'Due From', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
+    filters.appendChild(wrapFilterFieldWithClear(dateFrom));
+    filters.appendChild(el('span', { text: 'Due To', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
+    filters.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const statusFilter = el('select', { class: 'form-select' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Draft', 'Pre-processing', 'Processing', 'Billing', 'Disbursement', 'Completed'].forEach(s => {
       statusFilter.appendChild(el('option', { value: s, text: s }));
     });
-    toolbar.appendChild(wrapFilterFieldWithClear(statusFilter));
+    filters.appendChild(wrapFilterFieldWithClear(statusFilter));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
@@ -1578,9 +1646,11 @@ const Workflow = {
       App.clearSavedFilters('operations');
       refresh();
     });
-    toolbar.appendChild(clearBtn);
+    filters.appendChild(clearBtn);
 
-    wrapper.appendChild(toolbar);
+    stickyContainer.appendChild(filters);
+    stickyContainer.appendChild(vmToggle);
+    wrapper.appendChild(stickyContainer);
 
     // Restore saved filters
     const savedFilters = App.restoreFilters('operations');
@@ -7739,22 +7809,7 @@ const Workflow = {
     const entity = Auth.activeEntity;
     const templates = DB.getWhere('retainerTemplates', t => t.entity === entity);
 
-    const wrapper = el('div', { class: 'page' });
-
-    // Breadcrumb Title Bar
-    const titleBar = el('div', { class: 'page-title-bar-v2' });
-    const h1 = el('h1', { class: 'breadcrumb-h1' });
-    const opLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Operations' });
-    opLink.addEventListener('click', () => { this.view = 'list'; this.templateEditingId = null; App.handleRoute(); });
-    h1.appendChild(opLink);
-    h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-    h1.appendChild(document.createTextNode('Retainer Templates'));
-    titleBar.appendChild(h1);
-
-    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
-    backBtn.addEventListener('click', () => { this.view = 'list'; this.templateEditingId = null; App.handleRoute(); });
-    titleBar.appendChild(backBtn);
-    wrapper.appendChild(titleBar);
+    const wrapper = el('div');
 
     const actions = el('div', { class: 'actions-bar' });
     const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Template' });
@@ -8033,25 +8088,18 @@ const Workflow = {
   renderArchive() {
     const entity = Auth.activeEntity;
     const canApprove = Auth.can('workflow:approve');
-    const archived = DB.getWhere('workRequests', wr => wr.entity === entity && wr.status === 'Cancelled');
+    const archived = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      }
+      return wrEnt === entity.toUpperCase();
+    }).filter(wr => wr.status === 'Cancelled');
 
-    const container = el('div', { class: 'page' });
-    const titleBar = el('div', { class: 'page-title-bar-v2' });
-    const h1 = el('h1', { class: 'breadcrumb-h1' });
-    const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Operations' });
-    baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-    h1.appendChild(baseLink);
-    h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-    h1.appendChild(document.createTextNode('Archive'));
-    titleBar.appendChild(h1);
-
-    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Work Requests' });
-    backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-    titleBar.appendChild(backBtn);
-    container.appendChild(titleBar);
+    const container = el('div');
 
     if (archived.length === 0) {
-      container.appendChild(el('p', { text: 'Archive is empty.', class: 'empty-state' }));
+      container.appendChild(el('p', { text: 'Trash is empty.', class: 'empty-state' }));
       return container;
     }
 
