@@ -64,32 +64,6 @@ const Billing = {
       // Tab views: list, templates, aging, trash
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       titleBar.appendChild(el('h1', { text: 'Billing' }));
-
-      const titleActions = el('div', { class: 'title-bar-actions' });
-      if (Auth.can('billing:edit')) {
-        const templatesBtn = el('button', { class: 'btn btn-secondary', html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg> Templates' });
-        templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
-        titleActions.appendChild(templatesBtn);
-      }
-      const agingBtn = el('button', { class: 'btn btn-secondary', html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Aging Report' });
-      agingBtn.addEventListener('click', () => { this.view = 'aging'; App.handleRoute(); });
-      titleActions.appendChild(agingBtn);
-      if (Auth.can('billing:edit')) {
-        const addBtn = el('button', { class: 'btn btn-primary', html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Create Invoice' });
-        addBtn.addEventListener('click', () => {
-          this.detailId = null;
-          openFormPanel({
-            icon: '🧾', title: 'Create Sales Invoice',
-            formContent: this.renderForm(), formId: 'invoice-form',
-            actions: [
-              { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
-              { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
-            ]
-          });
-        });
-        titleActions.appendChild(addBtn);
-      }
-      titleBar.appendChild(titleActions);
       container.appendChild(titleBar);
 
       // Tab navigation
@@ -143,6 +117,26 @@ const Billing = {
       });
       tabNav.appendChild(btn);
     });
+
+    if (Auth.can('billing:edit')) {
+      const addBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Invoice'
+      });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '🧾', title: 'Create Sales Invoice',
+          formContent: this.renderForm(), formId: 'invoice-form',
+          actions: [
+            { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
+          ]
+        });
+      });
+      tabNav.appendChild(addBtn);
+    }
 
     return tabNav;
   },
