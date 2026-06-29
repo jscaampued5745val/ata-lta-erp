@@ -2644,22 +2644,28 @@ const Billing = {
 
   renderTrash() {
     const entity = Auth.activeEntity;
-    const trashed = DB.getWhere('invoices', inv => inv.entity === entity && inv.status === 'Cancelled');
+    const trashed = DB.getWhere('invoices', inv => {
+      const invEnt = (inv.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(invEnt);
+      }
+      return invEnt === entity.toUpperCase();
+    }).filter(inv => inv.status === 'Cancelled');
 
     const container = el('div');
     const topActions = el('div', { class: 'form-header-bar', style: 'margin-bottom: var(--spacing-lg);' });
-    topActions.appendChild(el('h2', { text: 'Trashed Invoices' }));
+    topActions.appendChild(el('h2', { text: 'Archived Invoices' }));
     container.appendChild(topActions);
 
     if (trashed.length === 0) {
-      container.appendChild(el('p', { text: 'Trash is empty.', class: 'empty-state' }));
+      container.appendChild(el('p', { text: 'Archive is empty.', class: 'empty-state' }));
       return container;
     }
 
     const table = el('table', { class: 'data-table' });
     const thead = el('thead');
     const thr = el('tr');
-    ['Invoice #', 'Client', 'Issue Date', 'Total', 'Trashed At', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
+    ['Invoice #', 'Client', 'Issue Date', 'Total', 'Archived At', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
     thead.appendChild(thr);
     table.appendChild(thead);
 
