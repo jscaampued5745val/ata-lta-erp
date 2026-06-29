@@ -1139,9 +1139,25 @@ tbody tr:hover {
   margin-top: -8px;
 }
 
-.billing-tab-page .filters-bar {
+.billing-tab-page .toolbar-sticky-container {
+  position: sticky;
   top: calc(var(--billing-title-bar-height, 48px) + var(--billing-tab-nav-height, 45px));
   z-index: 24;
+  background: var(--color-bg, #f4f6fb);
+  padding-top: 8px;
+  padding-bottom: 12px;
+  margin-top: -8px;
+}
+
+.billing-tab-page .toolbar-sticky-container .filters-bar {
+  position: static;
+  margin-bottom: 8px;
+  background: transparent;
+  padding: 0;
+}
+
+.billing-tab-page .toolbar-sticky-container .view-mode-toggle {
+  margin-bottom: 0;
 }
 
 .billing-tab-page .board-column-header-v2 {

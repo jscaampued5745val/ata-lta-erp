@@ -186,6 +186,7 @@ const Billing = {
   renderList() {
     const entity = Auth.activeEntity;
     const wrapper = el('div');
+    const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
 
     // Request Invoice button (operations users)
     if (Auth.can('billing:request')) {
@@ -297,7 +298,7 @@ const Billing = {
     });
     filters.appendChild(clearBtn);
 
-    wrapper.appendChild(filters);
+    stickyContainer.appendChild(filters);
 
     // Restore saved filters
     const savedFilters = App.restoreFilters('billing');
@@ -323,7 +324,7 @@ const Billing = {
 
     // View mode toggle
     const viewMode = App.getPreferredViewMode('billing') || 'table';
-    const vmToggle = el('div', { class: 'view-mode-toggle', style: 'margin-bottom:var(--spacing-md);' });
+    const vmToggle = el('div', { class: 'view-mode-toggle' });
     const vmTable = el('button', { html: ViewIcons.table + ' Table', class: viewMode === 'table' ? 'active' : '' });
     const vmBoard = el('button', { html: ViewIcons.board + ' Board', class: viewMode === 'board' ? 'active' : '' });
     const vmList = el('button', { html: ViewIcons.list + ' List', class: viewMode === 'list' ? 'active' : '' });
@@ -333,7 +334,8 @@ const Billing = {
     vmToggle.appendChild(vmTable);
     vmToggle.appendChild(vmBoard);
     vmToggle.appendChild(vmList);
-    wrapper.appendChild(vmToggle);
+    stickyContainer.appendChild(vmToggle);
+    wrapper.appendChild(stickyContainer);
 
     const contentContainer = el('div');
     wrapper.appendChild(contentContainer);
