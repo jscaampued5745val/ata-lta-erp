@@ -1491,16 +1491,22 @@ const Workflow = {
     }).filter(wr => wr.status === 'Cancelled').length;
 
     const tabs = [
-      { key: 'list', label: 'Work Requests', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', count: wrCount },
-      { key: 'templates', label: 'Retainer Templates', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>', count: templateCount },
-      { key: 'archive', label: 'Archive', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>', count: archiveCount }
+      { key: 'list', label: 'Work Requests', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', count: wrCount }
     ];
+
+    if (Auth.can('workflow:approve')) {
+      tabs.push({ key: 'templates', label: 'Retainer Templates', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>', count: templateCount });
+    }
+
+    tabs.push({ key: 'archive', label: 'Archive', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>', count: archiveCount });
 
     tabs.forEach(tab => {
       const btn = el('button', { class: 'module-tab-link' + (this.view === tab.key ? ' active' : '') });
-      btn.innerHTML = tab.icon + ' ' + tab.label;
+      btn.appendChild(parseHTML(tab.icon));
+      btn.appendChild(document.createTextNode(' ' + tab.label));
       if (tab.count !== undefined) {
-        btn.innerHTML += ' <span class="module-badge-count">' + tab.count + '</span>';
+        btn.appendChild(document.createTextNode(' '));
+        btn.appendChild(el('span', { class: 'module-badge-count', text: String(tab.count) }));
       }
       btn.addEventListener('click', () => {
         this.view = tab.key;
