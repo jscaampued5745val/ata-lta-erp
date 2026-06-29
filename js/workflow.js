@@ -1315,6 +1315,9 @@ const Workflow = {
 
   render() {
     const container = el('div', { class: 'page' });
+    if (this.view === 'list') {
+      container.classList.add('operations-list-page');
+    }
     
     if (this.view === 'detail' && this.detailWrId) {
       let wr = DB.getById('workRequests', this.detailWrId);
@@ -1411,6 +1414,8 @@ const Workflow = {
       container.appendChild(subHeader);
     } else if (this.view === 'templates' || this.view === 'templateForm') {
         // Do nothing here, these views render their own breadcrumb title bar
+    } else if (this.view === 'list') {
+        // Do nothing here, renderList will render the page-title-bar-v2
     } else if (this.view !== 'archive') {
       container.appendChild(el('h1', { text: 'Operations' }));
     }
@@ -1460,12 +1465,12 @@ const Workflow = {
 
     const wrapper = el('div');
 
-    // Header bar
-    const headerBar = el('div', { class: 'form-header-bar' });
-    headerBar.appendChild(el('h2', { text: 'Work Requests' }));
-    const topActions = el('div', { class: 'form-actions-top' });
+    // Page Title Bar V2 consistent with system redesign
+    const titleBar = el('div', { class: 'page-title-bar-v2' });
+    titleBar.appendChild(el('h1', { text: 'Operations' }));
+    const actions = el('div', { class: 'title-bar-actions' });
     if (canEdit) {
-      const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Work Request' });
+      const addBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Add Work Request' });
       addBtn.addEventListener('click', () => {
         this.editingId = null;
         openFormPanel({
@@ -1477,25 +1482,41 @@ const Workflow = {
           ]
         });
       });
-      topActions.appendChild(addBtn);
+      actions.appendChild(addBtn);
     }
     if (canApprove) {
-      const templateBtn = el('button', { class: 'btn btn-secondary', text: 'Retainer Templates' });
+      const templateBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Retainer Templates' });
       templateBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
-      topActions.appendChild(templateBtn);
+      actions.appendChild(templateBtn);
     }
-    const archiveBtn = el('button', { class: 'btn btn-secondary', text: 'Archive' });
+    const archiveBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Archive' });
     archiveBtn.addEventListener('click', () => { this.view = 'archive'; App.handleRoute(); });
-    topActions.appendChild(archiveBtn);
-    headerBar.appendChild(topActions);
-    wrapper.appendChild(headerBar);
+    actions.appendChild(archiveBtn);
+    titleBar.appendChild(actions);
+    wrapper.appendChild(titleBar);
 
-    // Filters
-    const filters = el('div', { class: 'filters-bar' });
+    // Toolbar (Modular components redesigned)
+    const toolbar = el('div', { class: 'task-view-toolbar' });
+
+    // View switcher toggle inside the toolbar
+    const viewMode = App.getPreferredViewMode('operations');
+    const viewToggle = el('div', { class: 'group-toggle', style: 'margin-right: 8px;' });
+    const vmTable = el('button', { html: ViewIcons.table + ' Table', class: viewMode === 'table' ? 'active' : '', type: 'button' });
+    const vmBoard = el('button', { html: ViewIcons.board + ' Board', class: viewMode === 'board' ? 'active' : '', type: 'button' });
+    const vmList = el('button', { html: ViewIcons.list + ' List', class: viewMode === 'list' ? 'active' : '', type: 'button' });
+    vmTable.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'table'); App.handleRoute(); });
+    vmBoard.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'board'); App.handleRoute(); });
+    vmList.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'list'); App.handleRoute(); });
+    viewToggle.appendChild(vmTable);
+    viewToggle.appendChild(vmBoard);
+    viewToggle.appendChild(vmList);
+    toolbar.appendChild(viewToggle);
+
+    // Filters inside the toolbar
     const priorityFilter = el('select', { class: 'form-select' });
     priorityFilter.appendChild(el('option', { value: '', text: 'All Priorities' }));
     ['Urgent', 'Priority', 'Low Priority'].forEach(p => priorityFilter.appendChild(el('option', { value: p, text: p })));
-    filters.appendChild(wrapFilterFieldWithClear(priorityFilter));
+    toolbar.appendChild(wrapFilterFieldWithClear(priorityFilter));
 
     const empOptions = [{ value: '', text: 'All Employees' }];
     DB.getWhere('users', u => {
@@ -1514,7 +1535,7 @@ const Workflow = {
       }
     });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions });
-    filters.appendChild(empFilter);
+    toolbar.appendChild(empFilter);
 
     const clientOptions = [{ value: '', text: 'All Clients' }];
     DB.getWhere('clients', c => {
@@ -1527,21 +1548,21 @@ const Workflow = {
       clientOptions.push({ value: c.id, text: c.name });
     });
     const clientFilter = createSearchableDropdown({ placeholder: 'All Clients', options: clientOptions });
-    filters.appendChild(clientFilter);
+    toolbar.appendChild(clientFilter);
 
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
     const dateTo = el('input', { type: 'date', class: 'form-select' });
-    filters.appendChild(el('span', { text: 'Due From', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
-    filters.appendChild(wrapFilterFieldWithClear(dateFrom));
-    filters.appendChild(el('span', { text: 'Due To', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
-    filters.appendChild(wrapFilterFieldWithClear(dateTo));
+    toolbar.appendChild(el('span', { text: 'Due From', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
+    toolbar.appendChild(wrapFilterFieldWithClear(dateFrom));
+    toolbar.appendChild(el('span', { text: 'Due To', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
+    toolbar.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const statusFilter = el('select', { class: 'form-select' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Draft', 'Pre-processing', 'Processing', 'Billing', 'Disbursement', 'Completed'].forEach(s => {
       statusFilter.appendChild(el('option', { value: s, text: s }));
     });
-    filters.appendChild(wrapFilterFieldWithClear(statusFilter));
+    toolbar.appendChild(wrapFilterFieldWithClear(statusFilter));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
@@ -1557,9 +1578,9 @@ const Workflow = {
       App.clearSavedFilters('operations');
       refresh();
     });
-    filters.appendChild(clearBtn);
+    toolbar.appendChild(clearBtn);
 
-    wrapper.appendChild(filters);
+    wrapper.appendChild(toolbar);
 
     // Restore saved filters
     const savedFilters = App.restoreFilters('operations');
@@ -1582,20 +1603,6 @@ const Workflow = {
         status: statusFilter.value
       });
     };
-
-    // View mode toggle
-    const viewMode = App.getPreferredViewMode('operations');
-    const vmToggle = el('div', { class: 'view-mode-toggle', style: 'margin-bottom:var(--spacing-md);' });
-    const vmTable = el('button', { html: ViewIcons.table + ' Table', class: viewMode === 'table' ? 'active' : '' });
-    const vmBoard = el('button', { html: ViewIcons.board + ' Board', class: viewMode === 'board' ? 'active' : '' });
-    const vmList = el('button', { html: ViewIcons.list + ' List', class: viewMode === 'list' ? 'active' : '' });
-    vmTable.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'table'); App.handleRoute(); });
-    vmBoard.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'board'); App.handleRoute(); });
-    vmList.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'list'); App.handleRoute(); });
-    vmToggle.appendChild(vmTable);
-    vmToggle.appendChild(vmBoard);
-    vmToggle.appendChild(vmList);
-    wrapper.appendChild(vmToggle);
 
     const contentContainer = el('div');
     wrapper.appendChild(contentContainer);
@@ -1842,7 +1849,7 @@ const Workflow = {
 
         // Top: Priority path and Due Date
         const topRow = el('div', { class: 'card-v2-top' });
-        const categoryPath = el('span', { class: 'card-v2-category', text: `${wr.priority} >` });
+        const categoryPath = el('span', { class: 'card-v2-category', text: `${wr.priority || 'Normal'} >` });
         topRow.appendChild(categoryPath);
         if (transition && transition.canTransition) {
           const readyBadge = el('span', { 

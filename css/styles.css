@@ -2300,12 +2300,7 @@ tbody tr:hover {
 }
 
 .board-column-v2::before {
-  content: '';
-  display: block;
-  height: 3px;
-  background: var(--column-phase-color, transparent);
-  border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0;
-  margin: -1px -1px 0;
+  content: none;
 }
 
 
@@ -2323,6 +2318,26 @@ tbody tr:hover {
   z-index: 20;
   background: var(--color-surface, #ffffff);
   border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0;
+}
+
+.board-column-header-v2::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--column-phase-color, transparent);
+  border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0;
+}
+
+.project-detail-v2 .board-column-header-v2 {
+  top: 132px;
+}
+
+.operations-list-page .board-column-header-v2 {
+  top: 0;
 }
 
 .board-column-title {
