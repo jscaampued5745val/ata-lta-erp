@@ -488,7 +488,7 @@ const Billing = {
       if (st === 'Draft') {
         const addCard = el('div', {
           class: 'board-card-v2 add-billing-card',
-          style: 'border: 1px dashed var(--color-primary, #2563eb); background: rgba(37, 99, 235, 0.02); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; color: var(--color-primary, #2563eb); margin-bottom: var(--spacing-sm, 12px); cursor: pointer;'
+          style: 'border: 1px dashed #94a3b8; background: rgba(148, 163, 184, 0.02); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; color: #94a3b8; margin-bottom: var(--spacing-sm, 12px); cursor: pointer;'
         });
         addCard.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Billing';
         addCard.addEventListener('click', () => {
