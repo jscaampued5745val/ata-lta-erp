@@ -1130,7 +1130,7 @@ tbody tr:hover {
   align-items: center;
   gap: var(--space-2, 8px);
   border-bottom: 1px solid #d1d5db;
-  margin-bottom: var(--space-6, 24px);
+  margin-bottom: 12px;
 }
 .module-tab-link {
   display: inline-flex;
@@ -1952,7 +1952,7 @@ tbody tr:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3, 12px);
-  margin-bottom: var(--space-6, 24px);
+  margin-bottom: 12px;
   position: sticky;
   top: 76px;
   z-index: 25;
