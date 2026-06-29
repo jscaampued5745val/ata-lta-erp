@@ -1161,7 +1161,7 @@ tbody tr:hover {
 }
 
 .billing-tab-page .board-column-header-v2 {
-  top: 0;
+  top: calc(var(--billing-title-bar-height, 48px) + var(--billing-tab-nav-height, 45px) + var(--billing-toolbar-height, 0px));
 }
 .module-tab-link {
   display: inline-flex;

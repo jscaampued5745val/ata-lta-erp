@@ -104,6 +104,13 @@ const Billing = {
       tabNavHeight = tabNav.getBoundingClientRect().height;
     }
     document.documentElement.style.setProperty('--billing-tab-nav-height', `${tabNavHeight}px`);
+
+    const toolbar = document.querySelector('.billing-tab-page .toolbar-sticky-container');
+    let toolbarHeight = 0;
+    if (toolbar) {
+      toolbarHeight = toolbar.getBoundingClientRect().height;
+    }
+    document.documentElement.style.setProperty('--billing-toolbar-height', `${toolbarHeight}px`);
   },
 
   renderTabNav() {
