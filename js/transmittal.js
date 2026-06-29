@@ -25,10 +25,6 @@ const Transmittal = {
       
       const actions = el('div', { class: 'title-bar-actions' });
       if (t) {
-        const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal', style: 'margin-right:8px;' });
-        printBtn.addEventListener('click', () => this.openPrintLetter(t));
-        actions.appendChild(printBtn);
-
         if (Auth.can('transmittal:edit')) {
           if (t.status === 'Draft') {
             const sendBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Mark as Sent', style: 'margin-right:8px;' });
@@ -51,6 +47,10 @@ const Transmittal = {
             actions.appendChild(ackBtn);
           }
         }
+
+        const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal', style: 'margin-right:8px;' });
+        printBtn.addEventListener('click', () => this.openPrintLetter(t));
+        actions.appendChild(printBtn);
       }
       const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { location.hash = '#transmittal'; });
