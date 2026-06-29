@@ -149,7 +149,10 @@ const Billing = {
       tabNav.appendChild(btn);
     });
 
-    if (Auth.can('billing:edit')) {
+    const canCreate = Auth.can('billing:edit');
+    const canRequest = Auth.can('billing:request');
+
+    if (canCreate && canRequest) {
       const wrapper = el('div', { class: 'split-btn-group' });
 
       const primaryBtn = el('button', {
@@ -169,47 +172,59 @@ const Billing = {
       });
       wrapper.appendChild(primaryBtn);
 
-      if (Auth.can('billing:request')) {
-        const toggleBtn = el('button', {
-          class: 'btn btn-primary btn-sm split-btn-right'
-        });
-        toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
-        wrapper.appendChild(toggleBtn);
+      const toggleBtn = el('button', {
+        class: 'btn btn-primary btn-sm split-btn-right'
+      });
+      toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+      wrapper.appendChild(toggleBtn);
 
-        const menu = el('div', { class: 'dropdown-menu split-btn-menu hidden' });
+      const menu = el('div', { class: 'dropdown-menu split-btn-menu hidden' });
 
-        const requestItem = el('button', { class: 'dropdown-item' });
-        requestItem.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Invoice from Accounting';
-        requestItem.addEventListener('click', (e) => {
-          e.stopPropagation();
-          menu.classList.add('hidden');
-          Billing.showRequestInvoiceModal();
-        });
+      const requestItem = el('button', { class: 'dropdown-item' });
+      requestItem.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Billing';
+      requestItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.add('hidden');
+        Billing.showRequestInvoiceModal();
+      });
 
-        menu.appendChild(requestItem);
-        wrapper.appendChild(menu);
+      menu.appendChild(requestItem);
+      wrapper.appendChild(menu);
 
-        toggleBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          menu.classList.toggle('hidden');
-        });
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('hidden');
+      });
 
-        document.addEventListener('click', () => {
-          menu.classList.add('hidden');
-        });
-      } else {
-        primaryBtn.style.borderTopRightRadius = 'var(--radius-md, 8px)';
-        primaryBtn.style.borderBottomRightRadius = 'var(--radius-md, 8px)';
-        primaryBtn.style.borderRight = 'none';
-      }
+      document.addEventListener('click', () => {
+        menu.classList.add('hidden');
+      });
 
       tabNav.appendChild(wrapper);
-    } else if (Auth.can('billing:request')) {
-      const reqBtn = el('button', {
+    } else if (canCreate) {
+      const addBtn = el('button', {
         class: 'btn btn-primary btn-sm',
         style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
-        text: 'Request Invoice from Accounting'
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Billing'
       });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '🧾', title: 'Create Sales Invoice',
+          formContent: this.renderForm(), formId: 'invoice-form',
+          actions: [
+            { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
+          ]
+        });
+      });
+      tabNav.appendChild(addBtn);
+    } else if (canRequest) {
+      const reqBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;'
+      });
+      reqBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Billing';
       reqBtn.addEventListener('click', () => { Billing.showRequestInvoiceModal(); });
       tabNav.appendChild(reqBtn);
     }

@@ -136,7 +136,10 @@ const Transmittal = {
       tabNav.appendChild(btn);
     });
 
-    if (Auth.can('transmittal:edit')) {
+    const canCreate = Auth.can('transmittal:edit');
+    const canRequest = Auth.can('transmittal:request');
+
+    if (canCreate && canRequest) {
       const wrapper = el('div', { class: 'split-btn-group' });
 
       const primaryBtn = el('button', {
@@ -156,47 +159,59 @@ const Transmittal = {
       });
       wrapper.appendChild(primaryBtn);
 
-      if (Auth.can('transmittal:request')) {
-        const toggleBtn = el('button', {
-          class: 'btn btn-primary btn-sm split-btn-right'
-        });
-        toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
-        wrapper.appendChild(toggleBtn);
+      const toggleBtn = el('button', {
+        class: 'btn btn-primary btn-sm split-btn-right'
+      });
+      toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+      wrapper.appendChild(toggleBtn);
 
-        const menu = el('div', { class: 'dropdown-menu split-btn-menu hidden' });
+      const menu = el('div', { class: 'dropdown-menu split-btn-menu hidden' });
 
-        const requestItem = el('button', { class: 'dropdown-item' });
-        requestItem.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Transmittal from Documentation';
-        requestItem.addEventListener('click', (e) => {
-          e.stopPropagation();
-          menu.classList.add('hidden');
-          Transmittal.showRequestTransmittalModal();
-        });
+      const requestItem = el('button', { class: 'dropdown-item' });
+      requestItem.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Transmittal';
+      requestItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.add('hidden');
+        Transmittal.showRequestTransmittalModal();
+      });
 
-        menu.appendChild(requestItem);
-        wrapper.appendChild(menu);
+      menu.appendChild(requestItem);
+      wrapper.appendChild(menu);
 
-        toggleBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          menu.classList.toggle('hidden');
-        });
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('hidden');
+      });
 
-        document.addEventListener('click', () => {
-          menu.classList.add('hidden');
-        });
-      } else {
-        primaryBtn.style.borderTopRightRadius = 'var(--radius-md, 8px)';
-        primaryBtn.style.borderBottomRightRadius = 'var(--radius-md, 8px)';
-        primaryBtn.style.borderRight = 'none';
-      }
+      document.addEventListener('click', () => {
+        menu.classList.add('hidden');
+      });
 
       tabNav.appendChild(wrapper);
-    } else if (Auth.can('transmittal:request')) {
-      const reqBtn = el('button', {
+    } else if (canCreate) {
+      const addBtn = el('button', {
         class: 'btn btn-primary btn-sm',
         style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
-        text: 'Request Transmittal from Documentation'
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Transmittal'
       });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '📨', title: 'Create Transmittal',
+          formContent: this.renderForm(), formId: 'transmittal-form',
+          actions: [
+            { text: 'Create Transmittal', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#transmittal') }
+          ]
+        });
+      });
+      tabNav.appendChild(addBtn);
+    } else if (canRequest) {
+      const reqBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;'
+      });
+      reqBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Transmittal';
       reqBtn.addEventListener('click', () => { Transmittal.showRequestTransmittalModal(); });
       tabNav.appendChild(reqBtn);
     }
