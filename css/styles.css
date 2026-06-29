@@ -1132,11 +1132,18 @@ tbody tr:hover {
   border-bottom: 1px solid #d1d5db;
   margin-bottom: 12px;
   position: sticky;
-  top: var(--billing-title-bar-height, 48px);
   z-index: 25;
   background: var(--color-bg, #f4f6fb);
   padding-top: 8px;
   margin-top: -8px;
+}
+
+.billing-tab-page .module-tab-nav {
+  top: var(--billing-title-bar-height, 48px);
+}
+
+.operations-tab-page .module-tab-nav {
+  top: var(--operations-title-bar-height, 48px);
 }
 
 .billing-tab-page .board-v2 {
