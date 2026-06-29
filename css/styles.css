@@ -1160,7 +1160,7 @@ tbody tr:hover {
 
 .billing-tab-page .board-v2 {
   overflow: visible;
-  min-height: auto;
+  min-height: calc(100vh - var(--billing-title-bar-height, 48px) - var(--billing-tab-nav-height, 45px) - var(--billing-toolbar-height, 40px) - 80px);
 }
 
 .billing-tab-page .board-column-v2 {
@@ -1201,7 +1201,7 @@ tbody tr:hover {
 
 .operations-tab-page .board-v2 {
   overflow: visible;
-  min-height: auto;
+  min-height: calc(100vh - var(--operations-title-bar-height, 48px) - var(--operations-tab-nav-height, 45px) - var(--operations-toolbar-height, 40px) - 80px);
 }
 
 .operations-tab-page .board-column-v2 {
@@ -1242,7 +1242,7 @@ tbody tr:hover {
 
 .disbursement-tab-page .board-v2 {
   overflow: visible;
-  min-height: auto;
+  min-height: calc(100vh - var(--disbursement-title-bar-height, 48px) - var(--disbursement-tab-nav-height, 45px) - var(--disbursement-toolbar-height, 40px) - 80px);
 }
 
 .disbursement-tab-page .board-column-v2 {
@@ -1283,7 +1283,7 @@ tbody tr:hover {
 
 .transmittal-tab-page .board-v2 {
   overflow: visible;
-  min-height: auto;
+  min-height: calc(100vh - var(--transmittal-title-bar-height, 48px) - var(--transmittal-tab-nav-height, 45px) - var(--transmittal-toolbar-height, 40px) - 80px);
 }
 
 .transmittal-tab-page .board-column-v2 {
