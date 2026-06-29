@@ -62,6 +62,10 @@ const Billing = {
       container.appendChild(titleBar);
     } else {
       container.classList.add('billing-tab-page');
+      const viewMode = App.getPreferredViewMode('billing') || 'table';
+      if (this.view === 'list' && viewMode === 'board') {
+        container.classList.add('billing-board-view');
+      }
       // Tab views: list, templates, aging, trash
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       titleBar.appendChild(el('h1', { text: 'Billing' }));

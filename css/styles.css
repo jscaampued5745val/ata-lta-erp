@@ -1139,6 +1139,19 @@ tbody tr:hover {
   margin-top: -8px;
 }
 
+.billing-board-view {
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.billing-board-view .board-v2 {
+  flex: 1;
+  min-height: 0;
+  overflow-y: hidden;
+}
+
 .billing-tab-page .toolbar-sticky-container {
   position: sticky;
   top: calc(var(--billing-title-bar-height, 48px) + var(--billing-tab-nav-height, 45px));
