@@ -25,6 +25,19 @@ const App = {
     this.handleRoute();
     this.updateSidebarNotifications();
     this.setupStickyTrayResize();
+
+    // Close split button dropdown menus when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.split-btn-group')) {
+        document.querySelectorAll('.split-btn-menu').forEach(menu => {
+          menu.classList.add('hidden');
+        });
+      }
+    });
+
+    window.addEventListener('resize', () => this.updateStickyOffsets());
+    window.addEventListener('scroll', () => this.updateStickyOffsets());
+    window.addEventListener('load', () => this.updateStickyOffsets());
   },
 
   updateStickyTrayOffset() {
@@ -410,6 +423,7 @@ const App = {
     }
 
     const module = moduleMap[baseHash];
+    this.currentModule = baseHash.replace('#', '');
     const content = document.getElementById('content');
 
     if (module && module.render) {
@@ -468,6 +482,53 @@ const App = {
   clearSavedFilters(module) {
     const key = `erp_filters_${module}`;
     try { sessionStorage.removeItem(key); } catch (e) { /* ignore */ }
+  },
+
+  updateStickyOffsets() {
+    const activeModule = this.currentModule;
+    if (!activeModule) return;
+
+    const container = document.getElementById('content');
+    if (!container) return;
+
+    // 1. Generic page elements
+    const titleBar = container.querySelector('.page-title-bar-v2');
+    let titleBarHeight = 48;
+    if (titleBar) {
+      titleBarHeight = titleBar.getBoundingClientRect().height - 20;
+    }
+
+    const tabNav = container.querySelector('.module-tab-nav');
+    let tabNavHeight = 45;
+    if (tabNav) {
+      tabNavHeight = tabNav.getBoundingClientRect().height;
+    }
+
+    // Set scoped CSS custom variables on the content container
+    container.style.setProperty(`--${activeModule}-title-bar-height`, `${titleBarHeight}px`);
+    container.style.setProperty(`--${activeModule}-tab-nav-height`, `${tabNavHeight}px`);
+
+    const toolbar = container.querySelector(`.${activeModule}-tab-page .toolbar-sticky-container`);
+    let toolbarHeight = 0;
+    if (toolbar) {
+      toolbarHeight = toolbar.getBoundingClientRect().height;
+    }
+    container.style.setProperty(`--${activeModule}-toolbar-height`, `${toolbarHeight}px`);
+
+    // 2. Specific detail views
+    const detailTitleBar = container.querySelector('.project-detail-v2 .page-title-bar-v2');
+    let detailTitleBarHeight = 48;
+    if (detailTitleBar) {
+      detailTitleBarHeight = detailTitleBar.getBoundingClientRect().height - 20;
+    }
+    container.style.setProperty('--project-detail-title-bar-height', `${detailTitleBarHeight}px`);
+
+    const detailToolbar = container.querySelector('.project-detail-v2 .task-view-toolbar');
+    let detailToolbarHeight = 40;
+    if (detailToolbar) {
+      detailToolbarHeight = detailToolbar.getBoundingClientRect().height;
+    }
+    container.style.setProperty('--project-detail-toolbar-height', `${detailToolbarHeight}px`);
   }
 };
 

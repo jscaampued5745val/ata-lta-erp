@@ -85,6 +85,13 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+function parseHTML(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  return doc.body.firstChild || document.createTextNode('');
+}
+
+
 /**
  * View Mode Icons (Lucide-style, widely compatible SVGs)
  * Used across Table / Board / List toggles in all modules.

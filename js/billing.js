@@ -84,33 +84,10 @@ const Billing = {
 
   init() {
     this.updateStickyOffsets();
-    window.addEventListener('resize', () => this.updateStickyOffsets());
-    window.addEventListener('scroll', () => this.updateStickyOffsets());
-    window.addEventListener('load', () => this.updateStickyOffsets());
   },
 
   updateStickyOffsets() {
-    const titleBar = document.querySelector('.page-title-bar-v2');
-    let titleBarHeight = 48; // default fallback
-    if (titleBar) {
-      // Subtract the -20px top offset
-      titleBarHeight = titleBar.getBoundingClientRect().height - 20;
-    }
-    document.documentElement.style.setProperty('--billing-title-bar-height', `${titleBarHeight}px`);
-
-    const tabNav = document.querySelector('.module-tab-nav');
-    let tabNavHeight = 45; // default fallback
-    if (tabNav) {
-      tabNavHeight = tabNav.getBoundingClientRect().height;
-    }
-    document.documentElement.style.setProperty('--billing-tab-nav-height', `${tabNavHeight}px`);
-
-    const toolbar = document.querySelector('.billing-tab-page .toolbar-sticky-container');
-    let toolbarHeight = 0;
-    if (toolbar) {
-      toolbarHeight = toolbar.getBoundingClientRect().height;
-    }
-    document.documentElement.style.setProperty('--billing-toolbar-height', `${toolbarHeight}px`);
+    App.updateStickyOffsets();
   },
 
   renderTabNav() {
@@ -138,9 +115,11 @@ const Billing = {
 
     tabs.forEach(tab => {
       const btn = el('button', { class: 'module-tab-link' + (this.view === tab.key ? ' active' : '') });
-      btn.innerHTML = tab.icon + ' ' + tab.label;
+      btn.appendChild(parseHTML(tab.icon));
+      btn.appendChild(document.createTextNode(' ' + tab.label));
       if (tab.count !== undefined) {
-        btn.innerHTML += ' <span class="module-badge-count">' + tab.count + '</span>';
+        btn.appendChild(document.createTextNode(' '));
+        btn.appendChild(el('span', { class: 'module-badge-count', text: String(tab.count) }));
       }
       btn.addEventListener('click', () => {
         this.view = tab.key;
@@ -194,10 +173,6 @@ const Billing = {
       toggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         menu.classList.toggle('hidden');
-      });
-
-      document.addEventListener('click', () => {
-        menu.classList.add('hidden');
       });
 
       tabNav.appendChild(wrapper);

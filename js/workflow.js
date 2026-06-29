@@ -1440,9 +1440,6 @@ const Workflow = {
 
   init() {
     this.updateStickyOffsets();
-    window.addEventListener('resize', () => this.updateStickyOffsets());
-    window.addEventListener('scroll', () => this.updateStickyOffsets());
-    window.addEventListener('load', () => this.updateStickyOffsets());
 
     document.addEventListener('click', () => {
       document.querySelectorAll('.multi-select-menu.show').forEach(m => m.classList.remove('show'));
@@ -1462,42 +1459,7 @@ const Workflow = {
   },
 
   updateStickyOffsets() {
-    const titleBar = document.querySelector('.page-title-bar-v2');
-    let titleBarHeight = 48; // default fallback
-    if (titleBar) {
-      // Subtract the -20px top offset
-      titleBarHeight = titleBar.getBoundingClientRect().height - 20;
-    }
-    document.documentElement.style.setProperty('--operations-title-bar-height', `${titleBarHeight}px`);
-
-    const tabNav = document.querySelector('.module-tab-nav');
-    let tabNavHeight = 45; // default fallback
-    if (tabNav) {
-      tabNavHeight = tabNav.getBoundingClientRect().height;
-    }
-    document.documentElement.style.setProperty('--operations-tab-nav-height', `${tabNavHeight}px`);
-
-    const toolbar = document.querySelector('.operations-tab-page .toolbar-sticky-container');
-    let toolbarHeight = 0;
-    if (toolbar) {
-      toolbarHeight = toolbar.getBoundingClientRect().height;
-    }
-    document.documentElement.style.setProperty('--operations-toolbar-height', `${toolbarHeight}px`);
-
-    // Project Detail view sticky offsets
-    const detailTitleBar = document.querySelector('.project-detail-v2 .page-title-bar-v2');
-    let detailTitleBarHeight = 48; // default fallback
-    if (detailTitleBar) {
-      detailTitleBarHeight = detailTitleBar.getBoundingClientRect().height - 20;
-    }
-    document.documentElement.style.setProperty('--project-detail-title-bar-height', `${detailTitleBarHeight}px`);
-
-    const detailToolbar = document.querySelector('.project-detail-v2 .task-view-toolbar');
-    let detailToolbarHeight = 40; // default fallback
-    if (detailToolbar) {
-      detailToolbarHeight = detailToolbar.getBoundingClientRect().height;
-    }
-    document.documentElement.style.setProperty('--project-detail-toolbar-height', `${detailToolbarHeight}px`);
+    App.updateStickyOffsets();
   },
 
   renderTabNav() {
