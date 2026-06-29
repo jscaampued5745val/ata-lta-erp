@@ -1888,7 +1888,27 @@ const Workflow = {
 
       const cardContainer = el('div', { class: 'board-cards-scroll' });
 
-      if (colWrs.length === 0) {
+      if (st === 'Draft') {
+        const addCard = el('div', {
+          class: 'board-card-v2 add-wr-card',
+          style: 'border: 1px dashed #94a3b8; background: rgba(148, 163, 184, 0.02); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; color: #94a3b8; margin-bottom: var(--spacing-sm, 12px); cursor: pointer;'
+        });
+        addCard.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Work Request';
+        addCard.addEventListener('click', () => {
+          this.editingId = null;
+          openFormPanel({
+            icon: '📝', title: 'Add Work Request',
+            formContent: this.renderForm(), formId: 'wr-form',
+            actions: [
+              { text: 'Save Work Request', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
+              { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#operations') }
+            ]
+          });
+        });
+        cardContainer.appendChild(addCard);
+      }
+
+      if (colWrs.length === 0 && st !== 'Draft') {
         cardContainer.appendChild(el('div', { class: 'empty-state', text: 'No work requests' }));
       }
 
