@@ -258,7 +258,7 @@ async function runTests() {
     if (txt.includes('Submit')) { disHasSaveTop = true; break; }
   }
   await log('Disbursement Save Top-Right (#2)', disHasSaveTop, `buttons=${disHeaderBtns.length}`);
-  await page.click('button:has-text("Cancel")');
+  await page.click('.side-pane-form-footer button:has-text("Cancel")');
   await page.waitForTimeout(300);
 
   // ─── TEST 16: Reports month filter ──────────────────────────────

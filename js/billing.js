@@ -1882,14 +1882,7 @@ const Billing = {
       .footer-text.underline {
         text-decoration: underline;
       }
-      .bir-compliance-footer {
-        margin-top: 24px;
-        font-size: 8pt;
-        color: #64748b;
-        text-align: center;
-        border-top: 1px solid #cbd5e1;
-        padding-top: 8px;
-      }
+
       .vat-breakdown {
         background: #f8fafc;
         padding: 12px;
@@ -2136,10 +2129,6 @@ const Billing = {
         }
       </div>
 
-      <div class="bir-compliance-footer">
-        This Statement is issued in compliance with Revenue Regulations No. 7-2024 (Ease of Paying Taxes Act).<br>
-        ${isVat ? '' : 'This document is not valid for claim of input tax. '}Original copy retained for BIR audit trail.
-      </div>
     `;
 
     setTimeout(() => w.print(), 300);
