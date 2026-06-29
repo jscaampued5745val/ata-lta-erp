@@ -61,6 +61,7 @@ const Billing = {
       titleBar.appendChild(actions);
       container.appendChild(titleBar);
     } else {
+      container.classList.add('billing-tab-page');
       // Tab views: list, templates, aging, trash
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       titleBar.appendChild(el('h1', { text: 'Billing' }));

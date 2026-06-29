@@ -1131,6 +1131,21 @@ tbody tr:hover {
   gap: var(--space-2, 8px);
   border-bottom: 1px solid #d1d5db;
   margin-bottom: 12px;
+  position: sticky;
+  top: 48px;
+  z-index: 25;
+  background: var(--color-bg, #f4f6fb);
+  padding-top: 8px;
+  margin-top: -8px;
+}
+
+.billing-tab-page .filters-bar {
+  top: 93px;
+  z-index: 24;
+}
+
+.billing-tab-page .board-column-header-v2 {
+  top: 0;
 }
 .module-tab-link {
   display: inline-flex;
