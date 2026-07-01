@@ -11,35 +11,11 @@ const Clients = {
     if (!this.activeTab) this.activeTab = 'active';
     const container = el('div', { class: 'page' });
     
-    if (this.editingId) {
-      const isNew = this.editingId === 'new';
-      const c = isNew ? null : DB.getById('clients', this.editingId);
-      const titleBar = el('div', { class: 'page-title-bar-v2' });
-      const h1 = el('h1', { class: 'breadcrumb-h1' });
-      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Clients' });
-      baseLink.addEventListener('click', () => { this.editingId = null; App.handleRoute(); });
-      h1.appendChild(baseLink);
-      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode(isNew ? 'New Client' : (c?.name || 'Edit Client')));
-      titleBar.appendChild(h1);
-      
-      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
-      backBtn.addEventListener('click', () => { this.editingId = null; App.handleRoute(); });
-      titleBar.appendChild(backBtn);
-      container.appendChild(titleBar);
-
-      const formContainer = el('div', { class: 'form-container' });
-      container.appendChild(formContainer);
-      this.renderForm(formContainer, this.editingId);
-
-      return container;
-    } else {
-      container.classList.add('clients-tab-page');
-      const titleBar = el('div', { class: 'page-title-bar-v2' });
-      titleBar.appendChild(el('h1', { text: 'Clients' }));
-      container.appendChild(titleBar);
-      container.appendChild(this.renderTabNav());
-    }
+    container.classList.add('clients-tab-page');
+    const titleBar = el('div', { class: 'page-title-bar-v2' });
+    titleBar.appendChild(el('h1', { text: 'Clients' }));
+    container.appendChild(titleBar);
+    container.appendChild(this.renderTabNav());
 
     // Toolbar (Sticky Container)
     const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
@@ -255,7 +231,22 @@ const Clients = {
 
   showForm(clientId) {
     this.editingId = clientId || 'new';
-    App.handleRoute();
+    const isNew = this.editingId === 'new';
+    const client = isNew ? null : DB.getById('clients', this.editingId);
+
+    const formContainer = el('div', { class: 'form-container' });
+    this.renderForm(formContainer, this.editingId);
+
+    openFormPanel({
+      icon: '🏢',
+      title: isNew ? 'Add Client' : (client?.name || 'Edit Client'),
+      formContent: formContainer,
+      formId: 'client-form',
+      actions: [
+        { text: isNew ? 'Save Client' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'client-form', testId: 'client-save' },
+        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => this.showList(), testId: 'client-cancel' }
+      ]
+    });
   },
 
   renderForm(container, clientId) {
@@ -464,7 +455,7 @@ const Clients = {
 
   showList() {
     this.editingId = null;
-    App.handleRoute();
+    closeFormPanelAndRoute('#clients');
   },
 
   submitForm(form) {
@@ -581,7 +572,16 @@ const Clients = {
       PendingChanges.submit('clients', record, true);
     }
 
-    this.showList();
+    const isNew = !this.editingId || this.editingId === 'new';
+    const isApproved = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const msgConfig = {
+      title: isNew ? 'Client Created' : 'Client Updated',
+      message: isApproved 
+        ? `Client ${record.name} has been successfully ${isNew ? 'created' : 'updated'}.` 
+        : `Client ${record.name} ${isNew ? 'creation' : 'update'} request has been submitted for Admin approval.`,
+      type: 'success'
+    };
+    closeFormPanelAndRoute('#clients', msgConfig);
   },
 
   archiveClientDirectly(clientId) {

@@ -27,6 +27,9 @@ const Transmittal = {
       if (t) {
         if (Auth.can('transmittal:mark')) {
           if (t.status === 'Draft') {
+            const editBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Edit', style: 'margin-right:8px;' });
+            editBtn.addEventListener('click', () => { this.showForm(t.id); });
+            actions.appendChild(editBtn);
             const sendBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Mark as Sent', style: 'margin-right:8px;' });
             sendBtn.addEventListener('click', () => {
               Workflow.showConfirm('Confirm Sent', 'Are you sure you want to mark this transmittal as sent?', () => {
@@ -134,15 +137,7 @@ const Transmittal = {
       });
       primaryBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Transmittal';
       primaryBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '📨', title: 'Create Transmittal',
-          formContent: this.renderForm(), formId: 'transmittal-form',
-          actions: [
-            { text: 'Create Transmittal', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#transmittal') }
-          ]
-        });
+        this.showForm();
       });
       wrapper.appendChild(primaryBtn);
 
@@ -178,15 +173,7 @@ const Transmittal = {
         html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Transmittal'
       });
       addBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '📨', title: 'Create Transmittal',
-          formContent: this.renderForm(), formId: 'transmittal-form',
-          actions: [
-            { text: 'Create Transmittal', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#transmittal') }
-          ]
-        });
+        this.showForm();
       });
       tabNav.appendChild(addBtn);
     } else if (canRequest) {
@@ -488,6 +475,11 @@ const Transmittal = {
       const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { location.hash = '#transmittal/detail/' + t.id; });
       tdAct.appendChild(viewBtn);
+      if (this.canEditTransmittal(t)) {
+        const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit', style: 'margin-left:4px;' });
+        editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showForm(t.id); });
+        tdAct.appendChild(editBtn);
+      }
       tr.appendChild(tdAct);
       tbody.appendChild(tr);
     });
@@ -558,6 +550,13 @@ const Transmittal = {
         }
         card.appendChild(metaRow);
 
+        if (this.canEditTransmittal(t)) {
+          const cardActions = el('div', { style: 'display:flex;justify-content:flex-end;margin-top:8px;' });
+          const editBtn = el('button', { class: 'btn btn-secondary btn-xs', text: 'Edit' });
+          editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showForm(t.id); });
+          cardActions.appendChild(editBtn);
+          card.appendChild(cardActions);
+        }
         cardContainer.appendChild(card);
       });
       col.appendChild(cardContainer);
@@ -577,9 +576,35 @@ const Transmittal = {
       const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { location.hash = '#transmittal/detail/' + t.id; });
       item.appendChild(viewBtn);
+      if (this.canEditTransmittal(t)) {
+        const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit', style: 'margin-left:4px;' });
+        editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showForm(t.id); });
+        item.appendChild(editBtn);
+      }
       list.appendChild(item);
     });
     container.appendChild(list);
+  },
+
+  canEditTransmittal(t) {
+    return Auth.can('transmittal:edit') && t.status === 'Draft';
+  },
+
+  showForm(txId = null) {
+    this.detailId = txId;
+    const isNew = !txId;
+    const existing = isNew ? null : DB.getById('transmittals', txId);
+
+    openFormPanel({
+      icon: '📨',
+      title: isNew ? 'Create Transmittal' : `Edit Transmittal — ${existing?.trackingNumber || ''}`.trim(),
+      formContent: this.renderForm(),
+      formId: 'transmittal-form',
+      actions: [
+        { text: isNew ? 'Create Transmittal' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
+        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#transmittal') }
+      ]
+    });
   },
 
   // ============================================================
@@ -821,14 +846,12 @@ const Transmittal = {
     this.prefilledWrId = null;
     this.prefilledClientId = null;
 
-    closeFormPanelAndRoute('#transmittal');
-    if (typeof Workflow !== 'undefined' && Workflow.showMessage) {
-      Workflow.showMessage(
-        isNew ? 'Transmittal Created' : 'Transmittal Updated',
-        'Transmittal has been ' + (isNew ? 'created' : 'updated') + ' successfully.',
-        'success'
-      );
-    }
+    const msgConfig = {
+      title: isNew ? 'Transmittal Created' : 'Transmittal Updated',
+      message: 'Transmittal has been ' + (isNew ? 'created' : 'updated') + ' successfully.',
+      type: 'success'
+    };
+    closeFormPanelAndRoute('#transmittal', msgConfig);
   },
 
   // ============================================================

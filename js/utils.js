@@ -3,6 +3,13 @@
  * Safe DOM builder, formatting helpers, and general utilities.
  */
 
+// Set loading-active class instantly if reload was triggered by a sync operation
+(function() {
+  if (sessionStorage.getItem('is_syncing') === 'true') {
+    document.documentElement.classList.add('loading-active');
+  }
+})();
+
 function formatPHP(n) {
   return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -727,20 +734,44 @@ function openFormPanel({ icon, title, formContent, formId, actions }) {
 }
 
 /**
+ * Centralized helper to set sync flags in sessionStorage and reload the page
+ * to guarantee complete real-time data sync.
+ *
+ * @param {string} hash - Optional target hash (e.g. '#billing')
+ * @param {Object} messageConfig - Optional toast success message config
+ */
+function triggerSyncReload(hash, messageConfig) {
+  if (hash) {
+    location.hash = hash;
+  }
+  if (messageConfig) {
+    sessionStorage.setItem('pending_toast', JSON.stringify(messageConfig));
+  }
+  sessionStorage.setItem('is_syncing', 'true');
+  location.reload();
+}
+
+/**
  * Safely closes the side panel (if initialized), updates the location hash,
  * and triggers global module re-routing to sync the lists underneath.
  *
  * @param {string} hash - The URL hash path to navigate to (e.g. '#billing')
+ * @param {Object} [messageConfig] - Optional toast success message config. If provided, triggers a full page sync reload and sets a pending success toast.
  */
-function closeFormPanelAndRoute(hash) {
+function closeFormPanelAndRoute(hash, messageConfig) {
   if (window.SidePaneInstance && typeof window.SidePaneInstance.close === 'function') {
     window.SidePaneInstance.close();
   }
-  if (hash) {
-    location.hash = hash;
-  }
-  if (window.App && typeof window.App.handleRoute === 'function') {
-    window.App.handleRoute();
+
+  if (messageConfig) {
+    triggerSyncReload(hash, messageConfig);
+  } else {
+    if (hash) {
+      location.hash = hash;
+    }
+    if (window.App && typeof window.App.handleRoute === 'function') {
+      window.App.handleRoute();
+    }
   }
 }
 

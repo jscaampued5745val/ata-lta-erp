@@ -48,6 +48,16 @@ const Auth = {
   /** Convenience: every valid role in the system. */
   ALL_ROLES: ['Admin', 'Manager', 'Accounting', 'Operations', 'Documentation', 'HR'],
 
+  updateSessionClasses(hasSession) {
+    if (hasSession) {
+      document.documentElement.classList.add('has-session');
+      document.documentElement.classList.remove('no-session');
+    } else {
+      document.documentElement.classList.add('no-session');
+      document.documentElement.classList.remove('has-session');
+    }
+  },
+
   login(email, password) {
     const users = DB.getAll('users');
     const user = users.find(u => u.email === email && u.password === password);
@@ -57,6 +67,7 @@ const Auth = {
     this.user.entities = this.user.entities.map(e => e.toUpperCase());
     this.activeEntity = this.user.entities.includes('ATA') ? 'ATA' : 'LTA';
     sessionStorage.setItem('erp_session', JSON.stringify({ userId: user.id, activeEntity: this.activeEntity }));
+    this.updateSessionClasses(true);
     return true;
   },
 
@@ -64,17 +75,25 @@ const Auth = {
     this.user = null;
     this.activeEntity = null;
     sessionStorage.removeItem('erp_session');
+    this.updateSessionClasses(false);
   },
 
   restoreSession() {
     const s = JSON.parse(sessionStorage.getItem('erp_session') || 'null');
-    if (!s) return false;
+    if (!s) {
+      this.updateSessionClasses(false);
+      return false;
+    }
     this.user = DB.getById('users', s.userId);
     if (this.user) {
       this.user.entities = this.user.entities.map(e => e.toUpperCase());
+      this.activeEntity = s.activeEntity;
+      this.updateSessionClasses(true);
+      return true;
+    } else {
+      this.updateSessionClasses(false);
+      return false;
     }
-    this.activeEntity = s.activeEntity;
-    return !!this.user;
   },
 
   can(action, entity) {
