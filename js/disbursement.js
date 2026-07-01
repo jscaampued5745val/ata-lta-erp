@@ -29,6 +29,16 @@ const Disbursement = {
           editBtn.addEventListener('click', () => { this.showForm(d.id); });
           actions.appendChild(editBtn);
         }
+        if (d.status === 'Draft' && Auth.can('disbursement:create')) {
+          const submitBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Submit Expense', style: 'margin-right:8px;' });
+          submitBtn.addEventListener('click', () => {
+            Workflow.showConfirm('Submit Expense', 'Are you sure you want to submit this expense for approval?', () => {
+              DB.update('disbursements', d.id, { status: 'Submitted', submittedAt: new Date().toISOString() });
+              App.handleRoute();
+            }, 'success');
+          });
+          actions.appendChild(submitBtn);
+        }
         const genExpBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Generate Expense PDF', style: 'margin-right:8px;' });
         genExpBtn.addEventListener('click', () => this.generateExpensePDF(d));
         actions.appendChild(genExpBtn);
@@ -894,7 +904,7 @@ const Disbursement = {
       entity: entity,
       employeeId: Auth.user.id,
       requestedBy: Auth.user.id,
-      status: isNew ? 'Submitted' : (DB.getById('disbursements', this.detailId)?.status || 'Submitted'),
+      status: isNew ? 'Draft' : (DB.getById('disbursements', this.detailId)?.status || 'Draft'),
       submittedAt: new Date().toISOString(),
       receiptFilename: receiptFile ? receiptFile.name : (isNew ? null : (DB.getById('disbursements', this.detailId)?.receiptFilename || null))
     };
@@ -1174,7 +1184,7 @@ const Disbursement = {
 
     // Approval Actions
     const canApprove = Auth.can('disbursement:approve');
-    const isPending = ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status);
+    const isPending = ['Submitted', 'Under Review', 'Pending'].includes(d.status);
 
     if (isPending && canApprove) {
       const isRequester = Auth.isSelfApprover(this.getEmployeeId(d));
@@ -1219,7 +1229,7 @@ const Disbursement = {
   showApproveDialog(id) {
     const d = DB.getById('disbursements', id);
     if (!d) return;
-    if (!['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status)) {
+    if (!['Submitted', 'Under Review', 'Pending'].includes(d.status)) {
       Workflow.showMessage('Error', 'This disbursement is not pending approval.', 'danger');
       return;
     }
@@ -2044,7 +2054,7 @@ const Disbursement = {
       fromTemplate: template.id,
       employeeId: Auth.user.id,
       requestedBy: Auth.user.id,
-      status: 'Submitted',
+      status: 'Draft',
       submittedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       receiptFilename: null,
