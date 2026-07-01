@@ -47,13 +47,23 @@ const Auth = {
 
   restoreSession() {
     const s = JSON.parse(sessionStorage.getItem('erp_session') || 'null');
-    if (!s) return false;
+    if (!s) {
+      document.documentElement.classList.add('no-session');
+      document.documentElement.classList.remove('has-session');
+      return false;
+    }
     this.user = DB.getById('users', s.userId);
     if (this.user) {
       this.user.entities = this.user.entities.map(e => e.toUpperCase());
+      this.activeEntity = s.activeEntity;
+      document.documentElement.classList.add('has-session');
+      document.documentElement.classList.remove('no-session');
+      return true;
+    } else {
+      document.documentElement.classList.add('no-session');
+      document.documentElement.classList.remove('has-session');
+      return false;
     }
-    this.activeEntity = s.activeEntity;
-    return !!this.user;
   },
 
   can(action, entity) {

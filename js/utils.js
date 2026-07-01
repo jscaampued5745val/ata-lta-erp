@@ -756,6 +756,7 @@ function triggerSyncReload(hash, messageConfig) {
  * and triggers global module re-routing to sync the lists underneath.
  *
  * @param {string} hash - The URL hash path to navigate to (e.g. '#billing')
+ * @param {Object} [messageConfig] - Optional toast success message config. If provided, triggers a full page sync reload and sets a pending success toast.
  */
 function closeFormPanelAndRoute(hash, messageConfig) {
   if (window.SidePaneInstance && typeof window.SidePaneInstance.close === 'function') {
