@@ -6438,7 +6438,7 @@ tbody tr:hover {
 }
 
 .checklist-view-row.sub-level.completed {
-  background-color: color-mix(in srgb, var(--color-success) 4%, transparent);
+  background-color: color-mix(in oklab, var(--color-success) 4%, transparent);
 }
 
 .checklist-view-row.sub-level.completed .checklist-view-title {
@@ -7750,7 +7750,7 @@ tbody tr:hover {
   accent-color: var(--accent);
 }
 .project-detail-v2 .checklist-view-row.sub-level.completed {
-  background-color: color-mix(in srgb, var(--accent) 4%, transparent);
+  background-color: color-mix(in oklab, var(--accent) 4%, transparent);
 }
 
 .project-detail-v2 .bulk-action-bar {
