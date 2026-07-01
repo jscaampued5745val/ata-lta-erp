@@ -1068,7 +1068,7 @@ const Billing = {
 
     openFormPanel({
       icon: '🧾',
-      title: isNew ? 'Create Sales Invoice' : 'Edit Invoice',
+      title: isNew ? 'Create Sales Invoice' : `Edit Invoice ${inv?.invoiceNumber || ''}`.trim(),
       formContent: this.renderForm(invoiceId),
       formId: 'invoice-form',
       actions: [

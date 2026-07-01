@@ -250,7 +250,7 @@ const Clients = {
     const isNew = this.editingId === 'new';
     const client = isNew ? null : DB.getById('clients', this.editingId);
 
-    const formContainer = el('div');
+    const formContainer = el('div', { class: 'form-container' });
     this.renderForm(formContainer, this.editingId);
 
     openFormPanel({
