@@ -11,6 +11,16 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function debounce(fn, ms) {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
@@ -75,13 +85,20 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+function parseHTML(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  return doc.body.firstChild || document.createTextNode('');
+}
+
+
 /**
  * View Mode Icons (Lucide-style, widely compatible SVGs)
  * Used across Table / Board / List toggles in all modules.
  */
 const ViewIcons = {
-  table: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>',
-  board: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>',
+  table: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>',
+  board: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="18" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>',
   list: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>'
 };
 
@@ -112,6 +129,21 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
   const wrapper = document.createElement('div');
   wrapper.className = 'searchable-dropdown';
   if (maxWidth) wrapper.style.maxWidth = maxWidth;
+
+  let iconHtml = '';
+  if (placeholder.includes('Client')) {
+    iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  } else if (placeholder.includes('Employee') || placeholder.includes('Uploader')) {
+    iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>';
+  }
+
+  if (iconHtml) {
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'searchable-dropdown-icon';
+    iconSpan.innerHTML = iconHtml;
+    wrapper.appendChild(iconSpan);
+    wrapper.classList.add('has-icon');
+  }
 
   const input = document.createElement('input');
   input.type = 'text';
@@ -319,6 +351,30 @@ function wrapFilterFieldWithClear(element, onClear) {
   const wrapper = document.createElement('div');
   wrapper.className = 'filter-field-wrapper';
   
+  let iconHtml = '';
+  if (element.tagName === 'SELECT') {
+    const text = element.options[0]?.text || '';
+    if (text.includes('Work Request')) {
+      iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>';
+    } else if (text.includes('Status')) {
+      iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+    } else if (text.includes('Priority')) {
+      iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+    } else if (text.includes('Fund')) {
+      iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>';
+    } else if (text.includes('User')) {
+      iconHtml = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    }
+  }
+
+  if (iconHtml) {
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'filter-field-icon';
+    iconSpan.innerHTML = iconHtml;
+    wrapper.appendChild(iconSpan);
+    wrapper.classList.add('has-icon');
+  }
+
   if (element.style.maxWidth) wrapper.style.maxWidth = element.style.maxWidth;
   
   if (element.parentNode) {
@@ -657,6 +713,8 @@ function openFormPanel({ icon, title, formContent, formId, actions }) {
     actions.forEach(a => {
       const btn = el('button', { type: a.type || 'button', class: a.class || 'btn btn-secondary', text: a.text });
       if (a.form) btn.setAttribute('form', a.form);
+      if (a.id) btn.id = a.id;
+      if (a.testId) btn.setAttribute('data-testid', a.testId);
       if (a.onClick) btn.addEventListener('click', a.onClick);
       footer.appendChild(btn);
     });

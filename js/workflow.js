@@ -1315,6 +1315,9 @@ const Workflow = {
 
   render() {
     const container = el('div', { class: 'page' });
+    if (this.view === 'list') {
+      container.classList.add('operations-list-page');
+    }
     
     if (this.view === 'detail' && this.detailWrId) {
       let wr = DB.getById('workRequests', this.detailWrId);
@@ -1409,10 +1412,12 @@ const Workflow = {
         el('span', { class: 'detail-info-value', text: client?.name || 'Unknown Client' })
       ]));
       container.appendChild(subHeader);
-    } else if (this.view === 'templates' || this.view === 'templateForm') {
-        // Do nothing here, these views render their own breadcrumb title bar
-    } else if (this.view !== 'archive') {
-      container.appendChild(el('h1', { text: 'Operations' }));
+    } else if (this.view === 'list' || this.view === 'templates' || this.view === 'archive') {
+      container.classList.add('operations-tab-page');
+      const titleBar = el('div', { class: 'page-title-bar-v2' });
+      titleBar.appendChild(el('h1', { text: 'Operations' }));
+      container.appendChild(titleBar);
+      container.appendChild(this.renderTabNav());
     }
 
     if (this.view === 'list') {
@@ -1429,10 +1434,13 @@ const Workflow = {
       container.appendChild(this.renderArchive());
     }
 
+    setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
   },
 
   init() {
+    this.updateStickyOffsets();
+
     document.addEventListener('click', () => {
       document.querySelectorAll('.multi-select-menu.show').forEach(m => m.classList.remove('show'));
       document.querySelectorAll('.action-menu-list').forEach(m => {
@@ -1450,6 +1458,86 @@ const Workflow = {
     }
   },
 
+  updateStickyOffsets() {
+    App.updateStickyOffsets();
+  },
+
+  renderTabNav() {
+    const tabNav = el('div', { class: 'module-tab-nav' });
+
+    const entity = Auth.activeEntity;
+    const wrCount = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      }
+      return wrEnt === entity.toUpperCase();
+    }).filter(wr => wr.status !== 'Cancelled').length;
+
+    const templateCount = DB.getWhere('retainerTemplates', t => {
+      const tEnt = (t.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(tEnt);
+      }
+      return tEnt === entity.toUpperCase();
+    }).length;
+
+    const archiveCount = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      }
+      return wrEnt === entity.toUpperCase();
+    }).filter(wr => wr.status === 'Cancelled').length;
+
+    const tabs = [
+      { key: 'list', label: 'Work Requests', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', count: wrCount }
+    ];
+
+    if (Auth.can('workflow:approve')) {
+      tabs.push({ key: 'templates', label: 'Retainer Templates', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>', count: templateCount });
+    }
+
+    tabs.push({ key: 'archive', label: 'Archive', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>', count: archiveCount });
+
+    tabs.forEach(tab => {
+      const btn = el('button', { class: 'module-tab-link' + (this.view === tab.key ? ' active' : '') });
+      btn.appendChild(parseHTML(tab.icon));
+      btn.appendChild(document.createTextNode(' ' + tab.label));
+      if (tab.count !== undefined) {
+        btn.appendChild(document.createTextNode(' '));
+        btn.appendChild(el('span', { class: 'module-badge-count', text: String(tab.count) }));
+      }
+      btn.addEventListener('click', () => {
+        this.view = tab.key;
+        App.handleRoute();
+      });
+      tabNav.appendChild(btn);
+    });
+
+    if (Auth.can('workflow:edit')) {
+      const addBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Work Request'
+      });
+      addBtn.addEventListener('click', () => {
+        this.editingId = null;
+        openFormPanel({
+          icon: '📝', title: 'Add Work Request',
+          formContent: this.renderForm(), formId: 'wr-form',
+          actions: [
+            { text: 'Save Work Request', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => { closeFormPanelAndRoute('#operations'); } }
+          ]
+        });
+      });
+      tabNav.appendChild(addBtn);
+    }
+
+    return tabNav;
+  },
+
   // ============================================================
   // List View
   // ============================================================
@@ -1459,39 +1547,23 @@ const Workflow = {
     const canEdit = Auth.can('workflow:edit');
 
     const wrapper = el('div');
-
-    // Header bar
-    const headerBar = el('div', { class: 'form-header-bar' });
-    headerBar.appendChild(el('h2', { text: 'Work Requests' }));
-    const topActions = el('div', { class: 'form-actions-top' });
-    if (canEdit) {
-      const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Work Request' });
-      addBtn.addEventListener('click', () => {
-        this.editingId = null;
-        openFormPanel({
-          icon: '📝', title: 'Add Work Request',
-          formContent: this.renderForm(), formId: 'wr-form',
-          actions: [
-            { text: 'Save Work Request', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#operations') }
-          ]
-        });
-      });
-      topActions.appendChild(addBtn);
-    }
-    if (canApprove) {
-      const templateBtn = el('button', { class: 'btn btn-secondary', text: 'Retainer Templates' });
-      templateBtn.addEventListener('click', () => { this.view = 'templates'; this.templateEditingId = null; App.handleRoute(); });
-      topActions.appendChild(templateBtn);
-    }
-    const archiveBtn = el('button', { class: 'btn btn-secondary', text: 'Archive' });
-    archiveBtn.addEventListener('click', () => { this.view = 'archive'; App.handleRoute(); });
-    topActions.appendChild(archiveBtn);
-    headerBar.appendChild(topActions);
-    wrapper.appendChild(headerBar);
-
-    // Filters
+    const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
     const filters = el('div', { class: 'filters-bar' });
+
+    // View mode toggle
+    const viewMode = App.getPreferredViewMode('operations') || 'table';
+    const vmToggle = el('div', { class: 'view-mode-toggle' });
+    const vmTable = el('button', { html: ViewIcons.table + ' Table', class: viewMode === 'table' ? 'active' : '', type: 'button' });
+    const vmBoard = el('button', { html: ViewIcons.board + ' Board', class: viewMode === 'board' ? 'active' : '', type: 'button' });
+    const vmList = el('button', { html: ViewIcons.list + ' List', class: viewMode === 'list' ? 'active' : '', type: 'button' });
+    vmTable.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'table'); App.handleRoute(); });
+    vmBoard.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'board'); App.handleRoute(); });
+    vmList.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'list'); App.handleRoute(); });
+    vmToggle.appendChild(vmTable);
+    vmToggle.appendChild(vmBoard);
+    vmToggle.appendChild(vmList);
+
+    // Filters inside the toolbar
     const priorityFilter = el('select', { class: 'form-select' });
     priorityFilter.appendChild(el('option', { value: '', text: 'All Priorities' }));
     ['Urgent', 'Priority', 'Low Priority'].forEach(p => priorityFilter.appendChild(el('option', { value: p, text: p })));
@@ -1545,7 +1617,7 @@ const Workflow = {
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
-      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.5"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
       priorityFilter.value = '';
@@ -1559,7 +1631,9 @@ const Workflow = {
     });
     filters.appendChild(clearBtn);
 
-    wrapper.appendChild(filters);
+    stickyContainer.appendChild(filters);
+    stickyContainer.appendChild(vmToggle);
+    wrapper.appendChild(stickyContainer);
 
     // Restore saved filters
     const savedFilters = App.restoreFilters('operations');
@@ -1582,20 +1656,6 @@ const Workflow = {
         status: statusFilter.value
       });
     };
-
-    // View mode toggle
-    const viewMode = App.getPreferredViewMode('operations');
-    const vmToggle = el('div', { class: 'view-mode-toggle', style: 'margin-bottom:var(--spacing-md);' });
-    const vmTable = el('button', { html: ViewIcons.table + ' Table', class: viewMode === 'table' ? 'active' : '' });
-    const vmBoard = el('button', { html: ViewIcons.board + ' Board', class: viewMode === 'board' ? 'active' : '' });
-    const vmList = el('button', { html: ViewIcons.list + ' List', class: viewMode === 'list' ? 'active' : '' });
-    vmTable.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'table'); App.handleRoute(); });
-    vmBoard.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'board'); App.handleRoute(); });
-    vmList.addEventListener('click', () => { saveCurrentFilters(); App.setPreferredViewMode('operations', 'list'); App.handleRoute(); });
-    vmToggle.appendChild(vmTable);
-    vmToggle.appendChild(vmBoard);
-    vmToggle.appendChild(vmList);
-    wrapper.appendChild(vmToggle);
 
     const contentContainer = el('div');
     wrapper.appendChild(contentContainer);
@@ -1799,12 +1859,41 @@ const Workflow = {
       const col = el('div', { class: 'board-column-v2' });
       col.style.setProperty('--column-phase-color', colColor);
       
+      const colWrs = wrs.filter(wr => wr.status === st);
+
       const header = el('div', { class: 'board-column-header-v2' });
-      header.appendChild(el('div', { class: 'board-column-title', text: st }));
+      const titleWrap = el('div', { class: 'board-column-title' });
+      titleWrap.appendChild(el('span', { class: 'board-column-dot', style: 'background:' + colColor + ';' }));
+      titleWrap.appendChild(document.createTextNode(st));
+      titleWrap.appendChild(el('span', { class: 'board-column-count', text: String(colWrs.length) }));
+      header.appendChild(titleWrap);
       col.appendChild(header);
 
-      const colWrs = wrs.filter(wr => wr.status === st);
       const cardContainer = el('div', { class: 'board-cards-scroll' });
+
+      if (st === 'Draft') {
+        const addCard = el('div', {
+          class: 'board-card-v2 add-wr-card',
+          style: 'border: 1px dashed #94a3b8; background: rgba(148, 163, 184, 0.02); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; color: #94a3b8; margin-bottom: var(--spacing-sm, 12px); cursor: pointer;'
+        });
+        addCard.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Work Request';
+        addCard.addEventListener('click', () => {
+          this.editingId = null;
+          openFormPanel({
+            icon: '📝', title: 'Add Work Request',
+            formContent: this.renderForm(), formId: 'wr-form',
+            actions: [
+              { text: 'Save Work Request', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
+              { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#operations') }
+            ]
+          });
+        });
+        cardContainer.appendChild(addCard);
+      }
+
+      if (colWrs.length === 0 && st !== 'Draft') {
+        cardContainer.appendChild(el('div', { class: 'empty-state', text: 'No work requests' }));
+      }
 
       colWrs.forEach(wr => {
         const tasks = wr.isPendingApproval ? (wr.tasks || []) : DB.getWhere('tasks', t => t.workRequestId === wr.id);
@@ -1833,7 +1922,7 @@ const Workflow = {
 
         // Top: Priority path and Due Date
         const topRow = el('div', { class: 'card-v2-top' });
-        const categoryPath = el('span', { class: 'card-v2-category', text: `${wr.priority} >` });
+        const categoryPath = el('span', { class: 'card-v2-category', text: `${wr.priority || 'Normal'} >` });
         topRow.appendChild(categoryPath);
         if (transition && transition.canTransition) {
           const readyBadge = el('span', { 
@@ -4588,7 +4677,7 @@ const Workflow = {
       });
 
       if (this.taskViewMode === 'board') {
-        const board = el('div', { class: 'board-v2', style: 'margin-top: 0; display: flex; gap: var(--space-4);' });
+        const board = el('div', { class: 'board-v2', style: 'margin-top: 0;' });
         const statuses = ['Draft', 'Assigned', 'In Progress', 'For Review', 'Completed', 'Cancelled'];
         const statusColors = {
           'Draft': '#94a3b8',
@@ -4601,15 +4690,23 @@ const Workflow = {
 
         statuses.forEach(st => {
           const colColor = statusColors[st] || '#cbd5e1';
-          const col = el('div', { class: 'board-column-v2', style: 'flex: 1; min-width: 0;' });
+          const colTasks = filteredTasks.filter(t => t.status === st);
+          const col = el('div', { class: 'board-column-v2' });
           col.style.setProperty('--column-phase-color', colColor);
           
           const header = el('div', { class: 'board-column-header-v2' });
-          const colTasks = filteredTasks.filter(t => t.status === st);
-          header.appendChild(el('div', { class: 'board-column-title', text: `${st} (${colTasks.length})` }));
+          const titleWrap = el('div', { class: 'board-column-title' });
+          titleWrap.appendChild(el('span', { class: 'board-column-dot', style: 'background:' + colColor + ';' }));
+          titleWrap.appendChild(document.createTextNode(st));
+          titleWrap.appendChild(el('span', { class: 'board-column-count', text: String(colTasks.length) }));
+          header.appendChild(titleWrap);
           col.appendChild(header);
 
           const cardContainer = el('div', { class: 'board-cards-scroll', style: 'display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-3);' });
+
+          if (colTasks.length === 0) {
+            cardContainer.appendChild(el('div', { class: 'empty-state', text: 'No tasks' }));
+          }
 
           colTasks.forEach(t => {
             const card = el('div', { class: 'board-card board-card-v2', style: 'cursor: pointer;' });
@@ -7715,22 +7812,7 @@ const Workflow = {
     const entity = Auth.activeEntity;
     const templates = DB.getWhere('retainerTemplates', t => t.entity === entity);
 
-    const wrapper = el('div', { class: 'page' });
-
-    // Breadcrumb Title Bar
-    const titleBar = el('div', { class: 'page-title-bar-v2' });
-    const h1 = el('h1', { class: 'breadcrumb-h1' });
-    const opLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Operations' });
-    opLink.addEventListener('click', () => { this.view = 'list'; this.templateEditingId = null; App.handleRoute(); });
-    h1.appendChild(opLink);
-    h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-    h1.appendChild(document.createTextNode('Retainer Templates'));
-    titleBar.appendChild(h1);
-
-    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
-    backBtn.addEventListener('click', () => { this.view = 'list'; this.templateEditingId = null; App.handleRoute(); });
-    titleBar.appendChild(backBtn);
-    wrapper.appendChild(titleBar);
+    const wrapper = el('div');
 
     const actions = el('div', { class: 'actions-bar' });
     const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Template' });
@@ -8009,22 +8091,15 @@ const Workflow = {
   renderArchive() {
     const entity = Auth.activeEntity;
     const canApprove = Auth.can('workflow:approve');
-    const archived = DB.getWhere('workRequests', wr => wr.entity === entity && wr.status === 'Cancelled');
+    const archived = DB.getWhere('workRequests', wr => {
+      const wrEnt = (wr.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(wrEnt);
+      }
+      return wrEnt === entity.toUpperCase();
+    }).filter(wr => wr.status === 'Cancelled');
 
-    const container = el('div', { class: 'page' });
-    const titleBar = el('div', { class: 'page-title-bar-v2' });
-    const h1 = el('h1', { class: 'breadcrumb-h1' });
-    const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Operations' });
-    baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-    h1.appendChild(baseLink);
-    h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-    h1.appendChild(document.createTextNode('Archive'));
-    titleBar.appendChild(h1);
-
-    const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Work Requests' });
-    backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-    titleBar.appendChild(backBtn);
-    container.appendChild(titleBar);
+    const container = el('div');
 
     if (archived.length === 0) {
       container.appendChild(el('p', { text: 'Archive is empty.', class: 'empty-state' }));

@@ -23,12 +23,46 @@ const Transmittal = {
       h1.appendChild(document.createTextNode(t?.trackingNumber || 'Detail'));
       titleBar.appendChild(h1);
       
+      const actions = el('div', { class: 'title-bar-actions' });
+      if (t) {
+        if (Auth.can('transmittal:edit')) {
+          if (t.status === 'Draft') {
+            const sendBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Mark as Sent', style: 'margin-right:8px;' });
+            sendBtn.addEventListener('click', () => {
+              Workflow.showConfirm('Confirm Sent', 'Are you sure you want to mark this transmittal as sent?', () => {
+                DB.update('transmittals', t.id, {
+                  status: 'Sent',
+                  sentAt: new Date().toISOString(),
+                  sentBy: Auth.user.id
+                });
+                App.handleRoute();
+              }, 'success');
+            });
+            actions.appendChild(sendBtn);
+          } else if (t.status === 'Sent') {
+            const ackBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Acknowledge Receipt', style: 'margin-right:8px;' });
+            ackBtn.addEventListener('click', () => {
+              this.showAcknowledgeDialog(t.id);
+            });
+            actions.appendChild(ackBtn);
+          }
+        }
+
+        const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal', style: 'margin-right:8px;' });
+        printBtn.addEventListener('click', () => this.openPrintLetter(t));
+        actions.appendChild(printBtn);
+      }
       const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { location.hash = '#transmittal'; });
-      titleBar.appendChild(backBtn);
+      actions.appendChild(backBtn);
+      titleBar.appendChild(actions);
       container.appendChild(titleBar);
-    } else {
-      container.appendChild(el('h1', { text: 'Transmittal' }));
+    } else if (this.view === 'list') {
+      container.classList.add('transmittal-tab-page');
+      const titleBar = el('div', { class: 'page-title-bar-v2' });
+      titleBar.appendChild(el('h1', { text: 'Transmittal' }));
+      container.appendChild(titleBar);
+      container.appendChild(this.renderTabNav());
     }
 
     if (this.view === 'list') container.appendChild(this.renderList());
@@ -42,10 +76,123 @@ const Transmittal = {
     }
     else if (this.view === 'detail') container.appendChild(this.renderDetail());
 
+    setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
   },
 
-  init() {},
+  init() {
+    this.updateStickyOffsets();
+  },
+
+  updateStickyOffsets() {
+    App.updateStickyOffsets();
+  },
+
+  renderTabNav() {
+    const tabNav = el('div', { class: 'module-tab-nav' });
+
+    const entity = Auth.activeEntity;
+    const count = DB.getWhere('transmittals', t => {
+      const tEnt = (t.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(tEnt);
+      }
+      return tEnt === entity.toUpperCase();
+    }).length;
+
+    const tabs = [
+      { key: 'list', label: 'Transmittals', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', count: count }
+    ];
+
+    tabs.forEach(tab => {
+      const btn = el('button', { class: 'module-tab-link active' });
+      btn.appendChild(parseHTML(tab.icon));
+      btn.appendChild(document.createTextNode(' ' + tab.label));
+      if (tab.count !== undefined) {
+        btn.appendChild(document.createTextNode(' '));
+        btn.appendChild(el('span', { class: 'module-badge-count', text: String(tab.count) }));
+      }
+      tabNav.appendChild(btn);
+    });
+
+    const canCreate = Auth.can('transmittal:edit');
+    const canRequest = Auth.can('transmittal:request');
+
+    if (canCreate && canRequest) {
+      const wrapper = el('div', { class: 'split-btn-group' });
+
+      const primaryBtn = el('button', {
+        class: 'btn btn-primary btn-sm split-btn-left'
+      });
+      primaryBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Transmittal';
+      primaryBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '📨', title: 'Create Transmittal',
+          formContent: this.renderForm(), formId: 'transmittal-form',
+          actions: [
+            { text: 'Create Transmittal', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#transmittal') }
+          ]
+        });
+      });
+      wrapper.appendChild(primaryBtn);
+
+      const toggleBtn = el('button', {
+        class: 'btn btn-primary btn-sm split-btn-right'
+      });
+      toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+      wrapper.appendChild(toggleBtn);
+
+      const menu = el('div', { class: 'dropdown-menu split-btn-menu hidden' });
+
+      const requestItem = el('button', { class: 'dropdown-item' });
+      requestItem.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Transmittal';
+      requestItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.add('hidden');
+        Transmittal.showRequestTransmittalModal();
+      });
+
+      menu.appendChild(requestItem);
+      wrapper.appendChild(menu);
+
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('hidden');
+      });
+
+      tabNav.appendChild(wrapper);
+    } else if (canCreate) {
+      const addBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Transmittal'
+      });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '📨', title: 'Create Transmittal',
+          formContent: this.renderForm(), formId: 'transmittal-form',
+          actions: [
+            { text: 'Create Transmittal', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#transmittal') }
+          ]
+        });
+      });
+      tabNav.appendChild(addBtn);
+    } else if (canRequest) {
+      const reqBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;'
+      });
+      reqBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Transmittal';
+      reqBtn.addEventListener('click', () => { Transmittal.showRequestTransmittalModal(); });
+      tabNav.appendChild(reqBtn);
+    }
+
+    return tabNav;
+  },
 
   // ============================================================
   // Helpers
@@ -88,30 +235,11 @@ const Transmittal = {
   renderList() {
     const entity = Auth.activeEntity;
 
-    const actions = el('div', { class: 'actions-bar' });
-    if (Auth.can('transmittal:edit')) {
-      const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Transmittal' });
-      addBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '📨', title: 'Create Transmittal',
-          formContent: this.renderForm(), formId: 'transmittal-form',
-          actions: [
-            { text: 'Create Transmittal', class: 'btn btn-primary', type: 'submit', form: 'transmittal-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#transmittal') }
-          ]
-        });
-      });
-      actions.appendChild(addBtn);
-    }
-    if (Auth.can('transmittal:request')) {
-      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Transmittal from Documentation' });
-      reqBtn.addEventListener('click', () => { Transmittal.showRequestTransmittalModal(); });
-      actions.appendChild(reqBtn);
-    }
-
     const wrapper = el('div');
-    wrapper.appendChild(actions);
+    const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
+    const filters = el('div', { class: 'filters-bar' });
+
+
 
     // Pending operations requests banner
     if (Auth.can('transmittal:edit')) {
@@ -137,9 +265,6 @@ const Transmittal = {
       }
     }
 
-    // Filters bar
-    const filtersBar = el('div', { class: 'filters-bar' });
-
     const wrFilter = el('select', { class: 'form-select', style: 'max-width:200px' });
     wrFilter.appendChild(el('option', { value: '', text: 'All Work Requests' }));
     DB.getWhere('workRequests', wr => {
@@ -151,7 +276,7 @@ const Transmittal = {
     }).forEach(wr => {
       wrFilter.appendChild(el('option', { value: wr.id, text: wr.title }));
     });
-    filtersBar.appendChild(wrapFilterFieldWithClear(wrFilter));
+    filters.appendChild(wrapFilterFieldWithClear(wrFilter));
 
     const clientOptions = [{ value: '', text: 'All Clients' }];
     DB.getWhere('clients', c => {
@@ -164,7 +289,7 @@ const Transmittal = {
       clientOptions.push({ value: c.id, text: c.name });
     });
     const clientFilter = createSearchableDropdown({ placeholder: 'All Clients', options: clientOptions, maxWidth: '200px' });
-    filtersBar.appendChild(clientFilter);
+    filters.appendChild(clientFilter);
 
     const empOptions = [{ value: '', text: 'All Employees' }];
     DB.getWhere('users', u => {
@@ -183,23 +308,23 @@ const Transmittal = {
       }
     });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions, maxWidth: '200px' });
-    filtersBar.appendChild(empFilter);
+    filters.appendChild(empFilter);
 
     const statusFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Draft', 'Sent', 'Acknowledged'].forEach(s => statusFilter.appendChild(el('option', { value: s, text: s })));
-    filtersBar.appendChild(wrapFilterFieldWithClear(statusFilter));
+    filters.appendChild(wrapFilterFieldWithClear(statusFilter));
 
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
     const dateTo = el('input', { type: 'date', class: 'form-select' });
-    filtersBar.appendChild(el('span', { text: 'From:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(wrapFilterFieldWithClear(dateFrom));
-    filtersBar.appendChild(el('span', { text: 'To:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(wrapFilterFieldWithClear(dateTo));
+    filters.appendChild(el('span', { text: 'From:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
+    filters.appendChild(wrapFilterFieldWithClear(dateFrom));
+    filters.appendChild(el('span', { text: 'To:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
+    filters.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
-      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.5"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
       wrFilter.value = '';
@@ -211,9 +336,7 @@ const Transmittal = {
       App.clearSavedFilters('transmittals');
       updateFilters();
     });
-    filtersBar.appendChild(clearBtn);
-
-    wrapper.appendChild(filtersBar);
+    filters.appendChild(clearBtn);
 
     // Restore saved filters
     const savedFilters = App.restoreFilters('transmittals');
@@ -238,7 +361,7 @@ const Transmittal = {
     };
 
     // View mode toggle
-    const viewToggle = el('div', { class: 'view-mode-toggle', style: 'margin-bottom:var(--spacing-md);' });
+    const vmToggle = el('div', { class: 'view-mode-toggle' });
     const viewIcons = { 'Table': ViewIcons.table, 'Board': ViewIcons.board, 'List': ViewIcons.list };
     [['Table', 'table'], ['Board', 'board'], ['List', 'list']].forEach(([label, mode]) => {
       const btn = el('button', { html: (viewIcons[label] || '') + ' ' + label, class: this.listViewMode === mode ? 'active' : '' });
@@ -247,9 +370,12 @@ const Transmittal = {
         App.setPreferredViewMode('transmittals', mode);
         App.handleRoute();
       });
-      viewToggle.appendChild(btn);
+      vmToggle.appendChild(btn);
     });
-    wrapper.appendChild(viewToggle);
+
+    stickyContainer.appendChild(filters);
+    stickyContainer.appendChild(vmToggle);
+    wrapper.appendChild(stickyContainer);
 
     const listContainer = el('div');
     wrapper.appendChild(listContainer);
@@ -376,15 +502,22 @@ const Transmittal = {
 
     statuses.forEach(st => {
       const colColor = statusColors[st] || '#cbd5e1';
+      const colItems = items.filter(t => t.status === st);
       const col = el('div', { class: 'board-column-v2' });
       col.style.setProperty('--column-phase-color', colColor);
 
       const header = el('div', { class: 'board-column-header-v2' });
-      header.appendChild(el('div', { class: 'board-column-title', text: st }));
+      const titleWrap = el('div', { class: 'board-column-title' });
+      titleWrap.appendChild(el('span', { class: 'board-column-dot', style: 'background:' + colColor + ';' }));
+      titleWrap.appendChild(document.createTextNode(st));
+      titleWrap.appendChild(el('span', { class: 'board-column-count', text: String(colItems.length) }));
+      header.appendChild(titleWrap);
       col.appendChild(header);
 
-      const colItems = items.filter(t => t.status === st);
       const cardContainer = el('div', { class: 'board-cards-scroll' });
+      if (colItems.length === 0) {
+        cardContainer.appendChild(el('div', { class: 'empty-state', text: 'No transmittals' }));
+      }
 
       colItems.forEach(t => {
         const clientName = this.getClientName(t.clientId);
@@ -758,18 +891,6 @@ const Transmittal = {
 
     const container = el('div', { class: 'invoice-detail' });
 
-    // Top actions bar
-    const topActions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-lg);' });
-    const topBackBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
-    topBackBtn.addEventListener('click', () => { location.hash = '#transmittal'; });
-    topActions.appendChild(topBackBtn);
-
-    const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal' });
-    printBtn.addEventListener('click', () => this.openPrintLetter(t));
-    topActions.appendChild(printBtn);
-
-    container.appendChild(topActions);
-
     // Header
     const header = el('div', { class: 'invoice-header' });
     header.appendChild(el('h2', { text: 'Transmittal ' + t.trackingNumber }));
@@ -786,7 +907,7 @@ const Transmittal = {
     }
     if (t.acknowledgedAt) {
       const ackBy = DB.getById('users', t.acknowledgedBy);
-      meta.appendChild(el('p', { text: 'Acknowledged: ' + formatDate(t.acknowledgedAt) + ' by ' + (ackBy?.name || '—') }));
+      meta.appendChild(el('p', { text: 'Acknowledged: ' + formatDate(t.acknowledgedAt) + ' by ' + (ackBy?.name || '—') + (t.receivedByName ? ` (Received by: ${t.receivedByName})` : '') }));
     }
     if (t.notes) meta.appendChild(el('p', { text: 'Notes: ' + t.notes }));
     container.appendChild(meta);
@@ -797,132 +918,348 @@ const Transmittal = {
     letterSection.appendChild(this.buildLetterPreview(t));
     container.appendChild(letterSection);
 
-    // Actions
-    const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-lg); border-top: 1px solid var(--color-border); padding-top: var(--spacing-lg);' });
-
-    if (Auth.can('transmittal:edit')) {
-      if (t.status === 'Draft') {
-        const sendBtn = el('button', { class: 'btn btn-primary', text: 'Mark as Sent' });
-        sendBtn.addEventListener('click', () => {
-          Workflow.showConfirm('Confirm Sent', 'Are you sure you want to mark this transmittal as sent?', () => {
-            DB.update('transmittals', t.id, {
-              status: 'Sent',
-              sentAt: new Date().toISOString(),
-              sentBy: Auth.user.id
-            });
-            App.handleRoute();
-          }, 'success');
-        });
-        actions.appendChild(sendBtn);
-      } else if (t.status === 'Sent') {
-        const ackSection = el('div', { class: 'form-section' });
-        ackSection.appendChild(el('h4', { text: 'Acknowledgment' }));
-        const ackForm = el('form', { class: 'form-stacked' });
-
-        const nameGroup = el('div', { class: 'form-group' });
-        nameGroup.appendChild(el('label', { text: 'Received By (Name) *' }));
-        nameGroup.appendChild(el('input', { type: 'text', name: 'receivedBy', required: true }));
-        ackForm.appendChild(nameGroup);
-
-        const dateGroup = el('div', { class: 'form-group' });
-        dateGroup.appendChild(el('label', { text: 'Received Date *' }));
-        dateGroup.appendChild(el('input', { type: 'date', name: 'receivedDate', required: true, value: new Date().toISOString().slice(0, 10) }));
-        ackForm.appendChild(dateGroup);
-
-        const ackBtn = el('button', { type: 'submit', class: 'btn btn-success', text: 'Mark as Acknowledged' });
-        ackForm.appendChild(ackBtn);
-
-        ackForm.addEventListener('submit', (e) => {
-          e.preventDefault();
-          if (!validateRequiredFields(ackForm)) return;
-          const fd = new FormData(ackForm);
-          DB.update('transmittals', t.id, {
-            status: 'Acknowledged',
-            acknowledgedAt: fd.get('receivedDate'),
-            acknowledgedBy: Auth.user.id,
-            receivedByName: fd.get('receivedBy')
-          });
-          App.handleRoute();
-        });
-
-        ackSection.appendChild(ackForm);
-        actions.appendChild(ackSection);
-      }
-    }
-
-    container.appendChild(actions);
     return container;
+  },
+
+  showAcknowledgeDialog(id) {
+    const t = DB.getById('transmittals', id);
+    if (!t) return;
+
+    const form = el('form', { class: 'form-stacked' });
+
+    const nameGroup = el('div', { class: 'form-group' });
+    nameGroup.appendChild(el('label', { text: 'Received By (Name) *' }));
+    nameGroup.appendChild(el('input', { type: 'text', name: 'receivedBy', required: true, class: 'form-control' }));
+    form.appendChild(nameGroup);
+
+    const dateGroup = el('div', { class: 'form-group' });
+    dateGroup.appendChild(el('label', { text: 'Received Date *' }));
+    dateGroup.appendChild(el('input', { type: 'date', name: 'receivedDate', required: true, class: 'form-control', value: new Date().toISOString().slice(0, 10) }));
+    form.appendChild(dateGroup);
+
+    const submitBtn = el('button', { type: 'submit', class: 'btn btn-success', text: 'Confirm Acknowledgment', style: 'margin-top: 12px;' });
+    form.appendChild(submitBtn);
+
+    const overlay = Workflow.showModal('Acknowledge Transmittal Receipt', form);
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!validateRequiredFields(form)) return;
+      const fd = new FormData(form);
+      DB.update('transmittals', t.id, {
+        status: 'Acknowledged',
+        acknowledgedAt: fd.get('receivedDate'),
+        acknowledgedBy: Auth.user.id,
+        receivedByName: fd.get('receivedBy')
+      });
+      overlay.remove();
+      App.handleRoute();
+    });
   },
 
   buildLetterPreview(t) {
     const client = DB.getById('clients', t.clientId);
     const wr = DB.getById('workRequests', t.workRequestId);
-    const entityName = t.entity === 'ATA' ? 'ATA Accounting' : 'LTA Accounting';
+    const entity = t.entity || 'ATA';
+    const fromEntity = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
 
-    const letter = el('div', { class: 'transmittal-letter' });
-
-    const header = el('div', { style: 'text-align:center; margin-bottom: var(--spacing-lg); border-bottom: 2px solid var(--color-border); padding-bottom: var(--spacing-md);' });
-    header.appendChild(el('h2', { text: entityName, style: 'margin:0; font-size:1.25rem;' }));
-    header.appendChild(el('p', { text: 'Transmittal', style: 'margin:0; font-size:0.875rem; color:var(--color-text-muted);' }));
-    letter.appendChild(header);
-
-    const metaBlock = el('div', { style: 'margin-bottom: var(--spacing-lg);' });
-    metaBlock.appendChild(el('p', { text: 'Date: ' + (t.sentAt ? formatDate(t.sentAt) : formatDate(new Date().toISOString())) }));
-    metaBlock.appendChild(el('p', { text: 'To: ' + (client?.name || '—') }));
-    metaBlock.appendChild(el('p', { text: 'Re: Work Request — ' + (wr?.title || '—') }));
-    metaBlock.appendChild(el('p', { text: 'Tracking Number: ' + t.trackingNumber, class: 'tracking-number' }));
-    letter.appendChild(metaBlock);
-
-    const intro = el('p', { text: 'Please find below the itemized list of documents being transmitted:' });
-    letter.appendChild(intro);
-
-    const itemTable = el('table', { style: 'width:100%; border-collapse:collapse; margin: var(--spacing-md) 0;' });
-    const itemThead = el('thead');
-    const itemThr = el('tr');
-    ['Document Type', 'Description'].forEach(h => {
-      const th = el('th', { text: h });
-      th.style.borderBottom = '2px solid #333';
-      th.style.textAlign = 'left';
-      th.style.padding = '8px';
-      itemThr.appendChild(th);
-    });
-    itemThead.appendChild(itemThr);
-    itemTable.appendChild(itemThead);
-
-    const itemTbody = el('tbody');
-    (t.items || []).forEach((item, idx) => {
-      const tr = el('tr');
-      [item.documentType, item.description].forEach(val => {
-        const td = el('td', { text: val });
-        td.style.borderBottom = '1px solid #ddd';
-        td.style.padding = '8px';
-        tr.appendChild(td);
-      });
-      itemTbody.appendChild(tr);
-    });
-    itemTable.appendChild(itemTbody);
-    letter.appendChild(itemTable);
-
-    const notesBlock = el('div', { style: 'margin: var(--spacing-md) 0; font-style:italic; color:var(--color-text-muted);' });
-    if (t.notes) {
-      notesBlock.appendChild(el('p', { text: 'Notes: ' + t.notes }));
+    // Date formatting (Entity-aware)
+    let formattedDate = '';
+    const dateObj = new Date(t.sentAt || t.createdAt || new Date());
+    if (entity === 'ATA') {
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      formattedDate = dateObj.toLocaleDateString('en-US', options).toUpperCase();
+    } else {
+      formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
     }
-    letter.appendChild(notesBlock);
 
-    const sigBlock = el('div', { style: 'margin-top: var(--spacing-xl);' });
-    sigBlock.appendChild(el('p', { text: 'Prepared by:' }));
-    sigBlock.appendChild(el('div', { style: 'height: 48px;' }));
-    sigBlock.appendChild(el('p', { text: '_______________________________', style: 'margin:0;' }));
-    sigBlock.appendChild(el('p', { text: 'Authorized Representative', style: 'margin:0; font-size:0.8125rem; color:var(--color-text-muted);' }));
-    letter.appendChild(sigBlock);
+    // TO Field parsing
+    const pocUser = DB.getById('users', client?.contactUserId);
+    const pocName = pocUser?.name || client?.contactPerson || '';
+    const clientName = client?.name || '';
+    const tradeName = client?.tradeName || '';
 
-    const ackBlock = el('div', { style: 'margin-top: var(--spacing-xl); border-top: 1px dashed var(--color-border); padding-top: var(--spacing-lg);' });
-    ackBlock.appendChild(el('p', { text: 'Received by:' }));
-    ackBlock.appendChild(el('div', { style: 'height: 48px;' }));
-    ackBlock.appendChild(el('p', { text: '_______________________________', style: 'margin:0;' }));
-    ackBlock.appendChild(el('p', { text: 'Name / Signature / Date', style: 'margin:0; font-size:0.8125rem; color:var(--color-text-muted);' }));
-    letter.appendChild(ackBlock);
+    let toLine1 = pocName || clientName || '';
+    let toLine2 = '';
+    if (tradeName) {
+      toLine2 = entity === 'ATA' ? `(${tradeName})` : tradeName;
+    } else if (pocName && clientName) {
+      toLine2 = entity === 'ATA' ? `(${clientName})` : clientName;
+    }
 
+    const address = client?.address || '';
+    let toLine3 = '';
+    let toLine4 = '';
+    if (address) {
+      const firstComma = address.indexOf(',');
+      if (firstComma !== -1) {
+        toLine3 = address.substring(0, firstComma).trim();
+        toLine4 = address.substring(firstComma + 1).trim();
+      } else {
+        toLine3 = address;
+      }
+    }
+
+    // Build the table rows for the documents
+    const rows = [];
+    const totalRows = 12;
+    let usedRows = 0;
+
+    (t.items || []).forEach(item => {
+      if (usedRows < totalRows) {
+        rows.push({ text: (item.documentType || '').toUpperCase(), isEmpty: false });
+        usedRows++;
+      }
+      if (usedRows < totalRows) {
+        rows.push({ text: (item.description || '').toUpperCase(), isEmpty: false });
+        usedRows++;
+      }
+    });
+
+    while (usedRows < totalRows) {
+      rows.push({ text: '', isEmpty: true });
+      usedRows++;
+    }
+
+    // Acknowledgment info for the signature
+    let sigName = '';
+    let sigDate = '';
+    if (t.status === 'Acknowledged' && t.receivedByName) {
+      sigName = t.receivedByName.toUpperCase();
+      if (t.acknowledgedAt) {
+        const dObj = new Date(t.acknowledgedAt);
+        sigDate = `${dObj.getMonth() + 1}/${dObj.getDate()}/${String(dObj.getFullYear()).slice(-2)}`;
+      }
+    }
+
+    const letter = el('div', { class: 'transmittal-letter', style: 'background:#fff; color:#000; font-family:Arial, sans-serif; padding:20px; border:1px solid #ccc; max-width:700px; margin:0 auto; box-sizing:border-box;' });
+
+    // Styles local to the preview to ensure styling matches
+    const styleEl = el('style', { textContent: `
+      .preview-container {
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      .preview-header-table {
+        width: 100%;
+        border: 2px solid #000;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+      }
+      .preview-header-table td {
+        border: 2px solid #000;
+        padding: 6px 10px;
+        vertical-align: top;
+      }
+      .preview-title-cell {
+        text-align: center;
+        font-weight: bold;
+        font-size: 12pt;
+        letter-spacing: 0.5px;
+        padding: 8px !important;
+      }
+      .preview-label-red {
+        color: #c2272d;
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .preview-label-bold {
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .preview-underline-line {
+        border-bottom: 1.5px solid #000;
+        min-height: 16px;
+        margin-top: 3px;
+        padding-bottom: 1px;
+        font-weight: bold;
+      }
+      .preview-document-box {
+        border: 2px solid #000;
+        position: relative;
+        margin-bottom: 15px;
+      }
+      .preview-document-title {
+        font-weight: bold;
+        padding: 6px 10px;
+        border-bottom: 2px solid #000;
+        background-color: #fff;
+        font-size: 10pt;
+      }
+      .preview-document-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .preview-doc-row {
+        height: 22px;
+      }
+      .preview-doc-cell {
+        border-bottom: 1px solid #000;
+        text-align: center;
+        font-weight: bold;
+        padding: 2px 4px;
+        font-size: 10pt;
+      }
+      .preview-document-table tr:last-child .preview-doc-cell {
+        border-bottom: none;
+      }
+      .preview-received-stamp {
+        position: absolute;
+        right: 12%;
+        top: 50%;
+        transform: translateY(-50%) rotate(-7deg);
+        border: 4px double #1e40af;
+        color: #1e40af;
+        padding: 6px 12px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 4px;
+        font-family: 'Courier New', Courier, monospace;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 100;
+      }
+      .preview-stamp-title {
+        font-size: 14pt;
+        letter-spacing: 2px;
+        border-bottom: 2px solid #1e40af;
+        margin-bottom: 4px;
+        padding-bottom: 1px;
+      }
+      .preview-stamp-date {
+        font-size: 11pt;
+      }
+      .preview-signature-container {
+        margin-top: 30px;
+        width: 100%;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+      }
+      .preview-sig-info {
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+        font-weight: bold;
+        font-size: 11pt;
+        min-height: 20px;
+      }
+      .preview-sig-name {
+        flex: 2;
+        text-align: center;
+      }
+      .preview-sig-date {
+        flex: 1;
+        text-align: right;
+      }
+      .preview-sig-line {
+        border-top: 1.5px solid #000;
+        margin-top: 2px;
+      }
+      .preview-sig-label {
+        font-size: 9pt;
+        color: #333;
+        margin-top: 6px;
+      }
+    ` });
+    letter.appendChild(styleEl);
+
+    // Main layout container
+    const container = el('div', { class: 'preview-container' });
+
+    // Table Header Box
+    const headerTable = el('table', { class: 'preview-header-table' });
+    
+    // Row 1: Title
+    const r1 = el('tr');
+    r1.appendChild(el('td', { colspan: '2', class: 'preview-title-cell', text: 'DOCUMENT TRANSMITTAL FORM' }));
+    headerTable.appendChild(r1);
+
+    // Row 2: Doc No & Date
+    const r2 = el('tr');
+    const tdDocNo = el('td', { style: 'width: 55%;' }, [
+      el('span', { class: 'preview-label-red', text: 'TRANSMITTAL DOC NO.:' }),
+      el('span', { class: 'value-bold', text: t.trackingNumber })
+    ]);
+    const tdDate = el('td', { style: 'width: 45%;' }, [
+      el('span', { class: 'preview-label-bold', text: 'DATE:' }),
+      el('span', { class: 'value-bold', text: formattedDate })
+    ]);
+    r2.appendChild(tdDocNo);
+    r2.appendChild(tdDate);
+    headerTable.appendChild(r2);
+
+    // Row 3: FROM & TO
+    const r3 = el('tr');
+    const tdFrom = el('td', { style: 'width: 55%; line-height: 1.4;' }, [
+      el('strong', { text: 'FROM:' }),
+      document.createTextNode(' '),
+      el('strong', { text: fromEntity }),
+      el('br'),
+      document.createTextNode('RM 307 Republic Supermarket Bldg,'),
+      el('br'),
+      document.createTextNode('Soler St., cor. F.Torres St.,'),
+      el('br'),
+      document.createTextNode('Sta. Cruz, Manila')
+    ]);
+    const tdTo = el('td', { style: 'width: 45%;' }, [
+      el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
+        el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
+        el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
+          el('div', { class: 'preview-underline-line', text: toLine1 }),
+          el('div', { class: 'preview-underline-line', text: toLine2 }),
+          el('div', { class: 'preview-underline-line', text: toLine3 }),
+          el('div', { class: 'preview-underline-line', text: toLine4 })
+        ])
+      ])
+    ]);
+    r3.appendChild(tdFrom);
+    r3.appendChild(tdTo);
+    headerTable.appendChild(r3);
+
+    container.appendChild(headerTable);
+
+    // Document Box
+    const docBox = el('div', { class: 'preview-document-box' });
+    docBox.appendChild(el('div', { class: 'preview-document-title', text: 'Received the following documents and/or records:' }));
+    
+    const docTable = el('table', { class: 'preview-document-table' });
+    rows.forEach(r => {
+      const tr = el('tr', { class: 'preview-doc-row' });
+      tr.appendChild(el('td', { class: 'preview-doc-cell', html: r.isEmpty ? '&nbsp;' : r.text }));
+      docTable.appendChild(tr);
+    });
+    docBox.appendChild(docTable);
+
+    // RECEIVED STAMP (if acknowledged)
+    if (t.status === 'Acknowledged' && t.acknowledgedAt) {
+      const stampDateObj = new Date(t.acknowledgedAt);
+      const stampDateStr = stampDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+      
+      const stamp = el('div', { class: 'preview-received-stamp' }, [
+        el('div', { class: 'preview-stamp-title', text: 'RECEIVED' }),
+        el('div', { class: 'preview-stamp-date', text: stampDateStr })
+      ]);
+      docBox.appendChild(stamp);
+    }
+    container.appendChild(docBox);
+
+    // Notes (if any)
+    if (t.notes) {
+      container.appendChild(el('div', { style: 'margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;', text: `Notes: ${t.notes}` }));
+    }
+
+    // Signature Box
+    const sigContainer = el('div', { class: 'preview-signature-container' });
+    sigContainer.appendChild(el('div', { class: 'preview-sig-info' }, [
+      el('span', { class: 'preview-sig-name', text: sigName }),
+      el('span', { class: 'preview-sig-date', text: sigDate })
+    ]));
+    sigContainer.appendChild(el('div', { class: 'preview-sig-line' }));
+    sigContainer.appendChild(el('div', { class: 'preview-sig-label', text: 'Signature over Printed name / Date Received' }));
+    container.appendChild(sigContainer);
+
+    letter.appendChild(container);
     return letter;
   },
 
@@ -938,112 +1275,315 @@ const Transmittal = {
     title.textContent = 'Transmittal — ' + t.trackingNumber;
     doc.head.appendChild(title);
 
-    const style = doc.createElement('style');
-    style.textContent = 'body { font-family: Georgia, serif; margin: 40px; color: #333; line-height: 1.6; } h2 { margin: 0 0 4px 0; font-size: 1.25rem; } .sub { font-size: 0.875rem; color: #666; margin: 0 0 24px 0; } table { width: 100%; border-collapse: collapse; margin: 16px 0; } th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; } th { border-bottom: 2px solid #333; } .tracking-number { font-family: monospace; font-size: 0.875rem; color: #666; letter-spacing: 0.05em; } .sig-space { height: 48px; } .dashed-top { border-top: 1px dashed #ccc; padding-top: 24px; margin-top: 32px; }';
-    doc.head.appendChild(style);
-
     const client = DB.getById('clients', t.clientId);
     const wr = DB.getById('workRequests', t.workRequestId);
-    const entityName = t.entity === 'ATA' ? 'ATA Accounting' : 'LTA Accounting';
+    const entity = t.entity || 'ATA';
+    const fromEntity = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
 
-    const body = doc.body;
-
-    const h2 = doc.createElement('h2');
-    h2.textContent = entityName;
-    body.appendChild(h2);
-    const sub = doc.createElement('p');
-    sub.className = 'sub';
-    sub.textContent = 'Transmittal';
-    body.appendChild(sub);
-
-    const metaP = doc.createElement('div');
-    const pDate = doc.createElement('p');
-    pDate.textContent = 'Date: ' + (t.sentAt ? formatDate(t.sentAt) : formatDate(new Date().toISOString()));
-    metaP.appendChild(pDate);
-    const pTo = doc.createElement('p');
-    pTo.textContent = 'To: ' + (client?.name || '—');
-    metaP.appendChild(pTo);
-    const pRe = doc.createElement('p');
-    pRe.textContent = 'Re: Work Request — ' + (wr?.title || '—');
-    metaP.appendChild(pRe);
-    const pTrack = doc.createElement('p');
-    pTrack.className = 'tracking-number';
-    pTrack.textContent = 'Tracking Number: ' + t.trackingNumber;
-    metaP.appendChild(pTrack);
-    body.appendChild(metaP);
-
-    const intro = doc.createElement('p');
-    intro.textContent = 'Please find below the itemized list of documents being transmitted:';
-    body.appendChild(intro);
-
-    const table = doc.createElement('table');
-    const thead = doc.createElement('thead');
-    const thr = doc.createElement('tr');
-    ['Document Type', 'Description'].forEach(h => {
-      const th = doc.createElement('th');
-      th.textContent = h;
-      thr.appendChild(th);
-    });
-    thead.appendChild(thr);
-    table.appendChild(thead);
-
-    const tbody = doc.createElement('tbody');
-    (t.items || []).forEach((item, idx) => {
-      const tr = doc.createElement('tr');
-      [item.documentType, item.description].forEach(val => {
-        const td = doc.createElement('td');
-        td.textContent = val;
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    body.appendChild(table);
-
-    if (t.notes) {
-      const notes = doc.createElement('p');
-      notes.style.fontStyle = 'italic';
-      notes.style.color = '#666';
-      notes.textContent = 'Notes: ' + t.notes;
-      body.appendChild(notes);
+    // Date formatting (Entity-aware)
+    let formattedDate = '';
+    const dateObj = new Date(t.sentAt || t.createdAt || new Date());
+    if (entity === 'ATA') {
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      formattedDate = dateObj.toLocaleDateString('en-US', options).toUpperCase();
+    } else {
+      formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
     }
 
-    const sig = doc.createElement('div');
-    const sigP1 = doc.createElement('p');
-    sigP1.textContent = 'Prepared by:';
-    sig.appendChild(sigP1);
-    const sigSpace = doc.createElement('div');
-    sigSpace.className = 'sig-space';
-    sig.appendChild(sigSpace);
-    const sigLine = doc.createElement('p');
-    sigLine.textContent = '_______________________________';
-    sig.appendChild(sigLine);
-    const sigLabel = doc.createElement('p');
-    sigLabel.style.fontSize = '0.8125rem';
-    sigLabel.style.color = '#666';
-    sigLabel.style.margin = '0';
-    sigLabel.textContent = 'Authorized Representative';
-    sig.appendChild(sigLabel);
-    body.appendChild(sig);
+    // TO Field parsing
+    const pocUser = DB.getById('users', client?.contactUserId);
+    const pocName = pocUser?.name || client?.contactPerson || '';
+    const clientName = client?.name || '';
+    const tradeName = client?.tradeName || '';
 
-    const ack = doc.createElement('div');
-    ack.className = 'dashed-top';
-    const ackP1 = doc.createElement('p');
-    ackP1.textContent = 'Received by:';
-    ack.appendChild(ackP1);
-    const ackSpace = doc.createElement('div');
-    ackSpace.className = 'sig-space';
-    ack.appendChild(ackSpace);
-    const ackLine = doc.createElement('p');
-    ackLine.textContent = '_______________________________';
-    ack.appendChild(ackLine);
-    const ackLabel = doc.createElement('p');
-    ackLabel.style.fontSize = '0.8125rem';
-    ackLabel.style.color = '#666';
-    ackLabel.style.margin = '0';
-    ackLabel.textContent = 'Name / Signature / Date';
-    ack.appendChild(ackLabel);
-    body.appendChild(ack);
+    let toLine1 = pocName || clientName || '';
+    let toLine2 = '';
+    if (tradeName) {
+      toLine2 = entity === 'ATA' ? `(${tradeName})` : tradeName;
+    } else if (pocName && clientName) {
+      toLine2 = entity === 'ATA' ? `(${clientName})` : clientName;
+    }
+
+    const address = client?.address || '';
+    let toLine3 = '';
+    let toLine4 = '';
+    if (address) {
+      const firstComma = address.indexOf(',');
+      if (firstComma !== -1) {
+        toLine3 = address.substring(0, firstComma).trim();
+        toLine4 = address.substring(firstComma + 1).trim();
+      } else {
+        toLine3 = address;
+      }
+    }
+
+    // Build the table rows for the documents
+    const totalRows = 12;
+    let usedRows = 0;
+    let rowsHtml = '';
+
+    (t.items || []).forEach(item => {
+      if (usedRows < totalRows) {
+        rowsHtml += `<tr class="doc-row"><td class="doc-cell">${(item.documentType || '').toUpperCase()}</td></tr>`;
+        usedRows++;
+      }
+      if (usedRows < totalRows) {
+        rowsHtml += `<tr class="doc-row"><td class="doc-cell">${(item.description || '').toUpperCase()}</td></tr>`;
+        usedRows++;
+      }
+    });
+
+    while (usedRows < totalRows) {
+      rowsHtml += `<tr class="doc-row"><td class="doc-cell">&nbsp;</td></tr>`;
+      usedRows++;
+    }
+
+    // RECEIVED STAMP (if acknowledged)
+    let stampHtml = '';
+    if (t.status === 'Acknowledged' && t.acknowledgedAt) {
+      const stampDateObj = new Date(t.acknowledgedAt);
+      const stampDateStr = stampDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+      stampHtml = `
+        <div class="received-stamp">
+          <div class="stamp-title">RECEIVED</div>
+          <div class="stamp-date">${stampDateStr}</div>
+        </div>
+      `;
+    }
+
+    // Acknowledgment info for the signature
+    let sigName = '';
+    let sigDate = '';
+    if (t.status === 'Acknowledged' && t.receivedByName) {
+      sigName = t.receivedByName.toUpperCase();
+      if (t.acknowledgedAt) {
+        const dObj = new Date(t.acknowledgedAt);
+        sigDate = `${dObj.getMonth() + 1}/${dObj.getDate()}/${String(dObj.getFullYear()).slice(-2)}`;
+      }
+    }
+
+    const style = doc.createElement('style');
+    style.textContent = `
+      @page {
+        size: letter;
+        margin: 12mm 15mm;
+      }
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #000;
+        background-color: #fff;
+        font-size: 10pt;
+        line-height: 1.35;
+      }
+      .container {
+        width: 100%;
+        max-width: 680px;
+        margin: 0 auto;
+        position: relative;
+      }
+      .header-table {
+        width: 100%;
+        border: 2px solid #000;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+      }
+      .header-table td {
+        border: 2px solid #000;
+        padding: 6px 10px;
+        vertical-align: top;
+      }
+      .title-cell {
+        text-align: center;
+        font-weight: bold;
+        font-size: 12pt;
+        letter-spacing: 0.5px;
+        padding: 8px !important;
+      }
+      .doc-no-cell {
+        width: 55%;
+      }
+      .date-cell {
+        width: 45%;
+      }
+      .label-red {
+        color: #c2272d;
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .label-bold {
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .value-bold {
+        font-weight: bold;
+      }
+      .from-cell {
+        width: 55%;
+        line-height: 1.4;
+      }
+      .to-cell {
+        width: 45%;
+        line-height: 1.4;
+      }
+      .underline-line {
+        border-bottom: 1.5px solid #000;
+        min-height: 16px;
+        margin-top: 3px;
+        padding-bottom: 1px;
+        font-weight: bold;
+      }
+      .document-box {
+        border: 2px solid #000;
+        position: relative;
+        margin-bottom: 15px;
+      }
+      .document-title {
+        font-weight: bold;
+        padding: 6px 10px;
+        border-bottom: 2px solid #000;
+        background-color: #fff;
+        font-size: 10pt;
+      }
+      .document-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .doc-row {
+        height: 22px;
+      }
+      .doc-cell {
+        border-bottom: 1px solid #000;
+        text-align: center;
+        font-weight: bold;
+        padding: 2px 4px;
+        font-size: 10pt;
+      }
+      .document-table tr:last-child .doc-cell {
+        border-bottom: none;
+      }
+      .received-stamp {
+        position: absolute;
+        right: 12%;
+        top: 50%;
+        transform: translateY(-50%) rotate(-7deg);
+        border: 4px double #1e40af;
+        color: #1e40af;
+        padding: 6px 12px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 4px;
+        font-family: 'Courier New', Courier, monospace;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 100;
+      }
+      .stamp-title {
+        font-size: 14pt;
+        letter-spacing: 2px;
+        border-bottom: 2px solid #1e40af;
+        margin-bottom: 4px;
+        padding-bottom: 1px;
+      }
+      .stamp-date {
+        font-size: 11pt;
+        letter-spacing: 1px;
+      }
+      .signature-container {
+        margin-top: 30px;
+        width: 100%;
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+      }
+      .sig-info {
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+        font-weight: bold;
+        font-size: 11pt;
+        min-height: 20px;
+      }
+      .sig-name {
+        flex: 2;
+        text-align: center;
+      }
+      .sig-date {
+        flex: 1;
+        text-align: right;
+      }
+      .sig-line {
+        border-top: 1.5px solid #000;
+        margin-top: 2px;
+      }
+      .sig-label {
+        font-size: 9pt;
+        color: #333;
+        margin-top: 6px;
+      }
+    `;
+    doc.head.appendChild(style);
+
+    const body = doc.body;
+    body.innerHTML = `
+      <div class="container">
+        <table class="header-table">
+          <tr>
+            <td colspan="2" class="title-cell">DOCUMENT TRANSMITTAL FORM</td>
+          </tr>
+          <tr>
+            <td class="doc-no-cell">
+              <span class="label-red">TRANSMITTAL DOC NO.:</span>
+              <span class="value-bold">${t.trackingNumber}</span>
+            </td>
+            <td class="date-cell">
+              <span class="label-bold">DATE:</span>
+              <span class="value-bold">${formattedDate}</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="from-cell">
+              <strong>FROM:</strong> <strong>${fromEntity}</strong><br>
+              RM 307 Republic Supermarket Bldg,<br>
+              Soler St., cor. F.Torres St.,<br>
+              Sta. Cruz, Manila
+            </td>
+            <td class="to-cell">
+              <div style="display: flex; gap: 8px; align-items: flex-start;">
+                <strong style="margin-top: 3px;">TO:</strong>
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                  <div class="underline-line">${toLine1}</div>
+                  <div class="underline-line">${toLine2}</div>
+                  <div class="underline-line">${toLine3}</div>
+                  <div class="underline-line">${toLine4}</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <div class="document-box">
+          <div class="document-title">Received the following documents and/or records:</div>
+          <table class="document-table">
+            ${rowsHtml}
+          </table>
+          ${stampHtml}
+        </div>
+
+        ${t.notes ? `<div style="margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;">Notes: ${t.notes}</div>` : ''}
+
+        <div class="signature-container">
+          <div class="sig-info">
+            <span class="sig-name">${sigName}</span>
+            <span class="sig-date">${sigDate}</span>
+          </div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Signature over Printed name / Date Received</div>
+        </div>
+      </div>
+    `;
 
     win.focus();
     setTimeout(() => win.print(), 300);

@@ -1,6 +1,6 @@
 const { chromium } = require('playwright');
 
-const BASE = 'http://127.0.0.1:8888';
+const BASE = 'http://127.0.0.1:8899';
 const SEED_USERS = [
   { email: 'admin@ata-lta.ph', password: 'password123', role: 'Admin' },
   { email: 'accounting-ata@ata-lta.ph', password: 'password123', role: 'Accounting' },
@@ -258,8 +258,15 @@ async function runTests() {
     if (txt.includes('Submit')) { disHasSaveTop = true; break; }
   }
   await log('Disbursement Save Top-Right (#2)', disHasSaveTop, `buttons=${disHeaderBtns.length}`);
-  await page.click('button:has-text("Cancel")');
+  await page.click('.side-pane-form-footer button:has-text("Cancel")');
   await page.waitForTimeout(300);
+
+  const sidePaneOpen = await page.$('#global-side-pane.open');
+  const isSidePaneVisible = sidePaneOpen !== null;
+  await log('Disbursement side pane closed after Cancel (#2)', !isSidePaneVisible);
+  if (isSidePaneVisible) {
+    throw new Error('Disbursement side pane is still visible after clicking footer Cancel');
+  }
 
   // ─── TEST 16: Reports month filter ──────────────────────────────
   await logout();

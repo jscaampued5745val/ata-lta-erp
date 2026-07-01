@@ -11,43 +11,41 @@ const Clients = {
     if (!this.activeTab) this.activeTab = 'active';
     const container = el('div', { class: 'page' });
     
-    container.appendChild(el('h1', { text: 'Clients' }));
+    container.classList.add('clients-tab-page');
+    const titleBar = el('div', { class: 'page-title-bar-v2' });
+    titleBar.appendChild(el('h1', { text: 'Clients' }));
+    container.appendChild(titleBar);
+    container.appendChild(this.renderTabNav());
 
-    // Tabs
-    const tabs = el('div', { class: 'admin-tabs clients-tabs-bar', style: 'margin-bottom: 20px;' });
-    const activeTabBtn = el('button', {
-      class: 'btn ' + (this.activeTab === 'active' ? 'btn-primary' : 'btn-secondary'),
-      text: 'Active Clients'
+    // Toolbar (Sticky Container)
+    const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
+    const filters = el('div', { class: 'filters-bar' });
+    const searchWrapper = el('div', { style: 'position: relative; display: flex; align-items: center; width: 100%; max-width: 320px;' });
+    
+    const searchIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    searchIcon.setAttribute('width', '14');
+    searchIcon.setAttribute('height', '14');
+    searchIcon.setAttribute('viewBox', '0 0 24 24');
+    searchIcon.setAttribute('fill', 'none');
+    searchIcon.setAttribute('stroke', 'currentColor');
+    searchIcon.setAttribute('stroke-width', '2.5');
+    searchIcon.setAttribute('stroke-linecap', 'round');
+    searchIcon.setAttribute('stroke-linejoin', 'round');
+    searchIcon.setAttribute('style', 'position: absolute; left: 12px; color: var(--color-text-muted); pointer-events: none;');
+    searchIcon.innerHTML = '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>';
+    
+    const search = el('input', {
+      type: 'text',
+      placeholder: 'Search by taxpayer, trade name, or TIN...',
+      class: 'form-control search-input',
+      style: 'width: 100%; padding-left: 36px; max-width: 320px;'
     });
-    activeTabBtn.addEventListener('click', () => {
-      this.activeTab = 'active';
-      this.showList();
-    });
-    tabs.appendChild(activeTabBtn);
-
-    const archivedTabBtn = el('button', {
-      class: 'btn ' + (this.activeTab === 'archived' ? 'btn-primary' : 'btn-secondary'),
-      text: 'Archived Clients'
-    });
-    archivedTabBtn.addEventListener('click', () => {
-      this.activeTab = 'archived';
-      this.showList();
-    });
-    tabs.appendChild(archivedTabBtn);
-    container.appendChild(tabs);
-
-    const actions = el('div', { class: 'actions-bar' + (this.activeTab === 'archived' ? ' hidden' : '') });
-
-    if (Auth.can('clients:edit')) {
-      const addBtn = el('button', { class: 'btn btn-primary', text: 'Add Client' });
-      addBtn.addEventListener('click', () => this.showForm());
-      actions.appendChild(addBtn);
-    }
-
-    const search = el('input', { type: 'text', placeholder: 'Search by taxpayer or TIN...', class: 'search-input' });
-    search.addEventListener('input', debounce(() => this.renderList(listContainer, search.value.trim()), 200));
-    actions.appendChild(search);
-    container.appendChild(actions);
+    
+    searchWrapper.appendChild(searchIcon);
+    searchWrapper.appendChild(search);
+    filters.appendChild(searchWrapper);
+    stickyContainer.appendChild(filters);
+    container.appendChild(stickyContainer);
 
     const listContainer = el('div', { class: 'list-container' + (this.activeTab === 'archived' ? ' hidden' : '') });
     container.appendChild(listContainer);
@@ -58,16 +56,81 @@ const Clients = {
     const archiveContainer = el('div', { class: 'archive-container' + (this.activeTab === 'active' ? ' hidden' : '') });
     container.appendChild(archiveContainer);
     if (this.activeTab === 'archived') {
-      this.renderArchive(archiveContainer);
+      this.renderArchive(archiveContainer, '');
     }
+
+    search.addEventListener('input', debounce(() => {
+      const q = search.value.trim();
+      if (this.activeTab === 'active') {
+        this.renderList(listContainer, q);
+      } else {
+        this.renderArchive(archiveContainer, q);
+      }
+    }, 200));
 
     const formContainer = el('div', { class: 'form-container hidden' });
     container.appendChild(formContainer);
 
+    setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
   },
 
-  init() {},
+  init() {
+    this.updateStickyOffsets();
+  },
+
+  updateStickyOffsets() {
+    App.updateStickyOffsets();
+  },
+
+  renderTabNav() {
+    const tabNav = el('div', { class: 'module-tab-nav' });
+
+    const entity = Auth.activeEntity;
+    const activeCount = DB.getWhere('clients', c => {
+      const cEnt = (c.entity || '').toUpperCase();
+      const matchesEntity = (entity === 'ALL' ? Auth.user.entities.map(ae => ae.toUpperCase()).includes(cEnt) : cEnt === entity.toUpperCase());
+      return matchesEntity && c.status !== 'Archived';
+    }).length;
+
+    const archivedCount = DB.getWhere('clients', c => {
+      const cEnt = (c.entity || '').toUpperCase();
+      const matchesEntity = (entity === 'ALL' ? Auth.user.entities.map(ae => ae.toUpperCase()).includes(cEnt) : cEnt === entity.toUpperCase());
+      return matchesEntity && c.status === 'Archived';
+    }).length;
+
+    const tabs = [
+      { key: 'active', label: 'Active Clients', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', count: activeCount },
+      { key: 'archived', label: 'Archive', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>', count: archivedCount }
+    ];
+
+    tabs.forEach(tab => {
+      const btn = el('button', { class: 'module-tab-link' + (this.activeTab === tab.key ? ' active' : '') });
+      btn.appendChild(parseHTML(tab.icon));
+      btn.appendChild(document.createTextNode(' ' + tab.label));
+      if (tab.count !== undefined) {
+        btn.appendChild(document.createTextNode(' '));
+        btn.appendChild(el('span', { class: 'module-badge-count', text: String(tab.count) }));
+      }
+      btn.addEventListener('click', () => {
+        this.activeTab = tab.key;
+        App.handleRoute();
+      });
+      tabNav.appendChild(btn);
+    });
+
+    if (Auth.can('clients:edit') && this.activeTab === 'active') {
+      const addBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Client'
+      });
+      addBtn.addEventListener('click', () => this.showForm());
+      tabNav.appendChild(addBtn);
+    }
+
+    return tabNav;
+  },
 
   clearNode(node) {
     while (node.firstChild) node.removeChild(node.firstChild);
@@ -603,12 +666,21 @@ const Clients = {
     App.handleRoute();
   },
 
-  getArchivedClients() {
+  getArchivedClients(query) {
     const entity = Auth.activeEntity;
     let clients = DB.getWhere('clients', c => {
       const matchesEntity = (entity === 'ALL' ? Auth.user.entities.includes(c.entity) : c.entity === entity);
       return matchesEntity && c.status === 'Archived';
     });
+
+    if (query) {
+      const q = query.toLowerCase();
+      clients = clients.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.tradeName || '').toLowerCase().includes(q) ||
+        (c.tin || '').toLowerCase().includes(q)
+      );
+    }
 
     // Staff-level visibility filter
     if (!Auth.can('clients:edit')) {
@@ -627,9 +699,9 @@ const Clients = {
     return clients;
   },
 
-  renderArchive(container) {
+  renderArchive(container, query) {
     this.clearNode(container);
-    const archivedClients = this.getArchivedClients();
+    const archivedClients = this.getArchivedClients(query);
 
     if (archivedClients.length === 0) {
       container.appendChild(el('p', { text: 'No archived clients found.', class: 'empty-state' }));

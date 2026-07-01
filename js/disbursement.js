@@ -27,6 +27,11 @@ const Disbursement = {
         const genExpBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Generate Expense PDF', style: 'margin-right:8px;' });
         genExpBtn.addEventListener('click', () => this.generateExpensePDF(d));
         actions.appendChild(genExpBtn);
+        
+        const genExpNoLogoBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Generate Expense PDF (No Logo)', style: 'margin-right:8px;' });
+        genExpNoLogoBtn.addEventListener('click', () => this.generateExpensePDF(d, true));
+        actions.appendChild(genExpNoLogoBtn);
+
         const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Generate Voucher', style: 'margin-right:8px;' });
         genVouchBtn.addEventListener('click', () => this.generateVoucher(d));
         actions.appendChild(genVouchBtn);
@@ -36,38 +41,12 @@ const Disbursement = {
       actions.appendChild(backBtn);
       titleBar.appendChild(actions);
       container.appendChild(titleBar);
-    } else if (this.view === 'templates') {
+    } else if (this.view === 'list' || this.view === 'templates' || this.view === 'report') {
+      container.classList.add('disbursement-tab-page');
       const titleBar = el('div', { class: 'page-title-bar-v2' });
-      const h1 = el('h1', { class: 'breadcrumb-h1' });
-      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Disbursement' });
-      baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      h1.appendChild(baseLink);
-      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode('Templates'));
-      titleBar.appendChild(h1);
-      
-      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
-      backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      titleBar.appendChild(backBtn);
+      titleBar.appendChild(el('h1', { text: 'Disbursement' }));
       container.appendChild(titleBar);
-    } else if (this.view === 'report') {
-      const titleBar = el('div', { class: 'page-title-bar-v2' });
-      const h1 = el('h1', { class: 'breadcrumb-h1' });
-      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Disbursement' });
-      baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      h1.appendChild(baseLink);
-      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode('Summary Report'));
-      titleBar.appendChild(h1);
-
-      const actions = el('div', { class: 'title-bar-actions' });
-      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
-      backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      actions.appendChild(backBtn);
-      titleBar.appendChild(actions);
-      container.appendChild(titleBar);
-    } else {
-      container.appendChild(el('h1', { text: 'Disbursement' }));
+      container.appendChild(this.renderTabNav());
     }
 
     if (this.view === 'list') container.appendChild(this.renderList());
@@ -76,10 +55,137 @@ const Disbursement = {
     else if (this.view === 'report') container.appendChild(this.renderReport());
     else if (this.view === 'templates') container.appendChild(this.renderTemplates());
 
+    setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
   },
 
-  init() {},
+  init() {
+    this.updateStickyOffsets();
+  },
+
+  updateStickyOffsets() {
+    App.updateStickyOffsets();
+  },
+
+  renderTabNav() {
+    const tabNav = el('div', { class: 'module-tab-nav' });
+
+    const entity = Auth.activeEntity;
+    const dbCount = DB.getWhere('disbursements', d => {
+      const dEnt = (d.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(dEnt);
+      }
+      return dEnt === entity.toUpperCase();
+    }).length;
+
+    const templateCount = DB.getWhere('disbursementTemplates', t => {
+      const tEnt = (t.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(tEnt);
+      }
+      return tEnt === entity.toUpperCase();
+    }).length;
+
+    const tabs = [
+      { key: 'list', label: 'Disbursements', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', count: dbCount },
+      { key: 'templates', label: 'Templates', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>', count: templateCount },
+      { key: 'report', label: 'Summary Report', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' }
+    ];
+
+    tabs.forEach(tab => {
+      const btn = el('button', { class: 'module-tab-link' + (this.view === tab.key ? ' active' : '') });
+      btn.appendChild(parseHTML(tab.icon));
+      btn.appendChild(document.createTextNode(' ' + tab.label));
+      if (tab.count !== undefined) {
+        btn.appendChild(document.createTextNode(' '));
+        btn.appendChild(el('span', { class: 'module-badge-count', text: String(tab.count) }));
+      }
+      btn.addEventListener('click', () => {
+        this.view = tab.key;
+        App.handleRoute();
+      });
+      tabNav.appendChild(btn);
+    });
+
+    const canCreate = Auth.can('disbursement:create');
+    const canRequest = Auth.can('disbursement:request');
+
+    if (canCreate && canRequest) {
+      const wrapper = el('div', { class: 'split-btn-group' });
+
+      const primaryBtn = el('button', {
+        class: 'btn btn-primary btn-sm split-btn-left'
+      });
+      primaryBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> File Expense';
+      primaryBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '💰', title: 'File Expense',
+          formContent: this.renderForm(), formId: 'disbursement-form',
+          actions: [
+            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form', testId: 'submit-expense-btn' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement'), testId: 'cancel-expense-btn' }
+          ]
+        });
+      });
+      wrapper.appendChild(primaryBtn);
+
+      const toggleBtn = el('button', {
+        class: 'btn btn-primary btn-sm split-btn-right'
+      });
+      toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+      wrapper.appendChild(toggleBtn);
+
+      const menu = el('div', { class: 'dropdown-menu split-btn-menu hidden' });
+
+      const requestItem = el('button', { class: 'dropdown-item' });
+      requestItem.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Disbursement';
+      requestItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.add('hidden');
+        Disbursement.showRequestDisbursementModal();
+      });
+
+      menu.appendChild(requestItem);
+      wrapper.appendChild(menu);
+
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('hidden');
+      });
+
+      tabNav.appendChild(wrapper);
+    } else if (canCreate) {
+      const addBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> File Expense'
+      });
+      addBtn.addEventListener('click', () => {
+        this.detailId = null;
+        openFormPanel({
+          icon: '💰', title: 'File Expense',
+          formContent: this.renderForm(), formId: 'disbursement-form',
+          actions: [
+            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form', testId: 'submit-expense-btn' },
+            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement'), testId: 'cancel-expense-btn' }
+          ]
+        });
+      });
+      tabNav.appendChild(addBtn);
+    } else if (canRequest) {
+      const reqBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;'
+      });
+      reqBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Disbursement';
+      reqBtn.addEventListener('click', () => { Disbursement.showRequestDisbursementModal(); });
+      tabNav.appendChild(reqBtn);
+    }
+
+    return tabNav;
+  },
 
   getFundSource(item) {
     if (item.fundSource) return item.fundSource;
@@ -132,39 +238,11 @@ const Disbursement = {
     const entity = Auth.activeEntity;
     const viewMode = App.getPreferredViewMode('disbursement');
 
-    const actions = el('div', { class: 'actions-bar' });
-    if (Auth.can('disbursement:create')) {
-      const addBtn = el('button', { class: 'btn btn-primary', text: 'File Expense' });
-      addBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '💰', title: 'File Expense',
-          formContent: this.renderForm(), formId: 'disbursement-form',
-          actions: [
-            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement') }
-          ]
-        });
-      });
-      actions.appendChild(addBtn);
-
-      const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
-      templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
-      actions.appendChild(templatesBtn);
-    }
-
-    const reportBtn = el('button', { class: 'btn btn-secondary', text: 'Summary Report' });
-    reportBtn.addEventListener('click', () => { this.view = 'report'; App.handleRoute(); });
-    actions.appendChild(reportBtn);
-
-    if (Auth.can('disbursement:request')) {
-      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Disbursement from Accounting' });
-      reqBtn.addEventListener('click', () => { Disbursement.showRequestDisbursementModal(); });
-      actions.appendChild(reqBtn);
-    }
-
     const wrapper = el('div');
-    wrapper.appendChild(actions);
+    const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
+    const filters = el('div', { class: 'filters-bar' });
+
+
 
     // Pending operations requests banner
     if (Auth.can('disbursement:create')) {
@@ -225,9 +303,6 @@ const Disbursement = {
       wrapper.appendChild(pfrSection);
     }
 
-    // Filters bar
-    const filtersBar = el('div', { class: 'filters-bar' });
-
     const wrFilter = el('select', { class: 'form-select', style: 'max-width:180px' });
     wrFilter.appendChild(el('option', { value: '', text: 'All Work Requests' }));
     DB.getWhere('workRequests', wr => {
@@ -240,7 +315,7 @@ const Disbursement = {
       const client = DB.getById('clients', wr.clientId);
       wrFilter.appendChild(el('option', { value: wr.id, text: wr.title + ' — ' + (client?.name || '—') }));
     });
-    filtersBar.appendChild(wrapFilterFieldWithClear(wrFilter));
+    filters.appendChild(wrapFilterFieldWithClear(wrFilter));
 
     const clientOptions = [{ value: '', text: 'All Clients' }];
     DB.getWhere('clients', c => {
@@ -253,7 +328,7 @@ const Disbursement = {
       clientOptions.push({ value: c.id, text: c.name });
     });
     const clientFilter = createSearchableDropdown({ placeholder: 'All Clients', options: clientOptions, maxWidth: '180px' });
-    filtersBar.appendChild(clientFilter);
+    filters.appendChild(clientFilter);
 
     const empOptions = [{ value: '', text: 'All Employees' }];
     DB.getWhere('users', u => Auth.ALL_ROLES.includes(u.role)).forEach(u => {
@@ -266,30 +341,30 @@ const Disbursement = {
       }
     });
     const empFilter = createSearchableDropdown({ placeholder: 'All Employees', options: empOptions, maxWidth: '180px' });
-    filtersBar.appendChild(empFilter);
+    filters.appendChild(empFilter);
 
     const fundFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     fundFilter.appendChild(el('option', { value: '', text: 'All Funds' }));
     ['Firm Fund', 'Client Fund'].forEach(f => fundFilter.appendChild(el('option', { value: f, text: f })));
-    filtersBar.appendChild(wrapFilterFieldWithClear(fundFilter));
+    filters.appendChild(wrapFilterFieldWithClear(fundFilter));
 
     const statusFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
     ['Pending', 'Approved', 'Released', 'Rejected'].forEach(s => {
       statusFilter.appendChild(el('option', { value: s, text: s }));
     });
-    filtersBar.appendChild(wrapFilterFieldWithClear(statusFilter));
+    filters.appendChild(wrapFilterFieldWithClear(statusFilter));
 
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
     const dateTo = el('input', { type: 'date', class: 'form-select' });
-    filtersBar.appendChild(el('span', { text: 'From:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(wrapFilterFieldWithClear(dateFrom));
-    filtersBar.appendChild(el('span', { text: 'To:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
-    filtersBar.appendChild(wrapFilterFieldWithClear(dateTo));
+    filters.appendChild(el('span', { text: 'From:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
+    filters.appendChild(wrapFilterFieldWithClear(dateFrom));
+    filters.appendChild(el('span', { text: 'To:', style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
+    filters.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
-      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.5"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
       wrFilter.value = '';
@@ -302,9 +377,7 @@ const Disbursement = {
       App.clearSavedFilters('disbursement');
       refresh();
     });
-    filtersBar.appendChild(clearBtn);
-
-    wrapper.appendChild(filtersBar);
+    filters.appendChild(clearBtn);
 
     // Restore saved filters
     const savedFilters = App.restoreFilters('disbursement');
@@ -331,7 +404,7 @@ const Disbursement = {
     };
 
     // View mode toggle
-    const viewToggle = el('div', { class: 'view-mode-toggle', style: 'margin-bottom: var(--spacing-md);' });
+    const vmToggle = el('div', { class: 'view-mode-toggle' });
     const viewIcons = { 'Table': ViewIcons.table, 'Board': ViewIcons.board, 'List': ViewIcons.list };
     [['Table', 'table'], ['Board', 'board'], ['List', 'list']].forEach(([label, mode]) => {
       const btn = el('button', { html: (viewIcons[label] || '') + ' ' + label, class: viewMode === mode ? 'active' : '' });
@@ -340,9 +413,12 @@ const Disbursement = {
         App.setPreferredViewMode('disbursement', mode);
         App.handleRoute();
       });
-      viewToggle.appendChild(btn);
+      vmToggle.appendChild(btn);
     });
-    wrapper.appendChild(viewToggle);
+
+    stickyContainer.appendChild(filters);
+    stickyContainer.appendChild(vmToggle);
+    wrapper.appendChild(stickyContainer);
 
     const listContainer = el('div');
     wrapper.appendChild(listContainer);
@@ -502,16 +578,20 @@ const Disbursement = {
       const col = el('div', { class: 'board-column-v2' });
       col.style.setProperty('--column-phase-color', colColor);
 
-      const header = el('div', { class: 'board-column-header-v2' });
-      header.appendChild(el('div', { class: 'board-column-title', text: st }));
-      col.appendChild(header);
-
       let colItems = [];
       if (st === 'Pending') {
         colItems = items.filter(d => ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status));
       } else {
         colItems = items.filter(d => d.status === st);
       }
+
+      const header = el('div', { class: 'board-column-header-v2' });
+      const titleWrap = el('div', { class: 'board-column-title' });
+      titleWrap.appendChild(el('span', { class: 'board-column-dot', style: 'background:' + colColor + ';' }));
+      titleWrap.appendChild(document.createTextNode(st));
+      titleWrap.appendChild(el('span', { class: 'board-column-count', text: String(colItems.length) }));
+      header.appendChild(titleWrap);
+      col.appendChild(header);
 
       const cardContainer = el('div', { class: 'board-cards-scroll' });
 
@@ -1249,16 +1329,49 @@ const Disbursement = {
     return result.toUpperCase();
   },
 
-  generateExpensePDF(d) {
+  _getSanitizedViewModel(d) {
     const emp = DB.getById('users', this.getEmployeeId(d));
     const requester = DB.getById('users', d.requestedBy);
-    const approver = d.approvedBy ? DB.getById('users', d.approvedBy) : null;
+    let approverId = d.approvedBy || d.accountingApprovedBy;
+    if (!approverId && (d.status === 'Approved' || d.status === 'Released')) {
+      const adminUser = DB.getWhere('users', u => u.role === 'Admin')[0];
+      if (adminUser) approverId = adminUser.id;
+    }
+    const approver = approverId ? DB.getById('users', approverId) : null;
+    const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
+    const releaser = d.releasedBy ? DB.getById('users', d.releasedBy) : null;
     const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
-    const client = wr ? DB.getById('clients', wr.clientId) : null;
+
+    return {
+      empName: escapeHtml(emp?.name || '—'),
+      requesterEmail: escapeHtml(requester?.email || '—'),
+      requesterName: escapeHtml(requester?.name || '—'),
+      wrTitle: escapeHtml(wr?.title || '—'),
+      category: escapeHtml(d.category || '—'),
+      description: escapeHtml(d.description || '—'),
+      approverName: escapeHtml(approver?.name || '—'),
+      releaserName: escapeHtml(releaser ? releaser.name : (handler ? handler.name : '________________________')),
+      receiptFilename: escapeHtml(d.receiptFilename || '_________________'),
+      releaseFilename: escapeHtml(d.releaseFilename || '_________________'),
+      approver,
+      handler,
+      releaser,
+      wr,
+      emp
+    };
+  },
+
+  generateExpensePDF(d, noLogo = false) {
+    const safe = this._getSanitizedViewModel(d);
     const entity = d.entity || 'ATA';
     const w = window.open('', '_blank');
     if (!w) return;
     const doc = w.document;
+
+    const baseHref = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+    const base = doc.createElement('base');
+    base.href = baseHref;
+    doc.head.appendChild(base);
 
     const title = doc.createElement('title');
     title.textContent = 'Expense Report ' + d.id;
@@ -1267,95 +1380,189 @@ const Disbursement = {
     const style = doc.createElement('style');
     style.textContent = `
       @page { size: A4; margin: 15mm 20mm; }
-      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; max-width: 210mm; margin: 0 auto; padding: 0; }
-      .doc-title { text-align: center; font-size: 16pt; font-weight: 700; letter-spacing: 4px; margin: 0 0 16px; text-transform: uppercase; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; line-height: 1.5; color: #1e293b; max-width: 210mm; margin: 0 auto; padding: 0; }
+      .header-container { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #1e293b; padding-bottom: 12px; }
+      .logo-box { display: flex; align-items: center; gap: 12px; max-height: 55px; }
+      .logo-img { ${entity === 'LTA' ? 'height: 42px; margin-bottom: 5px;' : 'height: 55px;'} display: block; }
+      .title-box { text-align: right; }
+      .doc-title { font-size: 18pt; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: #0f172a; margin: 0; }
+      
       .two-col { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
-      .col { flex: 1; }
-      .col h3 { font-size: 10pt; text-transform: uppercase; color: #64748b; margin: 0 0 4px; letter-spacing: 0.5px; }
-      .col p { margin: 2px 0; font-size: 10pt; }
-      .details-bar { display: flex; gap: 32px; margin-bottom: 20px; font-size: 10pt; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 4px; }
-      .details-bar span { flex: 1; }
-      .details-bar strong { color: #334155; }
-      table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
-      th { background: #f8fafc; border-bottom: 2px solid #1e293b; padding: 8px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 9pt; letter-spacing: 0.5px; }
-      td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+      .col-left { flex: 1.2; border: 1.5px solid #1e293b; padding: 12px; border-radius: 2px; background: #fff; }
+      .col-left h3 { font-size: 8.5pt; text-transform: uppercase; color: #64748b; margin: 0 0 6px 0; font-weight: 700; letter-spacing: 0.5px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+      .col-left p { margin: 2px 0; font-size: 10pt; }
+      
+      .col-right { flex: 0.8; display: flex; flex-direction: column; justify-content: center; font-size: 9.5pt; border: 1.5px dashed #cbd5e1; padding: 12px; border-radius: 2px; }
+      .meta-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+      .meta-row:last-child { margin-bottom: 0; }
+      .meta-label { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 8pt; letter-spacing: 0.5px; }
+      .meta-val { font-weight: 700; color: #0f172a; }
+      
+      table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 10pt; }
+      th { background: #f8fafc; border-top: 1.5px solid #1e293b; border-bottom: 1.5px solid #1e293b; padding: 10px 8px; text-align: left; font-weight: 700; text-transform: uppercase; font-size: 8.5pt; color: #334155; letter-spacing: 0.5px; }
+      td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a; }
       .num { text-align: right; }
-      .totals { margin-top: 16px; border-top: 2px solid #1e293b; padding-top: 12px; }
-      .totals-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 10pt; }
-      .totals-row.grand { font-weight: 700; font-size: 12pt; border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 4px; }
-      .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-      .status-badge.pending { background: #fef3c7; color: #92400e; }
-      .status-badge.approved { background: #dbeafe; color: #1e40af; }
-      .status-badge.released { background: #dcfce7; color: #166534; }
-      .status-badge.rejected { background: #fee2e2; color: #991b1b; }
-      .signature-row { display: flex; justify-content: space-between; margin-top: 48px; gap: 40px; }
+      
+      .totals-container { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 16px; gap: 20px; }
+      .amount-words-box { flex: 1.2; font-size: 9pt; color: #475569; padding: 10px 0; }
+      .amount-words-box strong { color: #0f172a; text-transform: uppercase; font-size: 8pt; display: block; margin-bottom: 4px; letter-spacing: 0.5px; }
+      .amount-val-box { flex: 0.8; display: flex; justify-content: flex-end; align-items: center; font-weight: 700; font-size: 11pt; color: #0f172a; }
+      .total-label { margin-right: 12px; font-size: 8.5pt; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; }
+      .total-amount-box { display: flex; border: 1.5px solid #1e293b; border-radius: 2px; }
+      .total-currency { padding: 6px 12px; background: #f1f5f9; border-right: 1.5px solid #1e293b; font-size: 10pt; }
+      .total-val { padding: 6px 18px; font-size: 11.5pt; min-width: 120px; text-align: right; font-family: monospace; }
+      
+      .bottom-layout { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 30px; gap: 24px; }
+      .payment-details-box { flex: 1.2; border: 1.5px solid #1e293b; padding: 12px; border-radius: 2px; font-size: 9pt; background: #fff; }
+      .payment-details-box h4 { margin: 0 0 8px 0; font-size: 8.5pt; text-transform: uppercase; color: #475569; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; font-weight: 700; letter-spacing: 0.5px; }
+      .payment-details-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+      .payment-details-grid .lbl { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 7.5pt; }
+      .payment-details-grid .val { color: #0f172a; font-weight: 700; }
+      .payment-details-line { border-bottom: 1px solid #94a3b8; width: 120px; height: 14px; display: inline-block; }
+      
+      .signature-row { display: flex; justify-content: space-between; margin-top: 40px; gap: 30px; }
       .signature-box { flex: 1; text-align: center; }
-      .signature-box .line { border-top: 1px solid #1e293b; margin-top: 40px; padding-top: 4px; font-size: 9pt; }
-      .footer { margin-top: 24px; font-size: 8pt; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+      .signature-box .line { border-top: 1.5px solid #1e293b; padding-top: 6px; font-size: 9.5pt; font-weight: 700; color: #0f172a; }
+      .signature-box .line span { font-size: 8pt; color: #64748b; font-weight: 500; display: block; margin-top: 2px; }
+      
+      .footer { margin-top: 35px; font-size: 8pt; color: #64748b; text-align: center; border-top: 1.5px solid #e2e8f0; padding-top: 12px; }
+      .thank-you { font-weight: 700; font-size: 10pt; color: #334155; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
     `;
     doc.head.appendChild(style);
 
-    const statusClass = (['Draft','Submitted','Under Review','Pending'].includes(d.status)) ? 'pending'
-      : d.status === 'Approved' ? 'approved'
-      : d.status === 'Released' ? 'released'
-      : 'rejected';
-    const statusText = (['Draft','Submitted','Under Review'].includes(d.status)) ? 'PENDING' : d.status.toUpperCase();
+    const isReleased = d.status === 'Released';
+    const pd = d.paymentDetails || {};
+
+    let paymentDetailsHtml = '';
+    if (isReleased && pd.method) {
+      paymentDetailsHtml = `
+        <div class="payment-details-grid">
+          <span class="lbl">Date:</span>
+          <span class="val">${formatDate(pd.date || d.releasedAt)}</span>
+          <span class="lbl">Method:</span>
+          <span class="val">${escapeHtml(pd.method)}</span>
+          <span class="lbl">Ref/Check No.:</span>
+          <span class="val" style="font-family:monospace;">${escapeHtml(pd.reference || '—')}</span>
+          <span class="lbl">Bank/Branch:</span>
+          <span class="val">${escapeHtml(pd.bank || '—')}</span>
+        </div>
+      `;
+    } else {
+      paymentDetailsHtml = `
+        <div class="payment-details-grid">
+          <span class="lbl">Date:</span>
+          <span class="payment-details-line"></span>
+          <span class="lbl">Method:</span>
+          <span class="payment-details-line"></span>
+          <span class="lbl">Check/Ref No.:</span>
+          <span class="payment-details-line"></span>
+          <span class="lbl">Bank/Branch:</span>
+          <span class="payment-details-line"></span>
+        </div>
+      `;
+    }
+
+    const amountInWords = this._numberToWords(d.amount) + ' PESOS ONLY';
+    const cleanAmountString = formatPHP(d.amount).replace('₱', '').trim();
 
     doc.body.innerHTML = `
-      <div style="text-align:center; margin-bottom:4px;">
-        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${entity} Accounting Services Firm</div>
-      </div>
-      <div style="border-bottom:2px solid #1e293b; margin-bottom:16px;"></div>
-
-      <div class="doc-title">Expense Report</div>
-
-      <div class="details-bar">
-        <span><strong>Ref No.:</strong> ${d.id}</span>
-        <span><strong>Date Submitted:</strong> ${formatDate(d.submittedAt)}</span>
-        <span><strong>Status:</strong> <span class="status-badge ${statusClass}">${statusText}</span></span>
+      <div class="header-container" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #1e293b; padding-bottom: 12px;">
+        <div class="logo-box">
+          ${noLogo ? '' : `<img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg'}" alt="${entity} Logo">`}
+          <span style="font-size: 14pt; font-weight: 700; color: #0f172a; letter-spacing: 0.5px; white-space: nowrap;">${entity} Accounting Services Firm</span>
+        </div>
+        <div class="title-box">
+          <h1 class="doc-title">Expense Report</h1>
+        </div>
       </div>
 
       <div class="two-col">
-        <div class="col">
+        <div class="col-left">
           <h3>Employee / Requester</h3>
-          <p><strong>${emp?.name || '—'}</strong></p>
-          <p>${requester?.email || '—'}</p>
+          <p><strong>${safe.empName}</strong></p>
+          <p style="color: #475569; font-size: 9pt; margin-top: 4px;">${safe.requesterEmail}</p>
+          <p style="color: #64748b; font-size: 8.5pt; margin-top: 2px;">Requested By: ${safe.requesterName}</p>
         </div>
-        <div class="col">
-          <h3>Linked Project</h3>
-          <p><strong>${wr?.title || '—'}</strong></p>
-          <p>Client: ${client?.name || '—'}</p>
-          <p>${client?.tin ? 'TIN: ' + client.tin : ''}</p>
+        <div class="col-right">
+          <div class="meta-row">
+            <span class="meta-label">Ref No.:</span>
+            <span class="meta-val">${d.id}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Date Submitted:</span>
+            <span class="meta-val">${formatDate(d.submittedAt)}</span>
+          </div>
+          ${safe.wr ? `
+          <div class="meta-row" style="margin-top: 6px; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+            <span class="meta-label">Project Code:</span>
+            <span class="meta-val" style="font-size: 8.5pt;">${safe.wrTitle}</span>
+          </div>
+          ` : ''}
         </div>
       </div>
 
       <table>
         <thead>
-          <tr><th>Category</th><th>Description</th><th>Fund Source</th><th class="num">Amount</th></tr>
+          <tr>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Fund Source</th>
+            <th class="num">Amount</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td>${d.category}</td><td>${d.description}</td><td>${this.getFundSource(d)}</td><td class="num">${formatPHP(d.amount)}</td></tr>
+          <tr>
+            <td style="font-weight: 600;">${safe.category}</td>
+            <td>${safe.description}</td>
+            <td>${this.getFundSource(d)}</td>
+            <td class="num" style="font-weight: 700; font-family: monospace;">${formatPHP(d.amount)}</td>
+          </tr>
         </tbody>
       </table>
 
-      <div class="totals">
-        <div class="totals-row"><span>Amount in Words</span><span>${this._numberToWords(d.amount)} PESOS ONLY</span></div>
-        <div class="totals-row grand"><span>Total Amount</span><span>${formatPHP(d.amount)}</span></div>
+      <div class="totals-container">
+        <div class="amount-words-box">
+          <strong>Amount in Words</strong>
+          ${amountInWords}
+        </div>
+        <div class="amount-val-box">
+          <span class="total-label">Total Amount:</span>
+          <div class="total-amount-box">
+            <div class="total-currency">PHP</div>
+            <div class="total-val">${cleanAmountString}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-layout">
+        <div class="payment-details-box">
+          <h4>Payment Details</h4>
+          ${paymentDetailsHtml}
+        </div>
       </div>
 
       <div class="signature-row">
         <div class="signature-box">
-          <div class="line">Prepared By<br><span style="font-size:8pt;color:#64748b;">${emp?.name || '—'} / Date</span></div>
+          <div style="height: 50px;"></div>
+          <div class="line">
+            ${safe.empName}
+            <span>Prepared By / Date</span>
+          </div>
         </div>
         <div class="signature-box">
-          <div class="line">Approved By<br><span style="font-size:8pt;color:#64748b;">${approver?.name || '—'} / Date</span></div>
+          <div style="height: 50px;"></div>
+          <div class="line">
+            ${safe.approverName}
+            <span>Approved By / Date</span>
+          </div>
         </div>
-      </div>
-
-      <div class="footer">
-        This Expense Report is issued for internal audit and reimbursement tracking purposes.<br>
-        For questions, contact ${entity} Accounting Services Firm.<br>
-        Original copy retained for BIR audit trail.
+        <div class="signature-box">
+          <div style="height: 50px;"></div>
+          <div class="line">
+            ${safe.releaserName}
+            <span>Released By / Date</span>
+          </div>
+        </div>
       </div>
     `;
 
@@ -1363,16 +1570,17 @@ const Disbursement = {
   },
 
   generateVoucher(d) {
-    const emp = DB.getById('users', this.getEmployeeId(d));
-    const requester = DB.getById('users', d.requestedBy);
-    const approver = d.approvedBy ? DB.getById('users', d.approvedBy) : null;
-    const handler = d.paymentHandledBy ? DB.getById('users', d.paymentHandledBy) : null;
-    const wr = d.linkedWorkRequestId ? DB.getById('workRequests', d.linkedWorkRequestId) : null;
-    const client = wr ? DB.getById('clients', wr.clientId) : null;
+    const noLogo = true;
+    const safe = this._getSanitizedViewModel(d);
     const entity = d.entity || 'ATA';
     const w = window.open('', '_blank');
     if (!w) return;
     const doc = w.document;
+
+    const baseHref = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+    const base = doc.createElement('base');
+    base.href = baseHref;
+    doc.head.appendChild(base);
 
     const title = doc.createElement('title');
     title.textContent = 'Payment Voucher ' + d.id;
@@ -1381,36 +1589,56 @@ const Disbursement = {
     const style = doc.createElement('style');
     style.textContent = `
       @page { size: A4; margin: 15mm 20mm; }
-      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; max-width: 210mm; margin: 0 auto; padding: 0; }
-      .doc-title { text-align: center; font-size: 16pt; font-weight: 700; letter-spacing: 4px; margin: 0 0 16px; text-transform: uppercase; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; line-height: 1.5; color: #1e293b; max-width: 210mm; margin: 0 auto; padding: 0; }
+      .header-container { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #1e293b; padding-bottom: 12px; }
+      .logo-box { display: flex; align-items: center; gap: 12px; max-height: 55px; }
+      .logo-img { ${entity === 'LTA' ? 'height: 42px; margin-bottom: 5px;' : 'height: 55px;'} display: block; }
+      .title-box { text-align: right; }
+      .doc-title { font-size: 18pt; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: #0f172a; margin: 0; }
+      
       .page-break { page-break-before: always; }
+      
+      .two-col { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+      .col-left { flex: 1.2; border: 1.5px solid #1e293b; padding: 12px; border-radius: 2px; background: #fff; }
+      .col-left h3 { font-size: 8.5pt; text-transform: uppercase; color: #64748b; margin: 0 0 6px 0; font-weight: 700; letter-spacing: 0.5px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+      .col-left p { margin: 2px 0; font-size: 10pt; }
+      
+      .col-right { flex: 0.8; display: flex; flex-direction: column; justify-content: center; font-size: 9.5pt; border: 1.5px dashed #cbd5e1; padding: 12px; border-radius: 2px; }
+      .meta-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+      .meta-row:last-child { margin-bottom: 0; }
+      .meta-label { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 8pt; letter-spacing: 0.5px; }
+      .meta-val { font-weight: 700; color: #0f172a; }
+      
       .section { margin-bottom: 20px; }
-      .section h3 { font-size: 10pt; text-transform: uppercase; color: #64748b; margin: 0 0 8px; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-      .section p { margin: 4px 0; font-size: 10pt; }
-      .section strong { color: #334155; }
-      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-      .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-      .box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 12px; }
-      table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
-      th { background: #f8fafc; border-bottom: 2px solid #1e293b; padding: 8px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 9pt; }
-      td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+      .section h3 { font-size: 9pt; text-transform: uppercase; color: #475569; margin: 0 0 8px; letter-spacing: 0.5px; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 4px; font-weight: 700; }
+      .section p { margin: 4px 0; font-size: 9.5pt; }
+      
+      table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9.5pt; }
+      th { background: #f8fafc; border-top: 1.5px solid #1e293b; border-bottom: 1.5px solid #1e293b; padding: 8px 6px; text-align: left; font-weight: 700; text-transform: uppercase; font-size: 8pt; color: #334155; letter-spacing: 0.5px; }
+      td { padding: 8px 6px; border-bottom: 1px solid #e2e8f0; color: #0f172a; }
       .num { text-align: right; }
-      .amount-words { font-style: italic; font-size: 10pt; color: #475569; margin-top: 4px; }
-      .approval-row { display: flex; justify-content: space-between; margin-top: 48px; gap: 24px; }
+      
+      .grid-2 { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; }
+      .box { border: 1.5px solid #1e293b; padding: 10px; border-radius: 2px; background: #fff; }
+      .amount-words { font-size: 8.5pt; color: #475569; line-height: 1.4; margin-top: 4px; text-transform: uppercase; }
+      
+      .payment-status-box { border: 1.5px solid #cbd5e1; border-radius: 2px; background: #f8fafc; padding: 10px; margin-top: 8px; color: #1e293b; font-size: 9pt; }
+      
+      .approval-row { display: flex; justify-content: space-between; margin-top: 40px; gap: 20px; }
       .approval-box { flex: 1; text-align: center; }
-      .approval-box .line { border-top: 1px solid #1e293b; margin-top: 40px; padding-top: 4px; font-size: 9pt; }
-      .footer { margin-top: 24px; font-size: 8pt; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 8px; }
-      .pay-status { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-      .pay-status.paid { background: #dcfce7; color: #166534; }
-      .pay-status.unpaid { background: #fee2e2; color: #991b1b; }
+      .approval-box .line { border-top: 1.5px solid #1e293b; padding-top: 6px; font-size: 9pt; font-weight: 700; color: #0f172a; }
+      .approval-box .line span { font-size: 8pt; color: #64748b; font-weight: 500; display: block; margin-top: 2px; }
+      
+      .footer { margin-top: 30px; font-size: 8pt; color: #64748b; text-align: center; border-top: 1.5px solid #e2e8f0; padding-top: 10px; }
+      .thank-you { font-weight: 700; font-size: 10pt; color: #334155; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
     `;
     doc.head.appendChild(style);
 
     const amountWords = this._numberToWords(d.amount) + ' PESOS ONLY';
     const isReleased = d.status === 'Released';
     const pd = d.paymentDetails || {};
+    const cleanAmountString = formatPHP(d.amount).replace('₱', '').trim();
 
-    // Build dynamic payment details section
     let paymentDetailsHtml = '';
     if (isReleased && pd.method) {
       const methodCfg = PaymentIcons;
@@ -1420,36 +1648,37 @@ const Disbursement = {
       let detailRows = '';
       const addRow = (label, value) => {
         if (!value) return '';
-        return `<div style="display:flex; justify-content:space-between; align-items:baseline; font-size:0.8125rem; padding:3px 0;">
-          <span style="color:#94a3b8; font-weight:500;">${label}</span>
-          <span style="color:#334155; font-weight:600; text-align:right;">${value}</span>
+        return `<div style="display:flex; justify-content:space-between; align-items:baseline; font-size:8.5pt; padding:3px 0; border-bottom: 1px dashed #f1f5f9;">
+          <span style="color:#64748b; font-weight:600; text-transform:uppercase; font-size:7.5pt;">${label}</span>
+          <span style="color:#0f172a; font-weight:700;">${escapeHtml(value)}</span>
         </div>`;
       };
 
       if (pd.reference) detailRows += addRow('Reference / Check No.', pd.reference);
       if (pd.bank) detailRows += addRow('Bank', pd.bank);
-      detailRows += addRow('Processed By', handler ? handler.name : '—');
+      detailRows += addRow('Released By', safe.releaser ? safe.releaser.name : (safe.handler ? safe.handler.name : '—'));
       detailRows += addRow('Date of Release', formatDate(pd.date || d.releasedAt));
 
       paymentDetailsHtml = `
         <div class="section">
           <h3>Payment Record</h3>
-          <div class="box" style="margin-bottom:12px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <div>
-                <div style="font-weight:700; font-size:1.25rem; color:#1e293b; line-height:1.2;">${formatPHP(d.amount)}</div>
-                <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">${formatDate(pd.date || d.releasedAt)}</div>
+          <div class="grid-2">
+            <div class="box" style="display: flex; flex-direction: column; justify-content: space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div>
+                  <div style="font-weight:700; font-size:1.15rem; color:#0f172a; line-height:1.2; font-family: monospace;">${formatPHP(d.amount)}</div>
+                  <div style="font-size:7.5pt; color:#64748b; margin-top:2px;">Released on ${formatDate(pd.date || d.releasedAt)}</div>
+                </div>
+                <span style="display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:12px; font-size:7.5pt; font-weight:700; color:${cfg.color}; background:${cfg.bg}; letter-spacing:0.3px; border: 1px solid ${cfg.color}33;">
+                  ${cfg.label}
+                </span>
               </div>
-              <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:700; color:${cfg.color}; background:${cfg.bg}; letter-spacing:0.3px;">
-                ${cfg.svg} ${cfg.label}
-              </span>
+              <div style="height:1px; background:#e2e8f0; margin:4px 0 8px;"></div>
+              <div style="display:flex; flex-direction:column; gap:4px;">${detailRows}</div>
             </div>
-            <div style="height:1px; background:#e2e8f0; margin:0 0 12px;"></div>
-            <div style="display:flex; flex-direction:column; gap:6px;">${detailRows}</div>
-          </div>
-          <div class="box" style="background:#dcfce7; border-color:#10b981;">
-            <p><strong>Status: FUNDS RELEASED</strong></p>
-            <p style="font-size:9pt;">Payment has been authorized and released by ${handler?.name || 'assigned handler'}.</p>
+            <div class="payment-status-box" style="display: flex; flex-direction: column; justify-content: center; height: 100%; box-sizing: border-box;">
+              <p style="margin: 0; font-size:9.5pt; line-height: 1.5; color: #1e293b;">Payment has been authorized by <strong>${safe.approverName}</strong> and released by <strong>${safe.releaserName}</strong>.</p>
+            </div>
           </div>
         </div>`;
     } else {
@@ -1457,41 +1686,60 @@ const Disbursement = {
         <div class="section">
           <h3>Payment Details</h3>
           <div class="grid-2">
-            <div class="box">
-              <p><strong>Amount in Figures:</strong> ${formatPHP(d.amount)}</p>
-              <p class="amount-words"><strong>Amount in Words:</strong> ${amountWords}</p>
+            <div class="box" style="display: flex; flex-direction: column; justify-content: space-between;">
+              <p style="margin: 0 0 8px 0; font-size: 9.5pt;"><strong>Amount in Figures:</strong> <span style="font-family: monospace; font-weight: 700;">${formatPHP(d.amount)}</span></p>
+              <p class="amount-words" style="margin: 0;"><strong>Amount in Words:</strong> <span style="font-weight: 600;">${amountWords}</span></p>
             </div>
-            <div class="box">
-              <p><strong>Payment Mode:</strong> ___________________</p>
-              <p><strong>Check / Ref No.:</strong> ___________________</p>
-              <p><strong>Bank / Platform:</strong> ___________________</p>
-              <p><strong>Date:</strong> ___________________</p>
+            <div class="box" style="display: flex; flex-direction: column; gap: 4px; font-size: 8.5pt;">
+              <div style="display: flex; justify-content: space-between;"><span style="color:#64748b; font-weight:600; text-transform:uppercase; font-size:7.5pt;">Payment Mode:</span> <span style="border-bottom: 1px solid #94a3b8; width: 100px; height: 12px; display: inline-block;"></span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color:#64748b; font-weight:600; text-transform:uppercase; font-size:7.5pt;">Check / Ref No.:</span> <span style="border-bottom: 1px solid #94a3b8; width: 100px; height: 12px; display: inline-block;"></span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color:#64748b; font-weight:600; text-transform:uppercase; font-size:7.5pt;">Bank / Platform:</span> <span style="border-bottom: 1px solid #94a3b8; width: 100px; height: 12px; display: inline-block;"></span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color:#64748b; font-weight:600; text-transform:uppercase; font-size:7.5pt;">Date:</span> <span style="border-bottom: 1px solid #94a3b8; width: 100px; height: 12px; display: inline-block;"></span></div>
             </div>
           </div>
         </div>`;
     }
 
+    const thankYouText = 'THANK YOU !!!';
+    const entityFooterContact = entity === 'LTA' 
+      ? 'Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928.<br>' 
+      : '';
+
     doc.body.innerHTML = `
-      <div style="text-align:center; margin-bottom:4px;">
-        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${entity} Accounting Services Firm</div>
-      </div>
-      <div style="border-bottom:2px solid #1e293b; margin-bottom:16px;"></div>
-
-      <div class="doc-title">Payment Voucher</div>
-
-      <div class="grid-2">
-        <div class="box">
-          <h3>Voucher Details</h3>
-          <p><strong>Voucher No.:</strong> PV-${d.id}</p>
-          <p><strong>Date:</strong> ${formatDate(new Date().toISOString().slice(0, 10))}</p>
-          <p><strong>Reference Expense:</strong> ${d.id}</p>
-          <p><strong>Category:</strong> ${d.category}</p>
+      <div class="header-container" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; border-bottom: 2px solid #1e293b; padding-bottom: 12px;">
+        <div class="logo-box">
+          ${noLogo ? '' : `<img class="logo-img" src="ERP_Assets/${entity === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg'}" alt="${entity} Logo">`}
+          <span style="font-size: 14pt; font-weight: 700; color: #0f172a; letter-spacing: 0.5px; white-space: nowrap;">${entity} Accounting Services Firm</span>
         </div>
-        <div class="box">
+        <div class="title-box">
+          <h1 class="doc-title">Payment Voucher</h1>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="col-left">
           <h3>Payee Information</h3>
-          <p><strong>${emp?.name || '—'}</strong></p>
-          <p>${requester?.email || '—'}</p>
-          <p>Fund Source: ${this.getFundSource(d)}</p>
+          <p><strong>${safe.empName}</strong></p>
+          <p style="color: #475569; font-size: 9pt; margin-top: 4px;">${safe.requesterEmail}</p>
+          <p style="color: #64748b; font-size: 8.5pt; margin-top: 2px;">Fund Source: ${this.getFundSource(d)}</p>
+        </div>
+        <div class="col-right">
+          <div class="meta-row">
+            <span class="meta-label">Voucher No.:</span>
+            <span class="meta-val">PV-${d.id}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Date:</span>
+            <span class="meta-val">${formatDate(new Date().toISOString().slice(0, 10))}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Expense Ref:</span>
+            <span class="meta-val">${d.id}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Category:</span>
+            <span class="meta-val">${safe.category}</span>
+          </div>
         </div>
       </div>
 
@@ -1501,41 +1749,82 @@ const Disbursement = {
         <h3>Account Distribution (PFRS Chart of Accounts)</h3>
         <table>
           <thead>
-            <tr><th>Account Code</th><th>Account Title</th><th class="num">Debit</th><th class="num">Credit</th></tr>
+            <tr>
+              <th>Account Code</th>
+              <th>Account Title</th>
+              <th class="num">Debit</th>
+              <th class="num">Credit</th>
+            </tr>
           </thead>
           <tbody>
-            <tr><td>61010</td><td>${d.category} Expense</td><td class="num">${formatPHP(d.amount)}</td><td class="num">—</td></tr>
-            <tr><td>11010</td><td>Cash in Bank / Petty Cash</td><td class="num">—</td><td class="num">${formatPHP(d.amount)}</td></tr>
+            <tr>
+              <td style="font-family: monospace;">61010</td>
+              <td>${safe.category} Expense</td>
+              <td class="num" style="font-family: monospace;">${formatPHP(d.amount)}</td>
+              <td class="num">—</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace;">11010</td>
+              <td>Cash in Bank / Petty Cash</td>
+              <td class="num">—</td>
+              <td class="num" style="font-family: monospace;">${formatPHP(d.amount)}</td>
+            </tr>
           </tbody>
         </table>
       </div>
 
       <div class="section page-break">
         <h3>Supporting Documents</h3>
-        <p>☐ Expense Report Ref. ${d.id} dated ${formatDate(d.submittedAt)}</p>
-        <p>☐ Receipt / Proof of Payment: ${d.receiptFilename || '_________________'}</p>
-        <p>☐ Work Request: ${wr?.title || '—'}</p>
-        <p>☐ Release Document: ${d.releaseFilename || '_________________'}</p>
+        <p style="font-size: 9pt; color: #334155; margin: 6px 0;">☐ Expense Report Ref. ${d.id} dated ${formatDate(d.submittedAt)}</p>
+        <p style="font-size: 9pt; color: #334155; margin: 6px 0;">☐ Receipt / Proof of Payment: <span style="font-family: monospace; font-weight: 600;">${safe.receiptFilename}</span></p>
+        <p style="font-size: 9pt; color: #334155; margin: 6px 0;">☐ Work Request: <span style="font-weight: 600;">${safe.wrTitle}</span></p>
+        <p style="font-size: 9pt; color: #334155; margin: 6px 0;">☐ Release Document: <span style="font-family: monospace; font-weight: 600;">${safe.releaseFilename}</span></p>
       </div>
 
       <div class="approval-row">
         <div class="approval-box">
-          <div class="line">Prepared By<br><span style="font-size:8pt;color:#64748b;">${emp?.name || '—'} / Date</span></div>
+          <div style="height: 45px;"></div>
+          <div class="line">
+            ${safe.empName}
+            <span>Prepared By / Date</span>
+          </div>
         </div>
         <div class="approval-box">
-          <div class="line">Reviewed By<br><span style="font-size:8pt;color:#64748b;">Signature / Printed Name / Date</span></div>
+          <div style="height: 45px;"></div>
+          <div class="line">
+            HENRY WONG
+            <span>Reviewed By / Date</span>
+          </div>
         </div>
         <div class="approval-box">
-          <div class="line">Approved By<br><span style="font-size:8pt;color:#64748b;">${approver?.name || '—'} / Date</span></div>
+          <div style="height: 45px;"></div>
+          <div class="line">
+            ${safe.approverName}
+            <span>Approved By / Date</span>
+          </div>
         </div>
         <div class="approval-box">
-          <div class="line">Received By<br><span style="font-size:8pt;color:#64748b;">Payee Signature / Printed Name / Date</span></div>
+          <div style="height: 45px;"></div>
+          <div class="line">
+            ${safe.releaserName}
+            <span>Released By / Date</span>
+          </div>
+        </div>
+        <div class="approval-box">
+          <div style="height: 45px;"></div>
+          <div class="line">
+            ________________________
+            <span>Received By / Date</span>
+          </div>
         </div>
       </div>
 
       <div class="footer">
+        <div class="thank-you">${thankYouText}</div>
+        ${noLogo ? '' : entityFooterContact}
         This Payment Voucher is prepared in accordance with PFRS, RR No. 9-2009, and RMO No. 29-2002.<br>
-        Retain for BIR audit trail. Original copy retained by ${entity} Accounting Services Firm.
+        Retain for BIR audit trail. ${noLogo ? '' : `Original copy retained by ${entity} Accounting Services Firm.<br>`}
+        <span style="font-weight: 600; text-transform: uppercase; font-size: 7.5pt; letter-spacing: 0.5px; color: #475569; display: block; margin-top: 4px;">This document is not valid for claim of input tax.</span>
       </div>
     `;
 
@@ -1751,9 +2040,15 @@ const Disbursement = {
   // ============================================================
   renderReport() {
     const entity = Auth.activeEntity;
-    const items = DB.getWhere('disbursements', d => d.entity === entity && d.status === 'Released');
+    const items = DB.getWhere('disbursements', d => {
+      const dEnt = (d.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(dEnt);
+      }
+      return dEnt === entity.toUpperCase();
+    }).filter(d => d.status === 'Released');
 
-    const container = el('div', { class: 'page' });
+    const container = el('div');
 
     container.appendChild(el('h2', { text: 'Reimbursement Summary', style: 'margin-bottom: var(--spacing-lg);' }));
 

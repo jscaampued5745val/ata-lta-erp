@@ -652,7 +652,10 @@ const Users = {
     const expCol = el('div', { class: 'board-column-v2' });
     expCol.style.setProperty('--column-phase-color', '#f59e0b');
     const expHeader = el('div', { class: 'board-column-header-v2' });
-    expHeader.appendChild(el('div', { class: 'board-column-title', text: 'Expense Submissions' }));
+    const expTitle = el('div', { class: 'board-column-title' });
+    expTitle.appendChild(el('span', { class: 'board-column-dot', style: 'background:#f59e0b;' }));
+    expTitle.appendChild(document.createTextNode('Expense Submissions'));
+    expHeader.appendChild(expTitle);
     expCol.appendChild(expHeader);
     const expCards = el('div', { class: 'board-cards-scroll' });
     expCol.appendChild(expCards);
@@ -661,7 +664,10 @@ const Users = {
     const changeCol = el('div', { class: 'board-column-v2' });
     changeCol.style.setProperty('--column-phase-color', '#3b82f6');
     const changeHeader = el('div', { class: 'board-column-header-v2' });
-    changeHeader.appendChild(el('div', { class: 'board-column-title', text: 'Billing Submissions' }));
+    const changeTitle = el('div', { class: 'board-column-title' });
+    changeTitle.appendChild(el('span', { class: 'board-column-dot', style: 'background:#3b82f6;' }));
+    changeTitle.appendChild(document.createTextNode('Billing Submissions'));
+    changeHeader.appendChild(changeTitle);
     changeCol.appendChild(changeHeader);
     const changeCards = el('div', { class: 'board-cards-scroll' });
     changeCol.appendChild(changeCards);

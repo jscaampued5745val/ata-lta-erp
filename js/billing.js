@@ -39,8 +39,17 @@ const Billing = {
  
       const actions = el('div', { class: 'title-bar-actions' });
       if (inv && inv.status !== 'Draft' && inv.status !== 'Pending') {
+        const noLogoLabel = el('label', { style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);' });
+        const noLogoCheckbox = el('input', { type: 'checkbox', id: 'print-no-logo' });
+        noLogoLabel.appendChild(noLogoCheckbox);
+        noLogoLabel.appendChild(document.createTextNode('No Logo (Generic)'));
+        actions.appendChild(noLogoLabel);
+
         const genInvBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Print Invoice', style: 'margin-right:8px;' });
-        genInvBtn.addEventListener('click', () => this.generateInvoice(inv));
+        genInvBtn.addEventListener('click', () => {
+          const noLogo = noLogoCheckbox.checked;
+          this.generateInvoice(inv, noLogo);
+        });
         actions.appendChild(genInvBtn);
         const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Voucher (No Header)', style: 'margin-right:8px;' });
         genVouchBtn.addEventListener('click', () => this.generateVoucher(inv));
@@ -51,50 +60,15 @@ const Billing = {
       actions.appendChild(backBtn);
       titleBar.appendChild(actions);
       container.appendChild(titleBar);
-    } else if (this.view === 'templates') {
-      const titleBar = el('div', { class: 'page-title-bar-v2' });
-      const h1 = el('h1', { class: 'breadcrumb-h1' });
-      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Billing' });
-      baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      h1.appendChild(baseLink);
-      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode('Templates'));
-      titleBar.appendChild(h1);
-
-      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Invoices' });
-      backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      titleBar.appendChild(backBtn);
-      container.appendChild(titleBar);
-    } else if (this.view === 'trash') {
-      const titleBar = el('div', { class: 'page-title-bar-v2' });
-      const h1 = el('h1', { class: 'breadcrumb-h1' });
-      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Billing' });
-      baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      h1.appendChild(baseLink);
-      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode('Trash'));
-      titleBar.appendChild(h1);
-
-      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Invoices' });
-      backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      titleBar.appendChild(backBtn);
-      container.appendChild(titleBar);
-    } else if (this.view === 'aging') {
-      const titleBar = el('div', { class: 'page-title-bar-v2' });
-      const h1 = el('h1', { class: 'breadcrumb-h1' });
-      const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Billing' });
-      baseLink.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      h1.appendChild(baseLink);
-      h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode('Aging Report'));
-      titleBar.appendChild(h1);
-
-      const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Invoices' });
-      backBtn.addEventListener('click', () => { this.view = 'list'; App.handleRoute(); });
-      titleBar.appendChild(backBtn);
-      container.appendChild(titleBar);
     } else {
-      container.appendChild(el('h1', { text: 'Billing' }));
+      container.classList.add('billing-tab-page');
+      // Tab views: list, templates, aging, trash
+      const titleBar = el('div', { class: 'page-title-bar-v2' });
+      titleBar.appendChild(el('h1', { text: 'Billing' }));
+      container.appendChild(titleBar);
+
+      // Tab navigation
+      container.appendChild(this.renderTabNav());
     }
 
     if (this.view === 'list') container.appendChild(this.renderList());
@@ -104,10 +78,118 @@ const Billing = {
     else if (this.view === 'templates') container.appendChild(this.renderTemplates());
     else if (this.view === 'trash') container.appendChild(this.renderTrash());
 
+    setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
   },
 
-  init() {},
+  init() {
+    this.updateStickyOffsets();
+  },
+
+  updateStickyOffsets() {
+    App.updateStickyOffsets();
+  },
+
+  renderTabNav() {
+    const entity = Auth.activeEntity;
+    const tabNav = el('div', { class: 'module-tab-nav' });
+
+    const invoiceCount = DB.getWhere('invoices', inv => {
+      const matchesEntity = (entity === 'ALL' ? Auth.user.entities.includes(inv.entity) : inv.entity === entity);
+      return matchesEntity && inv.status !== 'Cancelled';
+    }).length + DB.getWhere('pendingChanges', pc => pc.table === 'invoices' && pc.status === 'pending').length;
+
+    const templateCount = (DB.getAll('billingTemplates') || []).length;
+
+    const trashCount = DB.getWhere('invoices', inv => {
+      const matchesEntity = (entity === 'ALL' ? Auth.user.entities.includes(inv.entity) : inv.entity === entity);
+      return matchesEntity && inv.status === 'Cancelled';
+    }).length;
+
+    const tabs = [
+      { key: 'list', label: 'Invoices', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>', count: invoiceCount },
+      { key: 'templates', label: 'Templates', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>', count: templateCount },
+      { key: 'aging', label: 'Aging Report', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' },
+      { key: 'trash', label: 'Archive', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>', count: trashCount }
+    ];
+
+    tabs.forEach(tab => {
+      const btn = el('button', { class: 'module-tab-link' + (this.view === tab.key ? ' active' : '') });
+      btn.appendChild(parseHTML(tab.icon));
+      btn.appendChild(document.createTextNode(' ' + tab.label));
+      if (tab.count !== undefined) {
+        btn.appendChild(document.createTextNode(' '));
+        btn.appendChild(el('span', { class: 'module-badge-count', text: String(tab.count) }));
+      }
+      btn.addEventListener('click', () => {
+        this.view = tab.key;
+        App.handleRoute();
+      });
+      tabNav.appendChild(btn);
+    });
+
+    const canCreate = Auth.can('billing:edit');
+    const canRequest = Auth.can('billing:request');
+
+    if (canCreate && canRequest) {
+      const wrapper = el('div', { class: 'split-btn-group' });
+
+      const primaryBtn = el('button', {
+        class: 'btn btn-primary btn-sm split-btn-left'
+      });
+      primaryBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Billing';
+      primaryBtn.addEventListener('click', () => {
+        this.showForm();
+      });
+      wrapper.appendChild(primaryBtn);
+
+      const toggleBtn = el('button', {
+        class: 'btn btn-primary btn-sm split-btn-right'
+      });
+      toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+      wrapper.appendChild(toggleBtn);
+
+      const menu = el('div', { class: 'dropdown-menu split-btn-menu hidden' });
+
+      const requestItem = el('button', { class: 'dropdown-item' });
+      requestItem.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Billing';
+      requestItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.add('hidden');
+        Billing.showRequestInvoiceModal();
+      });
+
+      menu.appendChild(requestItem);
+      wrapper.appendChild(menu);
+
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('hidden');
+      });
+
+      tabNav.appendChild(wrapper);
+    } else if (canCreate) {
+      const addBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;',
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Billing'
+      });
+      addBtn.addEventListener('click', () => {
+        this.showForm();
+      });
+      tabNav.appendChild(addBtn);
+    } else if (canRequest) {
+      const reqBtn = el('button', {
+        class: 'btn btn-primary btn-sm',
+        style: 'margin-left: 16px; display: inline-flex; align-items: center; gap: 6px;'
+      });
+      reqBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Request Billing';
+      reqBtn.addEventListener('click', () => { Billing.showRequestInvoiceModal(); });
+      tabNav.appendChild(reqBtn);
+    }
+
+    return tabNav;
+  },
 
   getPaidAmount(inv) {
     if (Array.isArray(inv.payments)) {
@@ -130,33 +212,9 @@ const Billing = {
   renderList() {
     const entity = Auth.activeEntity;
     const wrapper = el('div');
+    const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
 
-    // Actions bar
-    const actions = el('div', { class: 'actions-bar', style: 'margin-bottom: var(--spacing-md);' });
-    if (Auth.can('billing:edit')) {
-      const addBtn = el('button', { class: 'btn btn-primary', text: 'Create Invoice' });
-      addBtn.addEventListener('click', () => {
-        this.showForm();
-      });
-      actions.appendChild(addBtn);
-      const templatesBtn = el('button', { class: 'btn btn-secondary', text: 'Templates' });
-      templatesBtn.addEventListener('click', () => { this.view = 'templates'; App.handleRoute(); });
-      actions.appendChild(templatesBtn);
-    }
-    const agingBtn = el('button', { class: 'btn btn-secondary', text: 'Aging Report' });
-    agingBtn.addEventListener('click', () => { this.view = 'aging'; App.handleRoute(); });
-    actions.appendChild(agingBtn);
-    if (Auth.can('billing:edit')) {
-      const trashBtn = el('button', { class: 'btn btn-secondary', text: 'Trash' });
-      trashBtn.addEventListener('click', () => { this.view = 'trash'; App.handleRoute(); });
-      actions.appendChild(trashBtn);
-    }
-    if (Auth.can('billing:request')) {
-      const reqBtn = el('button', { class: 'btn btn-primary', text: 'Request Invoice from Accounting' });
-      reqBtn.addEventListener('click', () => { Billing.showRequestInvoiceModal(); });
-      actions.appendChild(reqBtn);
-    }
-    wrapper.appendChild(actions);
+
 
     // Pending operations requests banner
     if (Auth.can('billing:edit')) {
@@ -236,9 +294,9 @@ const Billing = {
 
     const dateFrom = el('input', { type: 'date', class: 'form-select' });
     const dateTo = el('input', { type: 'date', class: 'form-select' });
-    filters.appendChild(el('span', { text: 'From', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
+    filters.appendChild(el('span', { text: 'From', style: 'font-size:0.8125rem;color:var(--color-text-muted);' }));
     filters.appendChild(wrapFilterFieldWithClear(dateFrom));
-    filters.appendChild(el('span', { text: 'To', style: 'font-size:0.875rem;color:var(--color-text-muted);' }));
+    filters.appendChild(el('span', { text: 'To', style: 'font-size:0.8125rem;color:var(--color-text-muted);' }));
     filters.appendChild(wrapFilterFieldWithClear(dateTo));
 
     const statusFilter = el('select', { class: 'form-select' });
@@ -250,7 +308,7 @@ const Billing = {
 
     const clearBtn = el('button', {
       class: 'btn btn-secondary btn-sm',
-      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>Clear'
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: middle;"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.5"></path></svg>Clear'
     });
     clearBtn.addEventListener('click', () => {
       wrFilter.value = '';
@@ -264,7 +322,7 @@ const Billing = {
     });
     filters.appendChild(clearBtn);
 
-    wrapper.appendChild(filters);
+    stickyContainer.appendChild(filters);
 
     // Restore saved filters
     const savedFilters = App.restoreFilters('billing');
@@ -290,7 +348,7 @@ const Billing = {
 
     // View mode toggle
     const viewMode = App.getPreferredViewMode('billing') || 'table';
-    const vmToggle = el('div', { class: 'view-mode-toggle', style: 'margin-bottom:var(--spacing-md);' });
+    const vmToggle = el('div', { class: 'view-mode-toggle' });
     const vmTable = el('button', { html: ViewIcons.table + ' Table', class: viewMode === 'table' ? 'active' : '' });
     const vmBoard = el('button', { html: ViewIcons.board + ' Board', class: viewMode === 'board' ? 'active' : '' });
     const vmList = el('button', { html: ViewIcons.list + ' List', class: viewMode === 'list' ? 'active' : '' });
@@ -300,7 +358,8 @@ const Billing = {
     vmToggle.appendChild(vmTable);
     vmToggle.appendChild(vmBoard);
     vmToggle.appendChild(vmList);
-    wrapper.appendChild(vmToggle);
+    stickyContainer.appendChild(vmToggle);
+    wrapper.appendChild(stickyContainer);
 
     const contentContainer = el('div');
     wrapper.appendChild(contentContainer);
@@ -447,10 +506,6 @@ const Billing = {
   },
 
   refreshBoard(container, invoices) {
-    if (invoices.length === 0) {
-      container.appendChild(el('p', { text: 'No invoices found.', class: 'empty-state' }));
-      return;
-    }
     const board = el('div', { class: 'board-v2' });
     const statuses = ['Draft', 'Pending', 'Approved', 'Sent', 'Partially Paid', 'Paid', 'Overdue'];
     const statusColors = {
@@ -465,15 +520,44 @@ const Billing = {
 
     statuses.forEach(st => {
       const colColor = statusColors[st] || '#cbd5e1';
+      const colInvs = invoices.filter(inv => inv.status === st);
+
       const col = el('div', { class: 'board-column-v2' });
       col.style.setProperty('--column-phase-color', colColor);
 
       const header = el('div', { class: 'board-column-header-v2' });
-      header.appendChild(el('div', { class: 'board-column-title', text: st }));
+      const titleWrap = el('div', { class: 'board-column-title' });
+      titleWrap.appendChild(el('span', { class: 'board-column-dot', style: 'background:' + colColor + ';' }));
+      titleWrap.appendChild(document.createTextNode(st));
+      titleWrap.appendChild(el('span', { class: 'board-column-count', text: String(colInvs.length) }));
+      header.appendChild(titleWrap);
       col.appendChild(header);
 
-      const colInvs = invoices.filter(inv => inv.status === st);
       const cardContainer = el('div', { class: 'board-cards-scroll' });
+
+      if (st === 'Draft') {
+        const addCard = el('div', {
+          class: 'board-card-v2 add-billing-card',
+          style: 'border: 1px dashed #94a3b8; background: rgba(148, 163, 184, 0.02); display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 600; color: #94a3b8; margin-bottom: var(--spacing-sm, 12px); cursor: pointer;'
+        });
+        addCard.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Billing';
+        addCard.addEventListener('click', () => {
+          this.detailId = null;
+          openFormPanel({
+            icon: '🧾', title: 'Create Sales Invoice',
+            formContent: this.renderForm(), formId: 'invoice-form',
+            actions: [
+              { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
+              { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
+            ]
+          });
+        });
+        cardContainer.appendChild(addCard);
+      }
+
+      if (colInvs.length === 0 && st !== 'Draft') {
+        cardContainer.appendChild(el('div', { class: 'empty-state', text: 'No invoices' }));
+      }
 
       colInvs.forEach(inv => {
         const client = DB.getById('clients', inv.clientId);
@@ -1520,7 +1604,7 @@ const Billing = {
     return container;
   },
 
-  generateInvoice(inv) {
+  generateInvoice(inv, noLogo = false) {
     const client = DB.getById('clients', inv.clientId);
     const entity = inv.entity || 'ATA';
     const w = window.open('', '_blank');
@@ -1528,51 +1612,375 @@ const Billing = {
     const d = w.document;
 
     const title = d.createElement('title');
-    title.textContent = 'Service Invoice ' + inv.invoiceNumber;
+    title.textContent = 'Statement ' + inv.invoiceNumber;
     d.head.appendChild(title);
 
     const style = d.createElement('style');
     style.textContent = `
       @page { size: A4; margin: 15mm 20mm; }
-      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1e293b; max-width: 210mm; margin: 0 auto; padding: 0; }
-      .doc-title { text-align: center; font-size: 16pt; font-weight: 700; letter-spacing: 4px; margin: 0 0 16px; text-transform: uppercase; }
-      .two-col { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
-      .col { flex: 1; }
-      .col h3 { font-size: 10pt; text-transform: uppercase; color: #64748b; margin: 0 0 4px; letter-spacing: 0.5px; }
-      .col p { margin: 2px 0; font-size: 10pt; }
-      .details-bar { display: flex; gap: 32px; margin-bottom: 20px; font-size: 10pt; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 4px; }
-      .details-bar span { flex: 1; }
-      .details-bar strong { color: #334155; }
-      table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
-      th { background: #f8fafc; border-bottom: 2px solid #1e293b; padding: 8px; text-align: left; font-weight: 600; text-transform: uppercase; font-size: 9pt; letter-spacing: 0.5px; }
-      td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
-      .num { text-align: right; }
-      .totals { margin-top: 16px; border-top: 2px solid #1e293b; padding-top: 12px; }
-      .totals-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 10pt; }
-      .totals-row.grand { font-weight: 700; font-size: 12pt; border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 4px; }
-      .vat-breakdown { background: #f8fafc; padding: 12px; border-radius: 4px; margin-top: 12px; font-size: 9pt; }
-      .vat-breakdown p { margin: 2px 0; }
-      .signature-row { display: flex; justify-content: space-between; margin-top: 48px; gap: 40px; }
-      .signature-box { flex: 1; text-align: center; }
-      .signature-box .line { border-top: 1px solid #1e293b; margin-top: 40px; padding-top: 4px; font-size: 9pt; }
-      .disclaimer { margin-top: 32px; padding: 10px; border: 2px solid #dc2626; color: #dc2626; font-size: 9pt; font-weight: 700; text-align: center; text-transform: uppercase; }
-      .pay-status { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-      .pay-status.paid { background: #dcfce7; color: #166534; }
-      .pay-status.partial { background: #fef3c7; color: #92400e; }
-      .pay-status.unpaid { background: #fee2e2; color: #991b1b; }
-      .pay-summary { margin: 16px 0; }
-      .pay-summary h4 { margin: 0 0 12px; font-size: 10pt; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
-      .pay-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: #fff; }
-      .pay-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-      .pay-card-amt { font-weight: 700; font-size: 1.25rem; color: #1e293b; line-height: 1.2; }
-      .pay-card-date { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
-      .pay-card-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.3px; }
-      .pay-card-divider { height: 1px; background: #e2e8f0; margin: 0 0 12px; }
-      .pay-card-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.8125rem; padding: 3px 0; }
-      .pay-card-label { color: #94a3b8; font-weight: 500; }
-      .pay-card-value { color: #334155; font-weight: 600; text-align: right; }
-      .pay-card-notes { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 0.8125rem; color: #64748b; font-style: italic; line-height: 1.4; }
-      .footer { margin-top: 24px; font-size: 8pt; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #000; max-width: 210mm; margin: 0 auto; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      
+      /* Generic Header Styles */
+      .generic-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+      .generic-company-name {
+        font-size: 15pt;
+        font-weight: 800;
+        color: #000;
+        letter-spacing: 0.5px;
+        font-family: 'Segoe UI', Arial, sans-serif;
+      }
+      .generic-title {
+        font-size: 24pt;
+        font-weight: 800;
+        letter-spacing: 2px;
+        color: #000;
+      }
+      .generic-header-divider {
+        border-bottom: 2px solid #000;
+        margin-bottom: 20px;
+      }
+
+      /* ATA Header Styles */
+      .header-container-ata {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+      .logo-area-ata {
+        display: flex;
+        align-items: center;
+        background: linear-gradient(90deg, #e0f2fe 0%, #e0f2fe 80%, transparent 100%);
+        padding: 6px 20px 6px 6px;
+        border-radius: 40px 0 0 40px;
+        width: 70%;
+      }
+      .logo-oval-ata {
+        width: 110px;
+        height: 65px;
+        background-color: #00A3E0;
+        border-radius: 50% / 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        margin-right: 15px;
+      }
+      .logo-oval-ata img {
+        width: 90%;
+        height: 90%;
+        object-fit: contain;
+      }
+      .company-name-ata {
+        font-size: 15pt;
+        font-weight: 800;
+        color: #002D62;
+        letter-spacing: 0.5px;
+        font-family: 'Arial Black', sans-serif;
+      }
+      .statement-title-ata {
+        font-size: 24pt;
+        font-weight: 800;
+        letter-spacing: 2px;
+        color: #000;
+      }
+      .header-divider-ata {
+        border-bottom: 2px solid #000;
+        margin-bottom: 20px;
+      }
+
+      /* LTA Header Styles */
+      .header-container-lta {
+        display: flex;
+        align-items: stretch;
+        height: 60px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 6px;
+      }
+      .logo-banner-lta {
+        display: flex;
+        align-items: center;
+        background-color: #007cc0;
+        color: white;
+        padding: 0 15px;
+        flex: 1;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .logo-img-lta {
+        height: 40px;
+        width: 40px;
+        border-radius: 4px;
+        background: #fff;
+        padding: 2px;
+        margin-right: 12px;
+        object-fit: contain;
+      }
+      .company-name-lta {
+        font-size: 13pt;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+      .slanted-block-lta {
+        background-color: #1e293b;
+        color: white;
+        display: flex;
+        align-items: center;
+        padding: 0 20px 0 30px;
+        font-size: 13pt;
+        font-weight: 700;
+        clip-path: polygon(15px 0, 100% 0, 100% 100%, 0 100%);
+        margin-left: -15px;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .right-statement-lta {
+        display: flex;
+        align-items: center;
+        padding: 0 15px;
+        font-size: 20pt;
+        font-weight: 800;
+        color: #000;
+      }
+
+      /* Common Layout */
+      .two-col {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .col-bill-to {
+        border: 1.5px solid #000;
+        padding: 10px;
+        width: 55%;
+      }
+      .bill-to-title {
+        font-size: 10pt;
+        font-weight: 700;
+        border-bottom: 1px solid #000;
+        padding-bottom: 4px;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+      }
+      .bill-to-content {
+        font-size: 10pt;
+        line-height: 1.4;
+      }
+      .bill-to-content p {
+        margin: 2px 0;
+      }
+      .col-details {
+        width: 40%;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-end;
+      }
+      .details-table {
+        border-collapse: collapse;
+        border: 1.5px solid #000;
+        width: 100%;
+      }
+      .details-table td {
+        border: 1px solid #000;
+        padding: 6px 10px;
+        font-size: 9pt;
+      }
+      .details-label {
+        font-weight: 700;
+        background-color: #f8fafc;
+        width: 55%;
+      }
+      .details-value {
+        text-align: right;
+        font-family: monospace;
+        font-size: 10pt;
+      }
+
+      /* Items Table */
+      .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        border: 1.5px solid #000;
+      }
+      .items-table th {
+        border: 1px solid #000;
+        padding: 8px;
+        background-color: #f8fafc;
+        font-weight: 700;
+        font-size: 9pt;
+        text-align: left;
+        text-transform: uppercase;
+      }
+      .items-table td {
+        border: 1px solid #000;
+        padding: 8px;
+        font-size: 10pt;
+      }
+      .items-table .num {
+        text-align: right;
+        font-family: monospace;
+      }
+
+      /* Bottom Layout */
+      .bottom-container {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
+        align-items: flex-start;
+      }
+      .payment-details-box {
+        border: 1.5px solid #000;
+        padding: 10px;
+        width: 45%;
+        font-size: 9pt;
+      }
+      .payment-details-title {
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      .payment-details-row {
+        display: flex;
+        margin-bottom: 6px;
+        align-items: baseline;
+      }
+      .payment-details-row span:first-child {
+        margin-right: 5px;
+        white-space: nowrap;
+      }
+      .fill-line {
+        flex-grow: 1;
+        border-bottom: 1px dotted #000;
+        min-height: 12px;
+        margin-right: 15px;
+        padding-bottom: 1px;
+      }
+      .total-box-container {
+        width: 50%;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .total-table {
+        border-collapse: collapse;
+        border: 2px double #000;
+        width: 100%;
+      }
+      .total-table td {
+        padding: 10px;
+        font-size: 11pt;
+        font-weight: 700;
+        border: 1px solid #000;
+      }
+      .total-label {
+        background-color: #f8fafc;
+        width: 50%;
+      }
+      .total-currency {
+        text-align: center;
+        width: 15%;
+      }
+      .total-value {
+        text-align: right;
+        width: 35%;
+        font-family: monospace;
+        font-size: 12pt;
+      }
+
+      /* Signatures */
+      .signature-row {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 40px;
+        gap: 20px;
+      }
+      .signature-box {
+        width: 30%;
+        display: flex;
+        flex-direction: column;
+      }
+      .signature-label {
+        font-size: 10pt;
+        font-weight: 700;
+        margin-bottom: 40px;
+      }
+      .signature-line-container {
+        border-top: 1.5px solid #000;
+        padding-top: 4px;
+        text-align: center;
+      }
+      .signature-name-printed {
+        font-size: 9pt;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      /* Payment summary styles */
+      .pay-summary {
+        margin: 20px 0;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 15px;
+        background-color: #f8fafc;
+      }
+      .pay-summary h4 {
+        margin: 0 0 10px;
+        font-size: 10pt;
+        text-transform: uppercase;
+        color: #475569;
+        border-bottom: 1px solid #cbd5e1;
+        padding-bottom: 4px;
+      }
+      .pay-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 10px;
+        margin-bottom: 8px;
+        background: #fff;
+        font-size: 9pt;
+      }
+      .pay-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      /* Footer */
+      .footer-container {
+        margin-top: 30px;
+        text-align: center;
+      }
+      .thank-you {
+        font-size: 11pt;
+        font-weight: 700;
+        letter-spacing: 1px;
+        margin-bottom: 4px;
+      }
+      .footer-text {
+        font-size: 9pt;
+        font-weight: bold;
+      }
+      .footer-text.underline {
+        text-decoration: underline;
+      }
+
+      .vat-breakdown {
+        background: #f8fafc;
+        padding: 12px;
+        border-radius: 4px;
+        margin-top: 12px;
+        font-size: 9pt;
+        border: 1px solid #cbd5e1;
+      }
+      .vat-breakdown p {
+        margin: 2px 0;
+      }
     `;
     d.head.appendChild(style);
 
@@ -1581,129 +1989,244 @@ const Billing = {
     const isVat = vatAmount > 0;
     const paid = this.getPaidAmount(inv);
     const balance = inv.total - paid;
-    const payStatusClass = paid >= inv.total ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
-    const payStatusText = paid >= inv.total ? 'PAID' : paid > 0 ? 'PARTIALLY PAID' : 'UNPAID';
+    const hasPayments = Array.isArray(inv.payments) && inv.payments.length > 0;
 
-    const lineItemsHtml = inv.lineItems.map(li => {
+    let dateVal = '';
+    let cashVal = '';
+    let checkVal = '';
+    let bankVal = '';
+
+    if (hasPayments) {
+      const p = inv.payments[0];
+      if (p) {
+        dateVal = p.date ? formatDate(p.date) : '';
+        if (p.method === 'Cash') {
+          cashVal = formatPHP(p.amount);
+        } else if (p.method === 'Check') {
+          checkVal = p.checkNumber || '';
+          bankVal = p.bankName || '';
+        } else {
+          // Digital methods
+          cashVal = formatPHP(p.amount);
+          checkVal = p.transactionId || p.reference || '';
+          bankVal = p.bankName || p.method || '';
+        }
+      }
+    }
+
+    let headerHtml = '';
+    if (noLogo) {
+      headerHtml = `
+        <div class="generic-header">
+          <div class="generic-company-name">${entity === 'ATA' ? 'A.T.A. BUSINESS CONSULTANCY' : 'LTA BUSINESS MANAGEMENT CORP'}</div>
+          <div class="generic-title">STATEMENT</div>
+        </div>
+        <div class="generic-header-divider"></div>
+      `;
+    } else if (entity === 'ATA') {
+      headerHtml = `
+        <div class="header-container-ata">
+          <div style="display: flex; align-items: center;">
+            <img src="ERP_Assets/ATA-LOGO.jpg" alt="ATA Logo" style="height: 65px; object-fit: contain; margin-right: 12px;">
+            <span class="company-name-ata">A.T.A. BUSINESS CONSULTANCY</span>
+          </div>
+          <div class="statement-title-ata">STATEMENT</div>
+        </div>
+        <div class="header-divider-ata"></div>
+      `;
+    } else {
+      headerHtml = `
+        <div class="header-container-lta">
+          <div class="logo-banner-lta">
+            <img src="ERP_Assets/LTA-LOGO.jpg" class="logo-img-lta" alt="LTA Logo">
+            <span class="company-name-lta">LTA BUSINESS MANAGEMENT CORP</span>
+          </div>
+          <div class="slanted-block-lta">STATEMENT</div>
+        </div>
+      `;
+    }
+
+    let tableHeaders = '';
+    if (noLogo || entity === 'ATA') {
+      tableHeaders = `
+        <tr>
+          <th style="width: 15%;">DATE</th>
+          <th style="width: 65%;">DESCRIPTION</th>
+          <th style="width: 20%; text-align: right;">AMOUNT DUE</th>
+        </tr>
+      `;
+    } else {
+      tableHeaders = `
+        <tr>
+          <th style="width: 15%;">DATE</th>
+          <th style="width: 55%;">DESCRIPTION</th>
+          <th style="width: 10%;"></th>
+          <th style="width: 20%; text-align: right;">AMOUNT DUE</th>
+        </tr>
+      `;
+    }
+
+    let balanceForwardRow = '';
+    if (noLogo || entity === 'ATA') {
+      balanceForwardRow = `
+        <tr>
+          <td></td>
+          <td style="font-weight: bold; text-align: right;">BALANCE FORWARD:</td>
+          <td></td>
+        </tr>
+      `;
+    } else {
+      balanceForwardRow = `
+        <tr>
+          <td></td>
+          <td style="font-weight: bold; text-align: right;">BALANCE FORWARD:</td>
+          <td></td>
+          <td></td>
+        </tr>
+      `;
+    }
+
+    const lineItemsHtml = inv.lineItems.map((li, idx) => {
       const qty = parseFloat(li.qty) || 1;
       const unit = parseFloat(li.unitCost || li.amount) || 0;
       const total = qty * unit;
-      return `<tr><td>${li.type ? '[' + li.type + '] ' : ''}${li.description || '—'}</td><td class="num">${qty}</td><td class="num">${formatPHP(unit)}</td><td class="num">${formatPHP(total)}</td></tr>`;
+      const dateStr = idx === 0 ? formatDate(inv.issueDate) : '';
+      let descStr = escapeHtml(li.description || '—');
+      if (qty > 1) {
+        descStr += ` (Qty: ${qty} x ${formatPHP(unit)})`;
+      }
+      if (li.type) {
+        descStr = `[${escapeHtml(li.type)}] ${descStr}`;
+      }
+
+      if (noLogo || entity === 'ATA') {
+        return `
+          <tr>
+            <td>${escapeHtml(dateStr)}</td>
+            <td>${descStr}</td>
+            <td class="num">${formatPHP(total)}</td>
+          </tr>
+        `;
+      } else {
+        return `
+          <tr>
+            <td>${escapeHtml(dateStr)}</td>
+            <td>${descStr}</td>
+            <td></td>
+            <td class="num">${formatPHP(total)}</td>
+          </tr>
+        `;
+      }
     }).join('');
 
+
+
     const vatHtml = isVat
-      ? `<div class="vat-breakdown"><p><strong>VAT Breakdown</strong></p><p>VATable Sales: ${formatPHP(subtotal)}</p><p>VAT Amount (12%): ${formatPHP(vatAmount)}</p><p>Total Amount Due: ${formatPHP(inv.total)}</p></div>`
-      : `<div class="disclaimer">This document is not valid for claim of input tax.</div>`;
+      ? `<div class="vat-breakdown">
+          <p><strong>VAT Breakdown</strong></p>
+          <p>VATable Sales: ${formatPHP(subtotal)}</p>
+          <p>VAT Amount (12%): ${formatPHP(vatAmount)}</p>
+          <p>Total Amount Due: ${formatPHP(inv.total)}</p>
+        </div>`
+      : '';
 
-    // Build payment summary if payments exist
-    let paySummaryHtml = '';
-    if (Array.isArray(inv.payments) && inv.payments.length > 0) {
-      const payCards = inv.payments.map(p => {
-        const methodCfg = PaymentIcons;
-        const def = methodCfg['Other Digital'];
-        const cfg = methodCfg[p.method] || def;
-
-        let detailRows = '';
-        const addRow = (label, value) => {
-          if (!value) return '';
-          return `<div style="display:flex; justify-content:space-between; align-items:baseline; font-size:0.8125rem; padding:3px 0;"><span style="color:#94a3b8; font-weight:500;">${label}</span><span style="color:#334155; font-weight:600; text-align:right;">${value}</span></div>`;
-        };
-
-        if (p.reference) detailRows += addRow('Reference', p.reference);
-        if (p.checkNumber) detailRows += addRow('Check Number', p.checkNumber);
-        if (p.bankName) detailRows += addRow('Bank', p.bankName);
-        if (p.bankAccount) detailRows += addRow('Account Number', p.bankAccount);
-        if (p.transactionId) detailRows += addRow('Transaction ID', p.transactionId);
-        if (p.digitalAccount) detailRows += addRow('Wallet / Account', p.digitalAccount);
-        if (p.cardLast4) addRow('Card Number', '**** ' + p.cardLast4);
-
-        const recorder = p.recordedBy ? DB.getById('users', p.recordedBy) : null;
-        const collector = p.collectedBy ? DB.getById('users', p.collectedBy) : null;
-        detailRows += addRow('Recorded By', recorder ? recorder.name : '—');
-        detailRows += addRow('Collected By', collector ? collector.name : '—');
-
-        const notesHtml = p.notes
-          ? `<div style="margin-top:12px; padding-top:12px; border-top:1px solid #e2e8f0; font-size:0.8125rem; color:#64748b; font-style:italic; line-height:1.4;">${p.notes}</div>`
-          : '';
-
-        return `
-          <div style="border:1px solid #e2e8f0; border-radius:8px; padding:16px; margin-bottom:12px; background:#fff;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <div>
-                <div style="font-weight:700; font-size:1.25rem; color:#1e293b; line-height:1.2;">${formatPHP(p.amount)}</div>
-                <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">${formatDate(p.date)}</div>
-              </div>
-              <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:700; color:${cfg.color}; background:${cfg.bg}; letter-spacing:0.3px;">
-                ${cfg.svg} ${cfg.label}
-              </span>
-            </div>
-            <div style="height:1px; background:#e2e8f0; margin:0 0 12px;"></div>
-            <div style="display:flex; flex-direction:column; gap:6px;">${detailRows}</div>
-            ${notesHtml}
-          </div>`;
-      }).join('');
-
-      paySummaryHtml = `
-        <div class="pay-summary">
-          <h4>Payment Details</h4>
-          ${payCards}
-          <div style="margin-top:8px; text-align:right; font-weight:600; font-size:10pt;">Total Paid: ${formatPHP(paid)} | Balance: ${formatPHP(balance)}</div>
-        </div>`;
-    }
+    const clientNameEscaped = escapeHtml(client?.name || '—');
+    const clientTradeNameEscaped = client?.tradeName ? `<p>(${escapeHtml(client.tradeName)})</p>` : '';
+    const clientAddressEscaped = escapeHtml(client?.address || '—');
+    const clientTinEscaped = client?.tin ? `<p>TIN: ${escapeHtml(client.tin)}</p>` : '';
+    const invoiceNumberEscaped = escapeHtml(inv.invoiceNumber);
+    const invoiceDateEscaped = escapeHtml(formatDate(inv.issueDate));
+    const dateValEscaped = escapeHtml(dateVal);
+    const cashValEscaped = escapeHtml(cashVal);
+    const checkValEscaped = escapeHtml(checkVal);
+    const bankValEscaped = escapeHtml(bankVal);
 
     d.body.innerHTML = `
-      <div style="text-align:center; margin-bottom:4px;">
-        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${entity} Accounting Services Firm</div>
-      </div>
-      <div style="border-bottom:2px solid #1e293b; margin-bottom:16px;"></div>
-
-      <div class="doc-title">Service Invoice</div>
+      ${headerHtml}
 
       <div class="two-col">
-        <div class="col">
-          <h3>Sold To / Client</h3>
-          <p><strong>${client?.name || '—'}</strong></p>
-          <p>TIN: ${client?.tin || '—'}</p>
-          <p>${client?.address || '—'}</p>
+        <div class="col-bill-to">
+          <div class="bill-to-title">${entity === 'ATA' ? 'BILL TO' : 'BILL TO:'}</div>
+          <div class="bill-to-content">
+            <p><strong>${clientNameEscaped}</strong></p>
+            ${clientTradeNameEscaped}
+            <p>${clientAddressEscaped}</p>
+            ${clientTinEscaped}
+          </div>
         </div>
-        <div class="col">
-          <h3>Invoice Details</h3>
-          <p><strong>Invoice No.:</strong> ${inv.invoiceNumber}</p>
-          <p><strong>Date Issued:</strong> ${formatDate(inv.issueDate)}</p>
+        <div class="col-details">
+          <table class="details-table">
+            <tr>
+              <td class="details-label">STATEMENT NUMBER</td>
+              <td class="details-value">${invoiceNumberEscaped}</td>
+            </tr>
+            <tr>
+              <td class="details-label">STATEMENT DATE</td>
+              <td class="details-value">${invoiceDateEscaped}</td>
+            </tr>
+          </table>
         </div>
       </div>
 
-      <table>
+      <table class="items-table">
         <thead>
-          <tr><th>Description of Service</th><th class="num">Qty</th><th class="num">Unit Cost</th><th class="num">Amount</th></tr>
+          ${tableHeaders}
         </thead>
         <tbody>
+          ${balanceForwardRow}
           ${lineItemsHtml}
         </tbody>
       </table>
 
-      <div class="totals">
-        ${isVat ? `<div class="totals-row"><span>Value Added Tax (12%)</span><span>${formatPHP(vatAmount)}</span></div>` : ''}
-        <div class="totals-row grand"><span>Total Amount Due</span><span>${formatPHP(inv.total)}</span></div>
+      <div class="bottom-container">
+        <div class="payment-details-box">
+          <div class="payment-details-title">PAYMENT DETAILS:</div>
+          <div class="payment-details-row"><span>DATE:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${dateValEscaped}</span></div>
+          <div class="payment-details-row"><span>CASH:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${cashValEscaped}</span></div>
+          <div class="payment-details-row"><span>DATE/CHECK NO.:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${checkValEscaped}</span></div>
+          <div class="payment-details-row"><span>BANK/BRANCH:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${bankValEscaped}</span></div>
+        </div>
+        <div class="total-box-container" style="width: 50%;">
+          <table class="total-table">
+            <tr>
+              <td class="total-label">TOTAL AMOUNT DUE</td>
+              <td class="total-currency">PHP</td>
+              <td class="total-value">${formatPHP(inv.total).replace('₱', '').trim()}</td>
+            </tr>
+          </table>
+        </div>
       </div>
-
-      ${paySummaryHtml}
       ${vatHtml}
 
       <div class="signature-row">
         <div class="signature-box">
-          <div class="line">Authorized Representative<br><span style="font-size:8pt;color:#64748b;">Signature over Printed Name / Date</span></div>
+          <div class="signature-label">Noted by:</div>
+          <div class="signature-line-container">
+            <div class="signature-name-printed">HENRY WONG</div>
+          </div>
         </div>
         <div class="signature-box">
-          <div class="line">Client Acknowledgment<br><span style="font-size:8pt;color:#64748b;">Signature over Printed Name / Date</span></div>
+          <div class="signature-label">Prepared by:</div>
+          <div class="signature-line-container">
+            <div class="signature-name-printed">&nbsp;</div>
+          </div>
+        </div>
+        <div class="signature-box">
+          <div class="signature-label">Received by:</div>
+          <div class="signature-line-container">
+            <div class="signature-name-printed">&nbsp;</div>
+          </div>
         </div>
       </div>
 
-      <div class="footer">
-        This Service Invoice is issued in compliance with Revenue Regulations No. 7-2024 (Ease of Paying Taxes Act).<br>
-        For questions, contact ${entity} Accounting Services Firm.<br>
-        Original copy retained for BIR audit trail.
+      <div class="footer-container">
+        <div class="thank-you">THANK YOU !!!</div>
+        ${entity === 'ATA'
+          ? `<div class="footer-text">customer's copy</div>`
+          : `<div class="footer-text underline">Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928</div>`
+        }
       </div>
+
     `;
 
     setTimeout(() => w.print(), 300);
@@ -1759,37 +2282,37 @@ const Billing = {
         let detailRows = '';
         if (p.method === 'Check') {
           detailRows = `
-            <tr><td><strong>Check Number</strong></td><td>${p.checkNumber || '—'}</td></tr>
-            <tr><td><strong>Drawee Bank</strong></td><td>${p.bankName || '—'}</td></tr>`;
+            <tr><td><strong>Check Number</strong></td><td>${escapeHtml(p.checkNumber || '—')}</td></tr>
+            <tr><td><strong>Drawee Bank</strong></td><td>${escapeHtml(p.bankName || '—')}</td></tr>`;
         } else if (p.method === 'Bank Transfer') {
           detailRows = `
-            <tr><td><strong>Bank Name</strong></td><td>${p.bankName || '—'}</td></tr>
-            <tr><td><strong>Account Number</strong></td><td>${p.bankAccount || '—'}</td></tr>
-            <tr><td><strong>Transaction Reference</strong></td><td>${p.transactionId || '—'}</td></tr>`;
+            <tr><td><strong>Bank Name</strong></td><td>${escapeHtml(p.bankName || '—')}</td></tr>
+            <tr><td><strong>Account Number</strong></td><td>${escapeHtml(p.bankAccount || '—')}</td></tr>
+            <tr><td><strong>Transaction Reference</strong></td><td>${escapeHtml(p.transactionId || '—')}</td></tr>`;
         } else if (['GCash','Maya','PayPal','Other Digital'].includes(p.method)) {
           detailRows = `
-            <tr><td><strong>Wallet / Account</strong></td><td>${p.digitalAccount || '—'}</td></tr>
-            <tr><td><strong>Transaction Reference</strong></td><td>${p.transactionId || '—'}</td></tr>`;
+            <tr><td><strong>Wallet / Account</strong></td><td>${escapeHtml(p.digitalAccount || '—')}</td></tr>
+            <tr><td><strong>Transaction Reference</strong></td><td>${escapeHtml(p.transactionId || '—')}</td></tr>`;
         } else if (['Credit Card','Debit Card'].includes(p.method)) {
           detailRows = `
-            <tr><td><strong>Card Last 4 Digits</strong></td><td>**** ${p.cardLast4 || '—'}</td></tr>
-            <tr><td><strong>Authorization Code</strong></td><td>${p.transactionId || '—'}</td></tr>
-            <tr><td><strong>Card Issuer</strong></td><td>${p.bankName || '—'}</td></tr>`;
+            <tr><td><strong>Card Last 4 Digits</strong></td><td>**** ${escapeHtml(p.cardLast4 || '—')}</td></tr>
+            <tr><td><strong>Authorization Code</strong></td><td>${escapeHtml(p.transactionId || '—')}</td></tr>
+            <tr><td><strong>Card Issuer</strong></td><td>${escapeHtml(p.bankName || '—')}</td></tr>`;
         }
         return `
           <div class="box" style="margin-bottom:12px;">
-            <p><strong>Payment ${idx + 1} — ${p.method}</strong> <span style="font-size:9pt;color:#475569;">(${formatDate(p.date)})</span></p>
+            <p><strong>Payment ${idx + 1} — ${escapeHtml(p.method)}</strong> <span style="font-size:9pt;color:#475569;">(${formatDate(p.date)})</span></p>
             <div class="grid-2">
               <div>
                 <p><strong>Amount:</strong> ${formatPHP(p.amount)}</p>
-                <p class="amount-words">${pAmountWords}</p>
+                <p class="amount-words">${escapeHtml(pAmountWords)}</p>
               </div>
               <div>
                 <table style="margin:0;">${detailRows}</table>
               </div>
             </div>
-            ${p.reference ? `<p style="margin-top:6px; font-size:9pt; color:#64748b;">General Ref: ${p.reference}</p>` : ''}
-            ${p.notes ? `<p style="font-size:9pt; color:#64748b; font-style:italic;">Notes: ${p.notes}</p>` : ''}
+            ${p.reference ? `<p style="margin-top:6px; font-size:9pt; color:#64748b;">General Ref: ${escapeHtml(p.reference)}</p>` : ''}
+            ${p.notes ? `<p style="font-size:9pt; color:#64748b; font-style:italic;">Notes: ${escapeHtml(p.notes)}</p>` : ''}
           </div>`;
       }).join('');
 
@@ -1817,7 +2340,7 @@ const Billing = {
           <div class="grid-2">
             <div class="box">
               <p><strong>Amount in Figures:</strong> ${formatPHP(inv.total)}</p>
-              <p class="amount-words"><strong>Amount in Words:</strong> ${amountWords}</p>
+              <p class="amount-words"><strong>Amount in Words:</strong> ${escapeHtml(amountWords)}</p>
             </div>
             <div class="box">
               <p><strong>Payment Mode:</strong> ___________________</p>
@@ -1829,9 +2352,14 @@ const Billing = {
         </div>`;
     }
 
+    const clientNameEscaped = escapeHtml(client?.name || '—');
+    const clientTinEscaped = escapeHtml(client?.tin || '—');
+    const clientAddressEscaped = escapeHtml(client?.address || '—');
+    const invoiceNumberEscaped = escapeHtml(inv.invoiceNumber);
+
     d.body.innerHTML = `
       <div style="text-align:center; margin-bottom:4px;">
-        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${entity} Accounting Services Firm</div>
+        <div style="font-size:14pt; font-weight:700; letter-spacing:1px;">${escapeHtml(entity)} Accounting Services Firm</div>
       </div>
       <div style="border-bottom:2px solid #1e293b; margin-bottom:16px;"></div>
 
@@ -1840,15 +2368,15 @@ const Billing = {
       <div class="grid-2">
         <div class="box">
           <h3>Voucher Details</h3>
-          <p><strong>Voucher No.:</strong> PV-${inv.invoiceNumber}</p>
+          <p><strong>Voucher No.:</strong> PV-${invoiceNumberEscaped}</p>
           <p><strong>Date:</strong> ${formatDate(new Date().toISOString().slice(0, 10))}</p>
-          <p><strong>Reference Invoice:</strong> ${inv.invoiceNumber}</p>
+          <p><strong>Reference Invoice:</strong> ${invoiceNumberEscaped}</p>
         </div>
         <div class="box">
           <h3>Payee Information</h3>
-          <p><strong>${client?.name || '—'}</strong></p>
-          <p>TIN: ${client?.tin || '—'}</p>
-          <p>${client?.address || '—'}</p>
+          <p><strong>${clientNameEscaped}</strong></p>
+          <p>TIN: ${clientTinEscaped}</p>
+          <p>${clientAddressEscaped}</p>
         </div>
       </div>
 
@@ -1870,7 +2398,7 @@ const Billing = {
 
       <div class="section page-break">
         <h3>Supporting Documents</h3>
-        <p>☐ Service Invoice No. ${inv.invoiceNumber} dated ${formatDate(inv.issueDate)}</p>
+        <p>☐ Service Invoice No. ${invoiceNumberEscaped} dated ${formatDate(inv.issueDate)}</p>
         <p>☐ Purchase Order / Contract Reference: _________________</p>
         <p>☐ BIR Form 2307 (Certificate of Creditable Tax Withheld at Source): _________________</p>
       </div>
@@ -2148,22 +2676,28 @@ const Billing = {
 
   renderTrash() {
     const entity = Auth.activeEntity;
-    const trashed = DB.getWhere('invoices', inv => inv.entity === entity && inv.status === 'Cancelled');
+    const trashed = DB.getWhere('invoices', inv => {
+      const invEnt = (inv.entity || '').toUpperCase();
+      if (entity === 'ALL') {
+        return Auth.user.entities.map(ae => ae.toUpperCase()).includes(invEnt);
+      }
+      return invEnt === entity.toUpperCase();
+    }).filter(inv => inv.status === 'Cancelled');
 
     const container = el('div');
     const topActions = el('div', { class: 'form-header-bar', style: 'margin-bottom: var(--spacing-lg);' });
-    topActions.appendChild(el('h2', { text: 'Trashed Invoices' }));
+    topActions.appendChild(el('h2', { text: 'Archived Invoices' }));
     container.appendChild(topActions);
 
     if (trashed.length === 0) {
-      container.appendChild(el('p', { text: 'Trash is empty.', class: 'empty-state' }));
+      container.appendChild(el('p', { text: 'Archive is empty.', class: 'empty-state' }));
       return container;
     }
 
     const table = el('table', { class: 'data-table' });
     const thead = el('thead');
     const thr = el('tr');
-    ['Invoice #', 'Client', 'Issue Date', 'Total', 'Trashed At', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
+    ['Invoice #', 'Client', 'Issue Date', 'Total', 'Archived At', 'Actions'].forEach(h => thr.appendChild(el('th', { text: h })));
     thead.appendChild(thr);
     table.appendChild(thead);
 
