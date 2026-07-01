@@ -16,3 +16,6 @@ backup/
 # Documentation/Artifacts (Optional: keep if you want them in git)
 *.png
 *.docx
+
+# Node dependencies
+node_modules/
