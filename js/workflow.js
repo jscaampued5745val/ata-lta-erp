@@ -2998,7 +2998,7 @@ const Workflow = {
         // Transmittal Card
         let transTitle = 'Transmittal';
         let transHandler = null;
-        if (Auth.can('transmittal:edit')) {
+        if (Auth.can('transmittal:create')) {
           transTitle = 'Generate Transmittal';
           transHandler = () => this.openGenerateTransmittalModal(wr, task);
         } else if (Auth.can('transmittal:request')) {
@@ -5980,7 +5980,7 @@ const Workflow = {
           // Transmittal Card
           let transTitle = 'Transmittal';
           let transHandler = null;
-          if (Auth.can('transmittal:edit')) {
+          if (Auth.can('transmittal:create')) {
             transTitle = 'Generate Transmittal';
             transHandler = () => this.openGenerateTransmittalModal(wr, t);
           } else if (Auth.can('transmittal:request')) {

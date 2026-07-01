@@ -79,15 +79,19 @@ const App = {
   },
 
   updateSidebarNotifications() {
-    const canApprove = Auth.can('disbursement:approve');
+    const canApprove = Auth.user.role === 'Admin';
     const entity = Auth.activeEntity;
 
     const items = DB.getWhere('disbursements', d => d.entity === entity);
     let count = 0;
 
     items.forEach(d => {
-      // Users with disbursement:approve permission see count of submissions awaiting approval
+      // Admin sees count of submissions awaiting approval
       if (canApprove && (d.status === 'Submitted' || d.status === 'Under Review')) {
+        count++;
+      }
+      // Admin also sees count of Manager release requests pending approval
+      if (canApprove && d.status === 'Release Pending Approval') {
         count++;
       }
       // Handlers see count of disbursements awaiting their final release
@@ -179,7 +183,8 @@ const App = {
     }
 
     // Badge Transmittal nav for pending transmittal operations requests
-    if (billingReqRole === 'Documentation' || billingReqRole === 'Admin' || billingReqRole === 'Manager') {
+    // Only Documentation and Admin can fulfill transmittal requests, so only they see the badge.
+    if (billingReqRole === 'Documentation' || billingReqRole === 'Admin') {
       const transReqs = DB.getWhere('operationsRequests', r => r.status === 'pending' && r.type === 'transmittal');
       const transNav = document.querySelector('nav a[href="#transmittal"]');
       if (transNav) {
@@ -227,6 +232,20 @@ const App = {
     if (reportsNav) {
       const canViewReports = Auth.can('reports:view');
       reportsNav.parentElement.style.display = canViewReports ? '' : 'none';
+    }
+
+    // Hide Disbursement nav link for users without disbursement:view permission
+    const disbNav = document.querySelector('nav a[href="#disbursement"]');
+    if (disbNav) {
+      const canViewDisbursement = Auth.can('disbursement:view');
+      disbNav.parentElement.style.display = canViewDisbursement ? '' : 'none';
+    }
+
+    // Hide Transmittal nav link for users without any transmittal permissions
+    const transmittalNav = document.querySelector('nav a[href="#transmittal"]');
+    if (transmittalNav) {
+      const canViewTransmittal = Auth.can('transmittal:view') || Auth.can('transmittal:request');
+      transmittalNav.parentElement.style.display = canViewTransmittal ? '' : 'none';
     }
   },
 
@@ -418,6 +437,14 @@ const App = {
 
     // RBAC: Restricted modules
     if (baseHash === '#reports' && !Auth.can('reports:view')) {
+       location.hash = '#dashboard';
+       return;
+    }
+    if (baseHash === '#disbursement' && !Auth.can('disbursement:view')) {
+       location.hash = '#dashboard';
+       return;
+    }
+    if (baseHash === '#transmittal' && !Auth.can('transmittal:view') && !Auth.can('transmittal:request')) {
        location.hash = '#dashboard';
        return;
     }
