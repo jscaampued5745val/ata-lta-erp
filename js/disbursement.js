@@ -920,14 +920,12 @@ const Disbursement = {
     this.prefilledWrId = null;
     this.prefilledClientId = null;
 
-    closeFormPanelAndRoute('#disbursement');
-    if (typeof Workflow !== 'undefined' && Workflow.showMessage) {
-      Workflow.showMessage(
-        isNew ? 'Expense Submitted' : 'Expense Updated',
-        'Disbursement expense has been ' + (isNew ? 'submitted' : 'updated') + ' successfully.',
-        'success'
-      );
-    }
+    const msgConfig = {
+      title: isNew ? 'Expense Submitted' : 'Expense Updated',
+      message: 'Disbursement expense has been ' + (isNew ? 'submitted' : 'updated') + ' successfully.',
+      type: 'success'
+    };
+    closeFormPanelAndRoute('#disbursement', msgConfig);
   },
 
   showRequestDisbursementModal() {

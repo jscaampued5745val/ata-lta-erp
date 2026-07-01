@@ -26,6 +26,20 @@ const App = {
     this.updateSidebarNotifications();
     this.setupStickyTrayResize();
 
+    // Check and show pending toast message after page reload
+    const pendingToast = sessionStorage.getItem('pending_toast');
+    if (pendingToast) {
+      sessionStorage.removeItem('pending_toast');
+      try {
+        const { title, message, type } = JSON.parse(pendingToast);
+        if (window.Workflow && typeof window.Workflow.showMessage === 'function') {
+          window.Workflow.showMessage(title, message, type);
+        }
+      } catch (e) {
+        console.error('Error parsing pending toast:', e);
+      }
+    }
+
     // Close split button dropdown menus when clicking outside
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.split-btn-group')) {
@@ -253,7 +267,37 @@ const App = {
     sel.onchange = (ev) => {
       Auth.switchEntity(ev.target.value);
       this.updateEntityBadge();
-      this.handleRoute();
+      
+      // Clean up module states for any detail/form view
+      if (typeof Workflow !== 'undefined') {
+        Workflow.view = 'list';
+        Workflow.detailWrId = null;
+        Workflow.editingId = null;
+      }
+      if (typeof Billing !== 'undefined') {
+        Billing.view = 'list';
+        Billing.detailId = null;
+      }
+      if (typeof Disbursement !== 'undefined') {
+        Disbursement.view = 'list';
+        Disbursement.detailId = null;
+      }
+      if (typeof Transmittal !== 'undefined') {
+        Transmittal.view = 'list';
+        Transmittal.detailId = null;
+      }
+      if (typeof Clients !== 'undefined') {
+        Clients.editingId = null;
+      }
+
+      // If the current route has subpaths (e.g. #billing/detail/123), reset to the base route (e.g. #billing)
+      const rawHash = location.hash || '#dashboard';
+      const baseHash = rawHash.split('?')[0].split('/')[0];
+      if (location.hash !== baseHash) {
+        location.hash = baseHash;
+      }
+      
+      location.reload();
     };
   },
 

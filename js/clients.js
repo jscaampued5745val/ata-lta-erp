@@ -597,7 +597,16 @@ const Clients = {
       PendingChanges.submit('clients', record, true);
     }
 
-    this.showList();
+    const isNew = !this.editingId || this.editingId === 'new';
+    const isApproved = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const msgConfig = {
+      title: isNew ? 'Client Created' : 'Client Updated',
+      message: isApproved 
+        ? `Client ${record.name} has been successfully ${isNew ? 'created' : 'updated'}.` 
+        : `Client ${record.name} ${isNew ? 'creation' : 'update'} request has been submitted for Admin approval.`,
+      type: 'success'
+    };
+    closeFormPanelAndRoute('#clients', msgConfig);
   },
 
   archiveClientDirectly(clientId) {

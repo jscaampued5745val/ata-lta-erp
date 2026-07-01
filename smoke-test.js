@@ -78,7 +78,7 @@ async function runTests() {
   await log('Clients Columns (#4)', hasRc && hasCd, `RC=${hasRc}, CD=${hasCd}`);
 
   // ─── TEST 5: Clients save button top-right ───────────────────────
-  await page.click('button:has-text("Add Client")');
+  await page.click('button:has-text("New Client")');
   await page.waitForTimeout(400);
   const headerBar = await page.$('.form-header-bar');
   const headerActions = headerBar ? await headerBar.$('.form-actions-top') : null;

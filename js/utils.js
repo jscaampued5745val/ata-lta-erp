@@ -732,15 +732,20 @@ function openFormPanel({ icon, title, formContent, formId, actions }) {
  *
  * @param {string} hash - The URL hash path to navigate to (e.g. '#billing')
  */
-function closeFormPanelAndRoute(hash) {
+function closeFormPanelAndRoute(hash, messageConfig) {
   if (window.SidePaneInstance && typeof window.SidePaneInstance.close === 'function') {
     window.SidePaneInstance.close();
   }
   if (hash) {
     location.hash = hash;
   }
-  if (window.App && typeof window.App.handleRoute === 'function') {
-    window.App.handleRoute();
+  if (messageConfig) {
+    sessionStorage.setItem('pending_toast', JSON.stringify(messageConfig));
+    location.reload();
+  } else {
+    if (window.App && typeof window.App.handleRoute === 'function') {
+      window.App.handleRoute();
+    }
   }
 }
 
