@@ -7,6 +7,8 @@ const Disbursement = {
   view: 'list', // 'list' | 'form' | 'detail' | 'report' | 'templates'
   detailId: null,
   listViewMode: 'table', // 'table' | 'board' | 'list'
+  EDITABLE_STATUSES: ['Draft', 'Submitted', 'Under Review', 'Pending'],
+  PENDING_APPROVAL_STATUSES: ['Submitted', 'Under Review', 'Pending'],
 
   render() {
     const container = el('div', { class: 'page' });
@@ -35,7 +37,7 @@ const Disbursement = {
           actions.appendChild(submitBtn);
         }
         const noLogoLabel = el('label', { style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);' });
-        const noLogoCheckbox = el('input', { type: 'checkbox', id: 'print-no-logo' });
+        const noLogoCheckbox = el('input', { type: 'checkbox' });
         noLogoLabel.appendChild(noLogoCheckbox);
         noLogoLabel.appendChild(document.createTextNode('No Logo (Generic)'));
         actions.appendChild(noLogoLabel);
@@ -203,7 +205,7 @@ const Disbursement = {
 
   canEditDisbursement(d) {
     return Auth.can('disbursement:create') &&
-           ['Draft','Submitted','Under Review','Pending'].includes(d.status);
+           this.EDITABLE_STATUSES.includes(d.status);
   },
 
   showForm(disbId = null) {
@@ -493,7 +495,7 @@ const Disbursement = {
       if (statusFilter === 'Draft') {
         items = items.filter(d => d.status === 'Draft');
       } else if (statusFilter === 'Pending') {
-        items = items.filter(d => ['Submitted', 'Under Review', 'Pending'].includes(d.status));
+        items = items.filter(d => this.PENDING_APPROVAL_STATUSES.includes(d.status));
       } else {
         items = items.filter(d => d.status === statusFilter);
       }
@@ -610,7 +612,7 @@ const Disbursement = {
       if (st === 'Draft') {
         colItems = items.filter(d => d.status === 'Draft');
       } else if (st === 'Pending') {
-        colItems = items.filter(d => ['Submitted', 'Under Review', 'Pending'].includes(d.status));
+        colItems = items.filter(d => this.PENDING_APPROVAL_STATUSES.includes(d.status));
       } else {
         colItems = items.filter(d => d.status === st);
       }
@@ -1184,7 +1186,7 @@ const Disbursement = {
 
     // Approval Actions
     const canApprove = Auth.can('disbursement:approve');
-    const isPending = ['Submitted', 'Under Review', 'Pending'].includes(d.status);
+    const isPending = this.PENDING_APPROVAL_STATUSES.includes(d.status);
 
     if (isPending && canApprove) {
       const isRequester = Auth.isSelfApprover(this.getEmployeeId(d));
@@ -1229,7 +1231,7 @@ const Disbursement = {
   showApproveDialog(id) {
     const d = DB.getById('disbursements', id);
     if (!d) return;
-    if (!['Submitted', 'Under Review', 'Pending'].includes(d.status)) {
+    if (!this.PENDING_APPROVAL_STATUSES.includes(d.status)) {
       Workflow.showMessage('Error', 'This disbursement is not pending approval.', 'danger');
       return;
     }
