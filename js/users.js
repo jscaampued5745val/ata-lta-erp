@@ -43,7 +43,10 @@ const Users = {
     if (canManageUsers) {
       const entity = Auth.activeEntity;
       const pendingDisbursements = DB.getWhere('disbursements', d => d.entity === entity && (d.status === 'Submitted' || d.status === 'Under Review'));
-      const pendingChanges = PendingChanges.getAllPending();
+      let pendingChanges = PendingChanges.getAllPending();
+      if (Auth.user.role === 'Manager') {
+        pendingChanges = pendingChanges.filter(pc => PendingChanges.canApproveChange(pc));
+      }
       const totalPending = pendingDisbursements.length + pendingChanges.length;
 
       const pendingTab = el('button', {
@@ -560,7 +563,11 @@ const Users = {
     }
 
     const entity = Auth.activeEntity;
-    const pendingChanges = PendingChanges.getAllPending();
+    let pendingChanges = PendingChanges.getAllPending();
+    // Manager can only approve tasks — filter to show only approvable items
+    if (Auth.user.role === 'Manager') {
+      pendingChanges = pendingChanges.filter(pc => PendingChanges.canApproveChange(pc));
+    }
     const pendingDisbursements = DB.getWhere('disbursements', d => d.entity === entity && (d.status === 'Submitted' || d.status === 'Under Review'));
 
     if (pendingChanges.length === 0 && pendingDisbursements.length === 0) {
@@ -614,7 +621,12 @@ const Users = {
           amount = data.total;
         } else if (pc.table === 'transmittals') {
           title = `Transmittal: #${data.transmittalNumber || data.id}`;
-        } else if (pc.table === 'clients') {
+        } else if (pc.table === 'tasks') {
+           const wrId = data.workRequestId;
+           const wr = wrId ? DB.getById('workRequests', wrId) : null;
+           title = `Task: ${data.title}`;
+           subtitle = wr ? `For WR: ${wr.title}` : 'Pending task approval';
+         } else if (pc.table === 'clients') {
           title = `Client: ${data.name}`;
         }
         
@@ -944,7 +956,7 @@ const Users = {
       return el('p', { text: 'Pending change not found.', class: 'empty-state' });
     }
 
-    const canApprove = Auth.can('users:view');
+    const canApprove = PendingChanges.canApproveChange(pc);
     const isSubmitter = pc.submittedBy === Auth.user.id;
 
     const wrapper = el('div', { style: 'max-width: 800px; margin: 0 auto;' });

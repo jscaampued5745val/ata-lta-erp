@@ -4,10 +4,18 @@
  *
  * Roles:
  *   Admin         – unrestricted, always ['ATA','LTA']
- *   Manager       – unrestricted, either ['ATA'] or ['ATA','LTA'] (no LTA-only)
+ *                   Creates WRs directly; approves Manager WRs; approves all phase routing.
+ *   Manager       – Creates WRs (requires Admin approval); approves tasks added by staff;
+ *                   view-only for clients; cannot route phases.
+ *                   Billing: can view all invoices for assigned WRs; request invoices
+ *                   from Accounting; mark as paid (pending Admin approval).
+ *                   Cannot create or edit invoices directly.
  *   Accounting    – per-entity staff, either ['ATA'] or ['LTA'] (never both)
+ *                   Can add tasks (pending Manager approval); view WR details.
  *   Operations    – per-entity staff, either ['ATA'] or ['LTA'] (never both)
+ *                   Can add tasks (pending Manager approval); upload documents for tasks; view WR details.
  *   Documentation – cross-entity staff, always ['ATA','LTA']
+ *                   Can add tasks (pending Manager approval); view WR details.
  *   HR            – (placeholder) view-only, always ['ATA','LTA']
  *                   ⚠️ HR permissions are UNCONFIRMED — minimal/view-only pending
  *                   business confirmation of actual permission set.
@@ -59,10 +67,10 @@ const Auth = {
     if (role === 'Admin') return true;
     if (!this.user.entities.includes(entity)) return false;
     const perms = {
-      Manager: ['clients:view','clients:edit','workflow:view','workflow:edit','workflow:approve','billing:view','billing:edit','billing:approve','disbursement:view','disbursement:approve','dms:view','dms:edit','dms:handover','reports:view','users:view','audit:view_all','transmittal:view','transmittal:edit'],
-      Accounting: ['clients:view','workflow:view','workflow:edit','billing:view','billing:edit','disbursement:view','disbursement:create','dms:view','transmittal:view'],
-      Operations: ['clients:view','workflow:view','workflow:edit','billing:view','billing:request','disbursement:view','disbursement:request','dms:view','transmittal:view','transmittal:request'],
-      Documentation: ['clients:view','workflow:view','workflow:edit','billing:view','disbursement:view','dms:view','dms:edit','dms:handover','transmittal:view','transmittal:edit'],
+      Manager: ['clients:view','workflow:view','workflow:edit','workflow:task_approve','billing:view','billing:request','billing:mark_paid','disbursement:view','disbursement:approve','dms:view','dms:edit','dms:handover','reports:view','users:view','audit:view_all','transmittal:view','transmittal:edit'],
+      Accounting: ['clients:view','workflow:view','workflow:task_add','billing:view','billing:edit','disbursement:view','disbursement:create','dms:view','transmittal:view'],
+      Operations: ['clients:view','workflow:view','workflow:task_add','workflow:task_upload','billing:view','billing:request','disbursement:view','disbursement:request','dms:view','transmittal:view','transmittal:request'],
+      Documentation: ['clients:view','workflow:view','workflow:task_add','billing:view','disbursement:view','dms:view','dms:edit','dms:handover','transmittal:view','transmittal:edit'],
       // ⚠️ HR: UNCONFIRMED placeholder — minimal view-only across all modules
       // pending business owner confirmation of actual HR permission requirements.
       HR: ['clients:view','workflow:view','billing:view','disbursement:view','dms:view']

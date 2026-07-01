@@ -175,22 +175,6 @@ const Clients = {
       );
     }
 
-    // Staff-level visibility filter: only see clients they're assigned to
-    if (!Auth.can('clients:edit')) {
-      const userId = Auth.user.id;
-      const tasks = DB.getAll('tasks');
-      const workRequests = DB.getAll('workRequests');
-      // Find clients where user is assigned to any task
-      const assignedClientIds = new Set();
-      tasks.forEach(t => {
-        if (t.assigneeId === userId) {
-          const wr = workRequests.find(w => w.id === t.workRequestId);
-          if (wr) assignedClientIds.add(wr.clientId);
-        }
-      });
-      clients = clients.filter(c => c.contactUserId === userId || assignedClientIds.has(c.id));
-    }
-
     return clients;
   },
 
@@ -683,20 +667,6 @@ const Clients = {
       );
     }
 
-    // Staff-level visibility filter
-    if (!Auth.can('clients:edit')) {
-      const userId = Auth.user.id;
-      const tasks = DB.getAll('tasks');
-      const workRequests = DB.getAll('workRequests');
-      const assignedClientIds = new Set();
-      tasks.forEach(t => {
-        if (t.assigneeId === userId) {
-          const wr = workRequests.find(w => w.id === t.workRequestId);
-          if (wr) assignedClientIds.add(wr.clientId);
-        }
-      });
-      clients = clients.filter(c => c.contactUserId === userId || assignedClientIds.has(c.id));
-    }
     return clients;
   },
 

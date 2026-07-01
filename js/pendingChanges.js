@@ -1,19 +1,20 @@
 /**
  * Admin Review Gate — Pending Changes
- * Structural mutations are staged for Admin/Manager approval.
- * Staff-level roles (Accounting, Operations, Documentation, HR)
- * stage changes in pendingChanges for managerial review.
+ * Structural mutations are staged for Admin approval.
+ * All non-Admin roles (Manager, Accounting, Operations, Documentation, HR)
+ * stage changes in pendingChanges for Admin review.
  */
 
 const PendingChanges = {
   /**
    * Submit a structural change for review.
-   * Admin/Manager bypass the gate and save directly.
-   * Staff-level roles stage changes in pendingChanges.
+   * Admin bypasses the gate for everything.
+   * Manager bypasses for tasks only (WRs still need Admin approval).
+   * All other roles stage changes in pendingChanges.
    */
   submit(table, record, isNew) {
     const role = Auth.user?.role;
-    if (role === 'Admin' || role === 'Manager') {
+    if (role === 'Admin' || (role === 'Manager' && table === 'tasks')) {
       const cleanRecord = { ...record };
       delete cleanRecord.tasks;
       if (isNew) {
@@ -54,6 +55,19 @@ const PendingChanges = {
 
   getById(id) {
     return DB.getById('pendingChanges', id);
+  },
+
+  /**
+   * Determine if the current user can approve a given pending change.
+   * Admin can approve everything.
+   * Manager can approve pending tasks (from staff).
+   */
+  canApproveChange(pc) {
+    if (!pc) return false;
+    const role = Auth.user?.role;
+    if (role === 'Admin') return true;
+    if (role === 'Manager' && pc.table === 'tasks') return true;
+    return false;
   },
 
   approve(pendingId) {
