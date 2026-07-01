@@ -139,15 +139,7 @@ const Billing = {
       });
       primaryBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Billing';
       primaryBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '🧾', title: 'Create Sales Invoice',
-          formContent: this.renderForm(), formId: 'invoice-form',
-          actions: [
-            { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
-          ]
-        });
+        this.showForm();
       });
       wrapper.appendChild(primaryBtn);
 
@@ -183,15 +175,7 @@ const Billing = {
         html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Billing'
       });
       addBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '🧾', title: 'Create Sales Invoice',
-          formContent: this.renderForm(), formId: 'invoice-form',
-          actions: [
-            { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
-          ]
-        });
+        this.showForm();
       });
       tabNav.appendChild(addBtn);
     } else if (canRequest) {
@@ -248,7 +232,12 @@ const Billing = {
           info.textContent = `${client ? client.name : 'Unknown Client'} – ${wr ? wr.title : 'Unknown WR'} (requested by ${req.requestedBy || 'N/A'})`;
           row.appendChild(info);
           const fulfillBtn = el('button', { class: 'btn btn-primary', text: 'Fulfill', style: 'padding:2px 12px;font-size:0.8rem;' });
-          fulfillBtn.addEventListener('click', () => { Billing.prefilledWrId = req.workRequestId; Billing.prefilledClientId = req.clientId; Billing.prefilledRequestId = req.id; location.hash = '#billing/form'; });
+          fulfillBtn.addEventListener('click', () => {
+            Billing.prefilledWrId = req.workRequestId;
+            Billing.prefilledClientId = req.clientId;
+            Billing.prefilledRequestId = req.id;
+            Billing.showForm();
+          });
           row.appendChild(fulfillBtn);
           banner.appendChild(row);
         });
@@ -499,7 +488,7 @@ const Billing = {
         const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit', style: 'margin-left:4px;' });
         editBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          location.hash = '#billing/form/' + inv.id;
+          this.showForm(inv.id);
         });
         tdAct.appendChild(editBtn);
         const trashBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Trash', style: 'margin-left:4px;' });
@@ -553,15 +542,7 @@ const Billing = {
         });
         addCard.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Billing';
         addCard.addEventListener('click', () => {
-          this.detailId = null;
-          openFormPanel({
-            icon: '🧾', title: 'Create Sales Invoice',
-            formContent: this.renderForm(), formId: 'invoice-form',
-            actions: [
-              { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
-              { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
-            ]
-          });
+          this.showForm();
         });
         cardContainer.appendChild(addCard);
       }
@@ -637,7 +618,7 @@ const Billing = {
           const editBtn = el('button', { class: 'btn btn-secondary btn-xs', text: 'Edit' });
           editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            location.hash = '#billing/form/' + inv.id;
+            this.showForm(inv.id);
           });
           cardActions.appendChild(editBtn);
           const trashBtn = el('button', { class: 'btn btn-danger btn-xs', text: 'Trash' });
@@ -696,7 +677,7 @@ const Billing = {
         const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit' });
         editBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          location.hash = '#billing/form/' + inv.id;
+          this.showForm(inv.id);
         });
         rightWrap.appendChild(editBtn);
         const trashBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Trash' });
@@ -736,7 +717,7 @@ const Billing = {
   // ============================================================
   // Create / Edit Form
   // ============================================================
-  renderForm() {
+  renderForm(invoiceId = null) {
     if (!Auth.can('billing:edit')) {
       this.view = 'list';
       App.handleRoute();
@@ -744,7 +725,8 @@ const Billing = {
     }
 
     const entity = Auth.activeEntity;
-    const inv = this.detailId ? this.getInvoiceById(this.detailId) : null;
+    const activeId = invoiceId || this.detailId;
+    const inv = activeId ? this.getInvoiceById(activeId) : null;
     const opReq = this.prefilledRequestId ? DB.getById('operationsRequests', this.prefilledRequestId) : null;
     const prefill = this.pendingPrefill || (this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null);
     this.pendingPrefill = null; // consume once
@@ -1077,6 +1059,23 @@ const Billing = {
     this.prefilledClientId = null;
 
     closeFormPanelAndRoute('#billing');
+  },
+
+  showForm(invoiceId = null) {
+    this.detailId = invoiceId;
+    const isNew = !invoiceId;
+    const inv = isNew ? null : this.getInvoiceById(invoiceId);
+
+    openFormPanel({
+      icon: '🧾',
+      title: isNew ? 'Create Sales Invoice' : `Edit Invoice ${inv?.invoiceNumber || ''}`.trim(),
+      formContent: this.renderForm(invoiceId),
+      formId: 'invoice-form',
+      actions: [
+        { text: isNew ? 'Save Invoice' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
+        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
+      ]
+    });
   },
 
   showRequestInvoiceModal() {
@@ -1547,9 +1546,7 @@ const Billing = {
       if (canEdit) {
         const editBtn = el('button', { class: 'btn btn-secondary', text: 'Edit Invoice', style: 'margin-right:8px;' });
         editBtn.addEventListener('click', () => {
-          this.view = 'form';
-          this.detailId = inv.id;
-          App.handleRoute();
+          this.showForm(inv.id);
         });
         actions.appendChild(editBtn);
 
