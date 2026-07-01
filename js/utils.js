@@ -742,12 +742,15 @@ function showLoadingOverlay(callback) {
 
     if (callback) callback();
 
-    setTimeout(() => {
-      overlay.style.opacity = '0';
-      setTimeout(() => {
-        overlay.classList.add('hidden');
-      }, 200);
-    }, 450); // Keep overlay up for 450ms for a smooth transition feel
+    // End loading animation exactly as the page loads by scheduling fade-out in the next paint cycle
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        overlay.style.opacity = '0';
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+        }, 200);
+      });
+    });
   } else {
     if (callback) callback();
   }
