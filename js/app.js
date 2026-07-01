@@ -26,6 +26,20 @@ const App = {
     this.updateSidebarNotifications();
     this.setupStickyTrayResize();
 
+    // Check and show pending toast message after page reload
+    const pendingToast = sessionStorage.getItem('pending_toast');
+    if (pendingToast) {
+      sessionStorage.removeItem('pending_toast');
+      try {
+        const { title, message, type } = JSON.parse(pendingToast);
+        if (window.Workflow && typeof window.Workflow.showMessage === 'function') {
+          window.Workflow.showMessage(title, message, type);
+        }
+      } catch (e) {
+        console.error('Error parsing pending toast:', e);
+      }
+    }
+
     // Close split button dropdown menus when clicking outside
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.split-btn-group')) {
@@ -283,9 +297,8 @@ const App = {
         location.hash = baseHash;
       }
 
-      showLoadingOverlay(() => {
-        this.handleRoute();
-      });
+      sessionStorage.setItem('is_syncing', 'true');
+      location.reload();
     };
   },
 
@@ -590,9 +603,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const hasSession = Auth.restoreSession();
   const loadingScreen = document.getElementById('loading-screen');
-  if (loadingScreen) {
-    loadingScreen.classList.add('hidden');
-  }
 
   if (hasSession) {
     document.getElementById('login-screen').classList.add('hidden');
@@ -601,5 +611,20 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-shell').classList.add('hidden');
+    sessionStorage.removeItem('is_syncing');
+    document.documentElement.classList.remove('loading-active');
+  }
+
+  // Handle fading out of loading screen if active
+  if (document.documentElement.classList.contains('loading-active') && loadingScreen) {
+    setTimeout(() => {
+      loadingScreen.style.transition = 'opacity 0.2s ease-in-out';
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => {
+        document.documentElement.classList.remove('loading-active');
+        loadingScreen.style.transition = '';
+      }, 200);
+    }, 450); // Keep it visible for 450ms for a smooth syncing transition feel
+    sessionStorage.removeItem('is_syncing');
   }
 });

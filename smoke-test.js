@@ -89,7 +89,7 @@ async function runTests() {
     if (txt.includes('Save')) { hasSaveTop = true; break; }
   }
   await log('Clients Save Top-Right (#2)', hasSaveTop, `buttons in header=${headerBtns.length}`);
-  await page.click('button:has-text("Cancel")');
+  await page.click('.side-pane-form-footer button:has-text("Cancel")');
   await page.waitForTimeout(300);
 
   // ─── TEST 6: Billing board view no-scroll ────────────────────────

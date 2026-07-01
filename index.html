@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ATA &amp; LTA Accounting Firm ERP</title>
   <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // Show loading screen immediately on reload only if syncing is active
+    (function() {
+      if (sessionStorage.getItem('is_syncing') === 'true') {
+        document.documentElement.classList.add('loading-active');
+      }
+    })();
+  </script>
   <style>
     /* Subtle Loading Screen Overlay */
     #loading-screen {
@@ -16,13 +24,18 @@
       background: rgba(244, 246, 251, 0.4); /* Translucent background matching light theme */
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
-      display: flex;
+      display: none;
       align-items: center;
       justify-content: center;
       z-index: 99999;
       opacity: 0;
       transition: opacity 0.2s ease-in-out;
       pointer-events: none;
+    }
+    html.loading-active #loading-screen {
+      display: flex;
+      opacity: 1;
+      pointer-events: auto;
     }
     .loading-container {
       display: flex;
@@ -57,7 +70,7 @@
 <body>
 
   <!-- Loading Screen -->
-  <div id="loading-screen" class="hidden">
+  <div id="loading-screen">
     <div class="loading-container">
       <div class="loading-spinner"></div>
       <div class="loading-text">Syncing data...</div>
