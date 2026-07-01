@@ -727,6 +727,33 @@ function openFormPanel({ icon, title, formContent, formId, actions }) {
 }
 
 /**
+ * Shows a subtle, translucent loading overlay for a brief duration
+ * and executes a callback to sync/render the page content.
+ *
+ * @param {Function} callback - The function to execute to update the view
+ */
+function showLoadingOverlay(callback) {
+  const overlay = document.getElementById('loading-screen');
+  if (overlay) {
+    overlay.classList.remove('hidden');
+    // Force reflow
+    overlay.offsetHeight;
+    overlay.style.opacity = '1';
+
+    if (callback) callback();
+
+    setTimeout(() => {
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+      }, 200);
+    }, 450); // Keep overlay up for 450ms for a smooth transition feel
+  } else {
+    if (callback) callback();
+  }
+}
+
+/**
  * Safely closes the side panel (if initialized), updates the location hash,
  * and triggers global module re-routing to sync the lists underneath.
  *
@@ -736,16 +763,25 @@ function closeFormPanelAndRoute(hash, messageConfig) {
   if (window.SidePaneInstance && typeof window.SidePaneInstance.close === 'function') {
     window.SidePaneInstance.close();
   }
-  if (hash) {
-    location.hash = hash;
-  }
-  if (messageConfig) {
-    sessionStorage.setItem('pending_toast', JSON.stringify(messageConfig));
-    location.reload();
-  } else {
+
+  const performRoute = () => {
+    if (hash) {
+      location.hash = hash;
+    }
     if (window.App && typeof window.App.handleRoute === 'function') {
       window.App.handleRoute();
     }
+    if (messageConfig) {
+      if (window.Workflow && typeof window.Workflow.showMessage === 'function') {
+        window.Workflow.showMessage(messageConfig.title, messageConfig.message, messageConfig.type);
+      }
+    }
+  };
+
+  if (messageConfig) {
+    showLoadingOverlay(performRoute);
+  } else {
+    performRoute();
   }
 }
 

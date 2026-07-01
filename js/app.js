@@ -26,20 +26,6 @@ const App = {
     this.updateSidebarNotifications();
     this.setupStickyTrayResize();
 
-    // Check and show pending toast message after page reload
-    const pendingToast = sessionStorage.getItem('pending_toast');
-    if (pendingToast) {
-      sessionStorage.removeItem('pending_toast');
-      try {
-        const { title, message, type } = JSON.parse(pendingToast);
-        if (window.Workflow && typeof window.Workflow.showMessage === 'function') {
-          window.Workflow.showMessage(title, message, type);
-        }
-      } catch (e) {
-        console.error('Error parsing pending toast:', e);
-      }
-    }
-
     // Close split button dropdown menus when clicking outside
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.split-btn-group')) {
@@ -296,8 +282,10 @@ const App = {
       if (location.hash !== baseHash) {
         location.hash = baseHash;
       }
-      
-      location.reload();
+
+      showLoadingOverlay(() => {
+        this.handleRoute();
+      });
     };
   },
 
@@ -602,25 +590,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const hasSession = Auth.restoreSession();
   const loadingScreen = document.getElementById('loading-screen');
-
-  const showContent = () => {
-    if (hasSession) {
-      document.getElementById('login-screen').classList.add('hidden');
-      document.getElementById('app-shell').classList.remove('hidden');
-      App.init();
-    } else {
-      document.getElementById('login-screen').classList.remove('hidden');
-      document.getElementById('app-shell').classList.add('hidden');
-    }
-  };
-
   if (loadingScreen) {
-    loadingScreen.style.opacity = '0';
-    setTimeout(() => {
-      loadingScreen.classList.add('hidden');
-      showContent();
-    }, 200);
+    loadingScreen.classList.add('hidden');
+  }
+
+  if (hasSession) {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app-shell').classList.remove('hidden');
+    App.init();
   } else {
-    showContent();
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app-shell').classList.add('hidden');
   }
 });
