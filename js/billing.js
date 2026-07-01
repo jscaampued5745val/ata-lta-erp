@@ -998,6 +998,7 @@ const Billing = {
       record.updatedAt = new Date().toISOString();
     }
 
+    let result = { approved: true };
     if (isNew || record.status === 'Draft') {
       if (isNew) {
         DB.insert('invoices', record);
@@ -1012,7 +1013,7 @@ const Billing = {
         }
       }
     } else {
-      const result = PendingChanges.submit('invoices', record, isNew);
+      result = PendingChanges.submit('invoices', record, isNew);
 
       if (result.approved) {
         // Clean up old WR back-link if WR changed during edit
@@ -1047,7 +1048,7 @@ const Billing = {
     this.prefilledWrId = null;
     this.prefilledClientId = null;
 
-    const isApproved = isNew || record.status === 'Draft' || (typeof result !== 'undefined' && result.approved);
+    const isApproved = result ? result.approved : true;
     const wrName = data.workRequestId ? (DB.getById('workRequests', data.workRequestId)?.title || '') : '';
     const linkMsg = wrName ? ' Linked to "' + wrName + '".' : '';
     const msgConfig = {

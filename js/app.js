@@ -32,8 +32,8 @@ const App = {
       sessionStorage.removeItem('pending_toast');
       try {
         const { title, message, type } = JSON.parse(pendingToast);
-        if (window.Workflow && typeof window.Workflow.showMessage === 'function') {
-          window.Workflow.showMessage(title, message, type);
+        if (typeof Workflow !== 'undefined' && typeof Workflow.showMessage === 'function') {
+          Workflow.showMessage(title, message, type);
         }
       } catch (e) {
         console.error('Error parsing pending toast:', e);
@@ -297,8 +297,7 @@ const App = {
         location.hash = baseHash;
       }
 
-      sessionStorage.setItem('is_syncing', 'true');
-      location.reload();
+      triggerSyncReload(baseHash);
     };
   },
 
@@ -612,6 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-shell').classList.add('hidden');
     sessionStorage.removeItem('is_syncing');
+    sessionStorage.removeItem('pending_toast');
     document.documentElement.classList.remove('loading-active');
   }
 

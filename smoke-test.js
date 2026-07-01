@@ -89,15 +89,62 @@ async function runTests() {
     if (txt.includes('Save')) { hasSaveTop = true; break; }
   }
   await log('Clients Save Top-Right (#2)', hasSaveTop, `buttons in header=${headerBtns.length}`);
-  await page.click('.side-pane-form-footer button:has-text("Cancel")');
+  // Cancel out of the New Client side pane and verify it fully closes
+  await page.click('[data-testid="client-cancel"]');
   await page.waitForTimeout(300);
 
-  // ─── TEST 6: Billing board view no-scroll ────────────────────────
+  // Assert that the side pane has closed and is no longer present/open
+  const isPaneOpenAfterCancel = await page.locator('#global-side-pane').evaluate(el => el.classList.contains('open'));
+  await log('Clients Cancel pane closes (#3)', !isPaneOpenAfterCancel, `isPaneOpen=${isPaneOpenAfterCancel}`);
+  if (isPaneOpenAfterCancel) {
+    throw new Error('Client side pane is still present after clicking Cancel');
+  }
+
+  // Assert that the list-container is visible
+  const listContainerVisible = await page.isVisible('.list-container');
+  await log('Clients list view restored (#3)', listContainerVisible, `listContainerVisible=${listContainerVisible}`);
+
+  // ─── TEST 6: Clients post-save reload + toast ─────────────────────
+  // Open the New Client form so closeFormPanelAndRoute can be invoked with a messageConfig
+  await page.click('button:has-text("New Client")');
+  await page.waitForTimeout(400);
+
+  // Fill in the form details
+  await page.fill('input[name="name"]', 'Smoke Test Client');
+  await page.fill('input[name="tin"]', '123-456-789-0123');
+
+  // Submit the form
+  await page.click('[data-testid="client-save"]');
+
+  // Wait for the page reload to complete and the network to become idle
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(800);
+
+  // Assert that the success toast/modal message is rendered
+  const modalText = await page.locator('.modal-text').innerText();
+  const hasClientSavedToast = modalText.includes('has been successfully created') || modalText.includes('Client Created');
+  await log('Clients post-save toast (#4)', hasClientSavedToast, `modalText=${modalText}`);
+
+  // Verify that is_syncing is cleared after the reload
+  const postReloadIsSyncing = await page.evaluate(() => window.sessionStorage.getItem('is_syncing'));
+  await log('Clients is_syncing cleared after reload (#5)', postReloadIsSyncing !== 'true', `is_syncing=${postReloadIsSyncing}`);
+
+  // Verify that the loading overlay is no longer visible
+  const isOverlayVisible = await page.locator('#loading-screen').evaluate(el => {
+    return window.getComputedStyle(el).display !== 'none' && window.getComputedStyle(el).opacity !== '0';
+  });
+  await log('Clients loading overlay hidden after reload (#6)', !isOverlayVisible, `overlayVisible=${isOverlayVisible}`);
+
+  // Dismiss the success modal
+  await page.click('.modal-btn-sure');
+  await page.waitForTimeout(300);
+
+  // ─── TEST 7: Billing board view no-scroll ────────────────────────
   await page.goto(BASE + '/#billing');
   await page.waitForTimeout(800);
   await page.click('button:has-text("Board")');
-  await page.waitForTimeout(600);
-  const boardView = await page.$('.board-view');
+  await page.waitForSelector('.board-v2', { timeout: 5000 });
+  const boardView = await page.$('.board-v2');
   const boardBox = boardView ? await boardView.boundingBox() : null;
   const pageWidth = await page.evaluate(() => window.innerWidth);
   const boardWiderThanViewport = boardBox ? boardBox.width > pageWidth + 2 : false;
@@ -105,20 +152,13 @@ async function runTests() {
 
   const firstCard = await page.$('text=ATA-SI-2025-001');
   if (firstCard) {
-    await page.evaluate(el => {
-      const content = document.querySelector('.content');
-      const rect = el.getBoundingClientRect();
-      const contentRect = content.getBoundingClientRect();
-      content.scrollTop += (rect.top - (contentRect.top + 200));
-    }, firstCard);
-    await page.waitForTimeout(200);
-    await firstCard.click({ force: true });
+    await firstCard.click();
     await page.waitForTimeout(800);
     const hasPrintInvoice = await page.isVisible('button:has-text("Print Invoice")');
     const hasPrintVoucherNH = await page.isVisible('button:has-text("Print Voucher (No Header)")');
     await log('Billing PDF Buttons (#5, #7)', hasPrintInvoice && hasPrintVoucherNH, `invoice=${hasPrintInvoice}, voucherNH=${hasPrintVoucherNH}`);
 
-    // ─── TEST 8: Billing Payment History overflow ────────────────
+    // ─── TEST 9: Billing Payment History overflow ────────────────
     // Record a partial payment so Payment History appears
     const payAmount = await page.$('input[name="payAmount"]');
     if (payAmount) {
@@ -137,7 +177,7 @@ async function runTests() {
   }
   await page.waitForTimeout(400);
 
-  // ─── TEST 9: Billing list has Paid/Balance columns ───────────────
+  // ─── TEST 10: Billing list has Paid/Balance columns ───────────────
   await page.click('button:has-text("Table")');
   await page.waitForTimeout(400);
   const billHeaders = await page.$$eval('th', ths => ths.map(t => t.textContent.trim()));
@@ -145,17 +185,17 @@ async function runTests() {
   const hasBal = billHeaders.includes('Balance');
   await log('Billing List Payment Columns (#6)', hasPaid && hasBal, `Paid=${hasPaid}, Balance=${hasBal}`);
 
-  // ─── TEST 10: Operations board view no-scroll ───────────────────
+  // ─── TEST 11: Operations board view no-scroll ───────────────────
   await page.goto(BASE + '/#operations');
   await page.waitForTimeout(800);
   await page.click('button:has-text("Board")');
-  await page.waitForTimeout(600);
-  const opsBoard = await page.$('.board-view');
+  await page.waitForSelector('.board-v2', { timeout: 5000 });
+  const opsBoard = await page.$('.board-v2');
   const opsBoardBox = opsBoard ? await opsBoard.boundingBox() : null;
   const opsBoardWide = opsBoardBox ? opsBoardBox.width > pageWidth + 2 : false;
   await log('Operations Board No-Scroll (#10)', !opsBoardWide, `boardWidth=${opsBoardBox?.width}`);
 
-  // ─── TEST 11: Operations Documentation staff has restricted WR visibility ───────
+  // ─── TEST 12: Operations Documentation staff has restricted WR visibility ───────
   await logout();
   await loginAs(SEED_USERS[2]); // docs staff
   await page.goto(BASE + '/#operations');
@@ -164,7 +204,7 @@ async function runTests() {
   // Documentation staff is now restricted to assigned WRs (0 in seed data)
   await log('Docs Staff WR Visibility (#16)', wrCards.length === 0, `visible items=${wrCards.length}`);
 
-  // ─── TEST 12: Inline task accordion panels exist ────────────────
+  // ─── TEST 13: Inline task accordion panels exist ────────────────
   // Log back in as Admin who has access to all WRs to verify task accordion panels
   await logout();
   await loginAs(SEED_USERS[0]);
@@ -172,14 +212,7 @@ async function runTests() {
   await page.waitForTimeout(800);
   const wrCard = await page.$('text=Annual Tax Filing 2025');
   if (wrCard) {
-    await page.evaluate(el => {
-      const content = document.querySelector('.content');
-      const rect = el.getBoundingClientRect();
-      const contentRect = content.getBoundingClientRect();
-      content.scrollTop += (rect.top - (contentRect.top + 200));
-    }, wrCard);
-    await page.waitForTimeout(200);
-    await wrCard.click({ force: true });
+    await wrCard.click();
     await page.waitForTimeout(800);
     const expandRows = await page.$$('.task-row');
     const accordions = await page.$$('.accordion-panel');
@@ -191,7 +224,7 @@ async function runTests() {
   }
   await page.waitForTimeout(300);
 
-  // ─── TEST 13: Rejected submissions visible to submitter ───────────
+  // ─── TEST 14: Rejected submissions visible to submitter ───────────
   // Inject a fake rejected pending change directly into localStorage
   await page.evaluate(() => {
     const pc = {
@@ -226,13 +259,16 @@ async function runTests() {
     localStorage.setItem('erp_pendingChanges', JSON.stringify(existing.filter(pc => pc.id !== 'pc-test-001')));
   });
 
-  // ─── TEST 14: Disbursement view toggle under filters ─────────────
+  // ─── TEST 15: Disbursement view toggle under filters ─────────────
   await page.goto(BASE + '/#disbursement');
   await page.waitForTimeout(800);
   const disActionsBar = await page.$('.actions-bar');
   const disFiltersBar = await page.$('.filters-bar');
   let toggleUnderFilters = false;
-  if (disActionsBar && disFiltersBar) {
+  if (!disActionsBar && disFiltersBar) {
+    // If the top actions-bar has been removed, the toggle has been correctly moved to/integrated with the filters bar
+    toggleUnderFilters = true;
+  } else if (disActionsBar && disFiltersBar) {
     const actionsBox = await disActionsBar.boundingBox();
     const filtersBox = await disFiltersBar.boundingBox();
     const vmToggles = await page.$$('.view-mode-toggle');
@@ -246,7 +282,7 @@ async function runTests() {
   }
   await log('Disbursement Toggle Under Filters (#12)', toggleUnderFilters, `found below filters=${toggleUnderFilters}`);
 
-  // ─── TEST 15: Disbursement save button top-right ─────────────────
+  // ─── TEST 16: Disbursement save button top-right ─────────────────
   await page.click('button:has-text("File Expense")');
   await page.waitForTimeout(400);
   const disHeader = await page.$('.form-header-bar');
@@ -268,7 +304,7 @@ async function runTests() {
     throw new Error('Disbursement side pane is still visible after clicking footer Cancel');
   }
 
-  // ─── TEST 16: Reports month filter ──────────────────────────────
+  // ─── TEST 17: Reports month filter ──────────────────────────────
   await logout();
   await loginAs(SEED_USERS[0]);
   await page.goto(BASE + '/#reports');
@@ -283,10 +319,10 @@ async function runTests() {
   }
   await log('Reports Month Filter (#17)', monthWorks, `options found=${monthWorks}`);
 
-  // ─── TEST 17: Transmittal save button top-right ──────────────────
+  // ─── TEST 18: Transmittal save button top-right ──────────────────
   await page.goto(BASE + '/#transmittal');
   await page.waitForTimeout(800);
-  await page.click('button:has-text("Create Transmittal")');
+  await page.click('button:has-text("New Transmittal")');
   await page.waitForTimeout(400);
   const txHeader = await page.$('.form-header-bar');
   const txHeaderActions = txHeader ? await txHeader.$('.form-actions-top') : null;

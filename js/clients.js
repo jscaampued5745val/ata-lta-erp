@@ -259,8 +259,8 @@ const Clients = {
       formContent: formContainer,
       formId: 'client-form',
       actions: [
-        { text: isNew ? 'Save Client' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'client-form' },
-        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => this.showList() }
+        { text: isNew ? 'Save Client' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'client-form', testId: 'client-save' },
+        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => this.showList(), testId: 'client-cancel' }
       ]
     });
   },
