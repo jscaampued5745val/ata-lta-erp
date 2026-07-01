@@ -65,7 +65,6 @@ const Disbursement = {
           });
           actions.appendChild(deleteBtn);
         }
-
         if (d.status === 'Draft' && Auth.can('disbursement:create')) {
           const submitBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Submit Expense', style: 'margin-right:8px;' });
           submitBtn.addEventListener('click', () => {
