@@ -542,15 +542,7 @@ const Billing = {
         });
         addCard.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Billing';
         addCard.addEventListener('click', () => {
-          this.detailId = null;
-          openFormPanel({
-            icon: '🧾', title: 'Create Sales Invoice',
-            formContent: this.renderForm(), formId: 'invoice-form',
-            actions: [
-              { text: 'Save Invoice', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
-              { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#billing') }
-            ]
-          });
+          this.showForm();
         });
         cardContainer.appendChild(addCard);
       }
@@ -725,7 +717,7 @@ const Billing = {
   // ============================================================
   // Create / Edit Form
   // ============================================================
-  renderForm() {
+  renderForm(invoiceId = null) {
     if (!Auth.can('billing:edit')) {
       this.view = 'list';
       App.handleRoute();
@@ -733,7 +725,8 @@ const Billing = {
     }
 
     const entity = Auth.activeEntity;
-    const inv = this.detailId ? this.getInvoiceById(this.detailId) : null;
+    const activeId = invoiceId || this.detailId;
+    const inv = activeId ? this.getInvoiceById(activeId) : null;
     const opReq = this.prefilledRequestId ? DB.getById('operationsRequests', this.prefilledRequestId) : null;
     const prefill = this.pendingPrefill || (this.prefilledWrId ? { workRequestId: this.prefilledWrId, clientId: this.prefilledClientId } : null);
     this.pendingPrefill = null; // consume once
@@ -1076,7 +1069,7 @@ const Billing = {
     openFormPanel({
       icon: '🧾',
       title: isNew ? 'Create Sales Invoice' : 'Edit Invoice',
-      formContent: this.renderForm(),
+      formContent: this.renderForm(invoiceId),
       formId: 'invoice-form',
       actions: [
         { text: isNew ? 'Save Invoice' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'invoice-form' },
