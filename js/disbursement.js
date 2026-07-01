@@ -7,6 +7,8 @@ const Disbursement = {
   view: 'list', // 'list' | 'form' | 'detail' | 'report' | 'templates'
   detailId: null,
   listViewMode: 'table', // 'table' | 'board' | 'list'
+  EDITABLE_STATUSES: ['Draft', 'Submitted', 'Under Review', 'Pending'],
+  PENDING_APPROVAL_STATUSES: ['Submitted', 'Under Review', 'Pending'],
 
   render() {
     const container = el('div', { class: 'page' });
@@ -24,13 +26,28 @@ const Disbursement = {
       
       const actions = el('div', { class: 'title-bar-actions' });
       if (d) {
+        if (d.status === 'Draft' && Auth.can('disbursement:create')) {
+          const submitBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Submit Expense', style: 'margin-right:8px;' });
+          submitBtn.addEventListener('click', () => {
+            Workflow.showConfirm('Submit Expense', 'Are you sure you want to submit this expense for approval?', () => {
+              DB.update('disbursements', d.id, { status: 'Submitted', submittedAt: new Date().toISOString() });
+              App.handleRoute();
+            }, 'success');
+          });
+          actions.appendChild(submitBtn);
+        }
+        const noLogoLabel = el('label', { style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);' });
+        const noLogoCheckbox = el('input', { type: 'checkbox' });
+        noLogoLabel.appendChild(noLogoCheckbox);
+        noLogoLabel.appendChild(document.createTextNode('No Logo (Generic)'));
+        actions.appendChild(noLogoLabel);
+
         const genExpBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Generate Expense PDF', style: 'margin-right:8px;' });
-        genExpBtn.addEventListener('click', () => this.generateExpensePDF(d));
+        genExpBtn.addEventListener('click', () => {
+          const noLogo = noLogoCheckbox.checked;
+          this.generateExpensePDF(d, noLogo);
+        });
         actions.appendChild(genExpBtn);
-        
-        const genExpNoLogoBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Generate Expense PDF (No Logo)', style: 'margin-right:8px;' });
-        genExpNoLogoBtn.addEventListener('click', () => this.generateExpensePDF(d, true));
-        actions.appendChild(genExpNoLogoBtn);
 
         const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Generate Voucher', style: 'margin-right:8px;' });
         genVouchBtn.addEventListener('click', () => this.generateVoucher(d));
@@ -119,15 +136,7 @@ const Disbursement = {
       });
       primaryBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> File Expense';
       primaryBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '💰', title: 'File Expense',
-          formContent: this.renderForm(), formId: 'disbursement-form',
-          actions: [
-            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form', testId: 'submit-expense-btn' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement'), testId: 'cancel-expense-btn' }
-          ]
-        });
+        this.showForm();
       });
       wrapper.appendChild(primaryBtn);
 
@@ -163,15 +172,7 @@ const Disbursement = {
         html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> File Expense'
       });
       addBtn.addEventListener('click', () => {
-        this.detailId = null;
-        openFormPanel({
-          icon: '💰', title: 'File Expense',
-          formContent: this.renderForm(), formId: 'disbursement-form',
-          actions: [
-            { text: 'Submit Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form', testId: 'submit-expense-btn' },
-            { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement'), testId: 'cancel-expense-btn' }
-          ]
-        });
+        this.showForm();
       });
       tabNav.appendChild(addBtn);
     } else if (canRequest) {
@@ -202,6 +203,28 @@ const Disbursement = {
     return el('span', { class: 'badge badge-recurring', text: 'Recurring' });
   },
 
+  canEditDisbursement(d) {
+    return Auth.can('disbursement:create') &&
+           this.EDITABLE_STATUSES.includes(d.status);
+  },
+
+  showForm(disbId = null) {
+    this.detailId = disbId;
+    const isNew = !disbId;
+    const existing = isNew ? null : DB.getById('disbursements', disbId);
+
+    openFormPanel({
+      icon: '💰',
+      title: isNew ? 'File Expense' : `Edit Expense — ${existing?.description || ''}`.trim(),
+      formContent: this.renderForm(),
+      formId: 'disbursement-form',
+      actions: [
+        { text: isNew ? 'Submit Expense' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form' },
+        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement') }
+      ]
+    });
+  },
+
   statusBadge(status) {
     const map = {
       'Draft': 'badge-warning',
@@ -213,7 +236,7 @@ const Disbursement = {
       'Rejected': 'badge-danger',
       'Cancelled': 'badge-danger'
     };
-    const label = (status === 'Draft' || status === 'Submitted' || status === 'Under Review') ? 'Pending' : status;
+    const label = status;
     return el('span', { class: 'badge ' + (map[status] || ''), text: label });
   },
 
@@ -350,7 +373,7 @@ const Disbursement = {
 
     const statusFilter = el('select', { class: 'form-select', style: 'max-width:150px' });
     statusFilter.appendChild(el('option', { value: '', text: 'All Statuses' }));
-    ['Pending', 'Approved', 'Released', 'Rejected'].forEach(s => {
+    ['Draft', 'Pending', 'Approved', 'Released', 'Rejected'].forEach(s => {
       statusFilter.appendChild(el('option', { value: s, text: s }));
     });
     filters.appendChild(wrapFilterFieldWithClear(statusFilter));
@@ -469,8 +492,10 @@ const Disbursement = {
     }
     if (fundFilter) items = items.filter(d => this.getFundSource(d) === fundFilter);
     if (statusFilter) {
-      if (statusFilter === 'Pending') {
-        items = items.filter(d => ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status));
+      if (statusFilter === 'Draft') {
+        items = items.filter(d => d.status === 'Draft');
+      } else if (statusFilter === 'Pending') {
+        items = items.filter(d => this.PENDING_APPROVAL_STATUSES.includes(d.status));
       } else {
         items = items.filter(d => d.status === statusFilter);
       }
@@ -543,8 +568,7 @@ const Disbursement = {
       const tdFund = el('td');
       tdFund.appendChild(fundBadge);
       tr.appendChild(tdFund);
-      const displayStatus = (['Draft', 'Submitted', 'Under Review'].includes(d.status)) ? 'Pending' : d.status;
-      tr.appendChild(el('td', { text: displayStatus }));
+      tr.appendChild(el('td', { text: d.status }));
       const payMethod = (d.status === 'Released' && d.paymentDetails?.method) ? d.paymentDetails.method : '—';
       tr.appendChild(el('td', { text: payMethod }));
       tr.appendChild(el('td', { text: formatDate(d.submittedAt) }));
@@ -552,6 +576,11 @@ const Disbursement = {
       const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { location.hash = '#disbursement/detail/' + d.id; });
       tdAct.appendChild(viewBtn);
+      if (this.canEditDisbursement(d)) {
+        const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit', style: 'margin-left:4px;' });
+        editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showForm(d.id); });
+        tdAct.appendChild(editBtn);
+      }
       tr.appendChild(tdAct);
       tbody.appendChild(tr);
     });
@@ -565,8 +594,9 @@ const Disbursement = {
       return;
     }
     const board = el('div', { class: 'board-v2' });
-    const statuses = ['Pending', 'Approved', 'Released', 'Rejected'];
+    const statuses = ['Draft', 'Pending', 'Approved', 'Released', 'Rejected'];
     const statusColors = {
+      'Draft': '#94a3b8',
       'Pending': '#f59e0b',
       'Approved': '#3b82f6',
       'Released': '#10b981',
@@ -579,8 +609,10 @@ const Disbursement = {
       col.style.setProperty('--column-phase-color', colColor);
 
       let colItems = [];
-      if (st === 'Pending') {
-        colItems = items.filter(d => ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status));
+      if (st === 'Draft') {
+        colItems = items.filter(d => d.status === 'Draft');
+      } else if (st === 'Pending') {
+        colItems = items.filter(d => this.PENDING_APPROVAL_STATUSES.includes(d.status));
       } else {
         colItems = items.filter(d => d.status === st);
       }
@@ -603,7 +635,7 @@ const Disbursement = {
 
         // Top: Status path and Date
         const topRow = el('div', { class: 'card-v2-top' });
-        const displayStatus = (['Draft', 'Submitted', 'Under Review'].includes(d.status)) ? 'Pending' : d.status;
+        const displayStatus = d.status;
         topRow.appendChild(el('span', { class: 'card-v2-category', text: `${displayStatus} >` }));
         if (d.fromTemplate) topRow.appendChild(this.recurringBadge(d));
         topRow.appendChild(el('span', { class: 'card-v2-date', text: formatDate(d.submittedAt) }));
@@ -641,6 +673,13 @@ const Disbursement = {
         metaRow.appendChild(el('div', { class: 'card-v2-meta-text', text: formatPHP(d.amount), style: 'font-weight:700;color:#1e293b;font-size:1.125rem;' }));
         card.appendChild(metaRow);
 
+        if (this.canEditDisbursement(d)) {
+          const cardActions = el('div', { style: 'display:flex;justify-content:flex-end;margin-top:8px;' });
+          const editBtn = el('button', { class: 'btn btn-secondary btn-xs', text: 'Edit' });
+          editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showForm(d.id); });
+          cardActions.appendChild(editBtn);
+          card.appendChild(cardActions);
+        }
         cardContainer.appendChild(card);
       });
       col.appendChild(cardContainer);
@@ -677,9 +716,16 @@ const Disbursement = {
       }
       left.appendChild(el('div', { class: 'list-item-meta', text: (emp?.name || '—') + ' • ' + this.getFundSource(d) + ' • ' + formatDate(d.submittedAt) + wrMeta }));
       item.appendChild(left);
+      const actionWrap = el('div', { style: 'display:flex;gap:4px;align-items:center;' });
       const viewBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'View' });
       viewBtn.addEventListener('click', () => { location.hash = '#disbursement/detail/' + d.id; });
-      item.appendChild(viewBtn);
+      actionWrap.appendChild(viewBtn);
+      if (this.canEditDisbursement(d)) {
+        const editBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Edit', style: 'margin-left:4px;' });
+        editBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showForm(d.id); });
+        actionWrap.appendChild(editBtn);
+      }
+      item.appendChild(actionWrap);
       list.appendChild(item);
     });
     container.appendChild(list);
@@ -860,7 +906,7 @@ const Disbursement = {
       entity: entity,
       employeeId: Auth.user.id,
       requestedBy: Auth.user.id,
-      status: isNew ? 'Submitted' : (DB.getById('disbursements', this.detailId)?.status || 'Submitted'),
+      status: isNew ? 'Draft' : (DB.getById('disbursements', this.detailId)?.status || 'Draft'),
       submittedAt: new Date().toISOString(),
       receiptFilename: receiptFile ? receiptFile.name : (isNew ? null : (DB.getById('disbursements', this.detailId)?.receiptFilename || null))
     };
@@ -1140,7 +1186,7 @@ const Disbursement = {
 
     // Approval Actions
     const canApprove = Auth.can('disbursement:approve');
-    const isPending = ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status);
+    const isPending = this.PENDING_APPROVAL_STATUSES.includes(d.status);
 
     if (isPending && canApprove) {
       const isRequester = Auth.isSelfApprover(this.getEmployeeId(d));
@@ -1185,7 +1231,7 @@ const Disbursement = {
   showApproveDialog(id) {
     const d = DB.getById('disbursements', id);
     if (!d) return;
-    if (!['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status)) {
+    if (!this.PENDING_APPROVAL_STATUSES.includes(d.status)) {
       Workflow.showMessage('Error', 'This disbursement is not pending approval.', 'danger');
       return;
     }
@@ -2010,7 +2056,7 @@ const Disbursement = {
       fromTemplate: template.id,
       employeeId: Auth.user.id,
       requestedBy: Auth.user.id,
-      status: 'Submitted',
+      status: 'Draft',
       submittedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       receiptFilename: null,
