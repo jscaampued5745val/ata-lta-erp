@@ -3832,12 +3832,15 @@ const Workflow = {
       });
     }
 
-    closeFormPanelAndRoute('#operations');
-    this.showMessage(
-      isNew ? 'Work Request Created' : 'Work Request Saved',
-      isNew ? 'Work Request has been successfully created.' : 'Work Request has been successfully updated.',
-      'success'
-    );
+    const isApproved = result.approved;
+    const msgConfig = {
+      title: isNew ? 'Work Request Created' : 'Work Request Saved',
+      message: isApproved
+        ? (isNew ? 'Work Request has been successfully created.' : 'Work Request has been successfully updated.')
+        : `Work Request ${isNew ? 'creation' : 'update'} request has been submitted for Admin approval.`,
+      type: 'success'
+    };
+    closeFormPanelAndRoute('#operations', msgConfig);
   },
 
   /**

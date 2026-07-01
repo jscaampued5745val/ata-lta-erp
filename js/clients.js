@@ -259,8 +259,8 @@ const Clients = {
       formContent: formContainer,
       formId: 'client-form',
       actions: [
-        { text: isNew ? 'Save Client' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'client-form' },
-        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => this.showList() }
+        { text: isNew ? 'Save Client' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'client-form', testId: 'client-save' },
+        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => this.showList(), testId: 'client-cancel' }
       ]
     });
   },
@@ -589,14 +589,15 @@ const Clients = {
     }
 
     const isNew = !this.editingId || this.editingId === 'new';
-    this.showList();
-    if (typeof Workflow !== 'undefined' && Workflow.showMessage) {
-      Workflow.showMessage(
-        !isNew ? 'Client Updated' : 'Client Created',
-        'Client has been ' + (!isNew ? 'updated' : 'created') + ' successfully.',
-        'success'
-      );
-    }
+    const isApproved = Auth.user.role === 'Admin' || Auth.user.role === 'Manager';
+    const msgConfig = {
+      title: isNew ? 'Client Created' : 'Client Updated',
+      message: isApproved 
+        ? `Client ${record.name} has been successfully ${isNew ? 'created' : 'updated'}.` 
+        : `Client ${record.name} ${isNew ? 'creation' : 'update'} request has been submitted for Admin approval.`,
+      type: 'success'
+    };
+    closeFormPanelAndRoute('#clients', msgConfig);
   },
 
   archiveClientDirectly(clientId) {

@@ -998,6 +998,7 @@ const Billing = {
       record.updatedAt = new Date().toISOString();
     }
 
+    let result = { approved: true };
     if (isNew || record.status === 'Draft') {
       if (isNew) {
         DB.insert('invoices', record);
@@ -1012,7 +1013,7 @@ const Billing = {
         }
       }
     } else {
-      const result = PendingChanges.submit('invoices', record, isNew);
+      result = PendingChanges.submit('invoices', record, isNew);
 
       if (result.approved) {
         // Clean up old WR back-link if WR changed during edit
@@ -1033,17 +1034,6 @@ const Billing = {
       }
     }
 
-    // Success feedback
-    if (typeof Workflow !== 'undefined' && Workflow.showMessage) {
-      const wrName = data.workRequestId ? (DB.getById('workRequests', data.workRequestId)?.title || '') : '';
-      const linkMsg = wrName ? ' Linked to "' + wrName + '".' : '';
-      Workflow.showMessage(
-        'Invoice ' + (isNew ? 'Created' : 'Updated'),
-        'Invoice ' + record.invoiceNumber + ' has been ' + (isNew ? 'created' : 'updated') + ' successfully.' + linkMsg,
-        'success'
-      );
-    }
-
     // Fulfill pending operations request if any
     const reqId = this.prefilledRequestId || (data.workRequestId ? DB.getWhere('operationsRequests', r => r.workRequestId === data.workRequestId && r.type === 'billing' && r.status === 'pending')[0]?.id : null);
     if (reqId) {
@@ -1058,7 +1048,17 @@ const Billing = {
     this.prefilledWrId = null;
     this.prefilledClientId = null;
 
-    closeFormPanelAndRoute('#billing');
+    const isApproved = result ? result.approved : true;
+    const wrName = data.workRequestId ? (DB.getById('workRequests', data.workRequestId)?.title || '') : '';
+    const linkMsg = wrName ? ' Linked to "' + wrName + '".' : '';
+    const msgConfig = {
+      title: 'Invoice ' + (isNew ? 'Created' : 'Updated'),
+      message: isApproved
+        ? 'Invoice ' + record.invoiceNumber + ' has been ' + (isNew ? 'created' : 'updated') + ' successfully.' + linkMsg
+        : 'Invoice ' + record.invoiceNumber + ' ' + (isNew ? 'creation' : 'update') + ' request has been submitted for Admin approval.',
+      type: 'success'
+    };
+    closeFormPanelAndRoute('#billing', msgConfig);
   },
 
   showForm(invoiceId = null) {

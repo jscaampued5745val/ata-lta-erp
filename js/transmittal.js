@@ -838,14 +838,12 @@ const Transmittal = {
     this.prefilledWrId = null;
     this.prefilledClientId = null;
 
-    closeFormPanelAndRoute('#transmittal');
-    if (typeof Workflow !== 'undefined' && Workflow.showMessage) {
-      Workflow.showMessage(
-        isNew ? 'Transmittal Created' : 'Transmittal Updated',
-        'Transmittal has been ' + (isNew ? 'created' : 'updated') + ' successfully.',
-        'success'
-      );
-    }
+    const msgConfig = {
+      title: isNew ? 'Transmittal Created' : 'Transmittal Updated',
+      message: 'Transmittal has been ' + (isNew ? 'created' : 'updated') + ' successfully.',
+      type: 'success'
+    };
+    closeFormPanelAndRoute('#transmittal', msgConfig);
   },
 
   // ============================================================
