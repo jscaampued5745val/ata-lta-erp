@@ -26,6 +26,20 @@ const App = {
     this.updateSidebarNotifications();
     this.setupStickyTrayResize();
 
+    // Check and show pending toast message after page reload
+    const pendingToast = sessionStorage.getItem('pending_toast');
+    if (pendingToast) {
+      sessionStorage.removeItem('pending_toast');
+      try {
+        const { title, message, type } = JSON.parse(pendingToast);
+        if (typeof Workflow !== 'undefined' && typeof Workflow.showMessage === 'function') {
+          Workflow.showMessage(title, message, type);
+        }
+      } catch (e) {
+        console.error('Error parsing pending toast:', e);
+      }
+    }
+
     // Close split button dropdown menus when clicking outside
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.split-btn-group')) {
@@ -79,7 +93,7 @@ const App = {
   },
 
   updateSidebarNotifications() {
-    const canApprove = Auth.user.role === 'Admin';
+    const canApprove = Auth.can('disbursement:approve');
     const entity = Auth.activeEntity;
 
     const items = DB.getWhere('disbursements', d => d.entity === entity);
@@ -272,7 +286,37 @@ const App = {
     sel.onchange = (ev) => {
       Auth.switchEntity(ev.target.value);
       this.updateEntityBadge();
-      this.handleRoute();
+      
+      // Clean up module states for any detail/form view
+      if (typeof Workflow !== 'undefined') {
+        Workflow.view = 'list';
+        Workflow.detailWrId = null;
+        Workflow.editingId = null;
+      }
+      if (typeof Billing !== 'undefined') {
+        Billing.view = 'list';
+        Billing.detailId = null;
+      }
+      if (typeof Disbursement !== 'undefined') {
+        Disbursement.view = 'list';
+        Disbursement.detailId = null;
+      }
+      if (typeof Transmittal !== 'undefined') {
+        Transmittal.view = 'list';
+        Transmittal.detailId = null;
+      }
+      if (typeof Clients !== 'undefined') {
+        Clients.editingId = null;
+      }
+
+      // If the current route has subpaths (e.g. #billing/detail/123), reset to the base route (e.g. #billing)
+      const rawHash = location.hash || '#dashboard';
+      const baseHash = rawHash.split('?')[0].split('/')[0];
+      if (location.hash !== baseHash) {
+        location.hash = baseHash;
+      }
+
+      triggerSyncReload(baseHash);
     };
   },
 
@@ -583,9 +627,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (Auth.restoreSession()) {
+  const hasSession = Auth.restoreSession();
+  const loadingScreen = document.getElementById('loading-screen');
+
+  if (hasSession) {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-shell').classList.remove('hidden');
     App.init();
+  } else {
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app-shell').classList.add('hidden');
+    sessionStorage.removeItem('is_syncing');
+    sessionStorage.removeItem('pending_toast');
+    document.documentElement.classList.remove('loading-active');
+  }
+
+  // Handle fading out of loading screen if active
+  if (document.documentElement.classList.contains('loading-active') && loadingScreen) {
+    setTimeout(() => {
+      loadingScreen.style.transition = 'opacity 0.2s ease-in-out';
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => {
+        document.documentElement.classList.remove('loading-active');
+        loadingScreen.style.transition = '';
+      }, 200);
+    }, 450); // Keep it visible for 450ms for a smooth syncing transition feel
+    sessionStorage.removeItem('is_syncing');
   }
 });
