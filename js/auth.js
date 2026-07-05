@@ -107,7 +107,7 @@ const Auth = {
     if (role === 'Admin') return true;
     if (!this.user.entities.includes(entity)) return false;
     const perms = {
-      Manager: ['clients:view','workflow:view','workflow:edit','workflow:task_approve','billing:view','billing:request','billing:mark_paid','disbursement:view','disbursement:request','disbursement:mark_released','dms:view','dms:edit','dms:handover','reports:view','users:view','audit:view_all','transmittal:view','transmittal:mark','bypass_review:tasks','approve_change:tasks'],
+      Manager: ['clients:view','workflow:view','workflow:edit','workflow:task_approve','billing:view','billing:request','billing:mark_paid','disbursement:view','disbursement:request','disbursement:mark_released','dms:view','dms:edit','dms:handover','users:view','audit:view_all','transmittal:view','transmittal:mark','bypass_review:tasks','approve_change:tasks'],
       Accounting: ['clients:view','workflow:view','workflow:task_add','billing:view','billing:edit','disbursement:view','disbursement:create','disbursement:edit','dms:view','transmittal:view'],
       Operations: ['clients:view','workflow:view','workflow:task_add','workflow:task_upload','billing:view','billing:request','disbursement:view','disbursement:request','dms:view','transmittal:view','transmittal:request'],
       Documentation: ['clients:view','workflow:view','workflow:task_add','billing:view','disbursement:view','dms:view','dms:edit','dms:handover','transmittal:view','transmittal:create','transmittal:edit','transmittal:mark'],
