@@ -228,7 +228,7 @@ const Transmittal = {
       'Acknowledged': 'badge badge-success'
     };
     let badgeClass = map[status] || 'badge';
-    if (t && t.pendingChangeId) {
+    if (t && (t.pendingChangeId || t.status === 'Release Pending Approval')) {
       badgeClass = 'badge badge-warn';
       label = 'Pending Approval';
     }
@@ -236,7 +236,7 @@ const Transmittal = {
   },
 
   getTransmittalDisplayStatus(status, role, t) {
-    if (t && t.pendingChangeId) return 'Pending Approval';
+    if (t && (t.pendingChangeId || t.status === 'Release Pending Approval')) return 'Pending Approval';
     return status;
   },
 
@@ -251,7 +251,7 @@ const Transmittal = {
       key: 'Draft',
       label: role === 'Operations' ? 'Requested' : 'Draft',
       targetStatus: 'Draft',
-      statuses: ['Draft'],
+      statuses: ['Draft', 'Release Pending Approval'],
       color: role === 'Operations' ? '#f59e0b' : draftColor,
       emptyState: { variant: 'compact', title: 'No transmittals', body: '' }
     };
@@ -658,11 +658,11 @@ const Transmittal = {
         'Sent': 'card-v2-priority-medium',
         'Acknowledged': 'card-v2-priority-low'
       }[t.status] || 'card-v2-priority-normal';
-      if (t.pendingChangeId) {
+      if (t.pendingChangeId || t.status === 'Release Pending Approval') {
         statusPriorityClass = 'card-v2-priority-medium';
       }
 
-      const progressMap = { 'Draft': 0, 'Sent': 50, 'Acknowledged': 100 };
+      const progressMap = { 'Draft': 0, 'Release Pending Approval': 0, 'Sent': 50, 'Acknowledged': 100 };
       const progress = progressMap[t.status] || 0;
 
       const wr = DB.getById('workRequests', t.workRequestId);
@@ -671,7 +671,7 @@ const Transmittal = {
       return buildCompactBoardCard({
         key: 'TX-' + cardNumber++,
         progress,
-        statusColor: statusColors[t.status] || '#cbd5e1',
+        statusColor: statusColors[t.status === 'Release Pending Approval' ? 'Draft' : t.status] || '#cbd5e1',
         title: t.trackingNumber,
         description: clientName,
         detail: `${itemCount} item${itemCount === 1 ? '' : 's'}` + (detail ? ` • ${detail}` : ''),
@@ -747,7 +747,7 @@ const Transmittal = {
 
     const boardDrag = {
       enabled: true,
-      canDrag: t => (canEdit || canMark) && !t.pendingChangeId,
+      canDrag: t => (canEdit || canMark) && !t.pendingChangeId && t.status !== 'Release Pending Approval',
       canDrop: ({ item, targetStatus }) => {
         if (item.status === targetStatus) return true;
         if (!canMark) return false;
