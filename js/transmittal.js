@@ -747,17 +747,15 @@ const Transmittal = {
 
     const boardDrag = {
       enabled: true,
-      canDrag: t => canEdit && !t.pendingChangeId,
+      canDrag: t => (canEdit || canMark) && !t.pendingChangeId,
       canDrop: ({ item, targetStatus }) => {
         if (item.status === targetStatus) return true;
-        // Only Admin can advance statuses on the board
-        const isAdmin = Auth.user?.role === 'Admin';
-        if (!isAdmin) return false;
+        if (!canMark) return false;
         const flow = ['Draft', 'Sent', 'Acknowledged'];
         const currentIdx = flow.indexOf(item.status);
         const targetIdx = flow.indexOf(targetStatus);
         if (currentIdx === -1 || targetIdx === -1) return false;
-        return targetIdx >= currentIdx;
+        return targetIdx > currentIdx;
       },
       orderField: 'boardOrder',
       onDrop({ item, targetStatus, newOrder, fromStatus }) {
@@ -770,25 +768,47 @@ const Transmittal = {
         // Block if pending admin approval
         if (item.pendingChangeId) {
           Workflow.showMessage('Pending Approval', 'This transmittal is pending administrative approval and cannot be moved.', 'warning');
+          App.handleRoute();
+          return;
+        }
+
+        if (targetStatus === 'Acknowledged') {
+          self.showAcknowledgeDialog(item.id);
           return;
         }
 
         const label = item.trackingNumber || item.id;
+        const isAdmin = Auth.user?.role === 'Admin';
 
-        // Admin release/acknowledge flows
-        const applyMove = () => {
-          const changes = { boardOrder: newOrder, status: targetStatus, updatedAt: new Date().toISOString() };
-          if (targetStatus === 'Sent') changes.sentAt = new Date().toISOString();
-          if (targetStatus === 'Acknowledged') changes.acknowledgedAt = new Date().toISOString();
-          DB.update('transmittals', item.id, changes);
-          App.handleRoute();
-        };
+        if (targetStatus === 'Sent') {
+          const title = isAdmin ? 'Confirm Sent' : 'Confirm Release Request';
+          const msg = isAdmin 
+            ? `Mark transmittal "${label}" as Sent? This indicates the documents have been dispatched.`
+            : `Submit transmittal "${label}" for Admin release approval?`;
 
-        const msgs = {
-          'Sent': `Mark transmittal "${label}" as Sent? This indicates the documents have been dispatched.`,
-          'Acknowledged': `Mark transmittal "${label}" as Acknowledged by the recipient?`
-        };
-        Workflow.showConfirm('Confirm Status Change', msgs[targetStatus], applyMove, 'success');
+          Workflow.showConfirm(title, msg, () => {
+            if (isAdmin) {
+              DB.update('transmittals', item.id, {
+                status: 'Sent',
+                sentAt: new Date().toISOString(),
+                sentBy: Auth.user.id,
+                updatedAt: new Date().toISOString(),
+                boardOrder: newOrder
+              });
+            } else {
+              DB.update('transmittals', item.id, {
+                status: 'Release Pending Approval',
+                releaseRequestedAt: new Date().toISOString(),
+                releaseRequestedBy: Auth.user.id,
+                updatedAt: new Date().toISOString(),
+                boardOrder: newOrder
+              });
+            }
+            App.handleRoute();
+          }, 'success', () => {
+            App.handleRoute();
+          });
+        }
       }
     };
 
@@ -1260,7 +1280,7 @@ const Transmittal = {
     const submitBtn = el('button', { type: 'submit', class: 'btn btn-success', text: 'Confirm Acknowledgment', style: 'margin-top: 12px;' });
     form.appendChild(submitBtn);
 
-    const overlay = Workflow.showModal('Acknowledge Transmittal Receipt', form);
+    const overlay = Workflow.showModal('Acknowledge Transmittal Receipt', form, () => { App.handleRoute(); });
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
