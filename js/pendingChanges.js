@@ -26,6 +26,16 @@ const PendingChanges = {
       return { approved: true };
     }
 
+    if (table === 'transmittals') {
+      const cleanRecord = { ...record };
+      cleanRecord.status = 'Draft';
+      if (isNew) {
+        DB.insert(table, cleanRecord);
+      } else {
+        DB.update(table, cleanRecord.id, cleanRecord);
+      }
+    }
+
     if (PendingChanges.editingPendingId) {
       const pendingId = PendingChanges.editingPendingId;
       PendingChanges.editingPendingId = null; // Reset
@@ -111,8 +121,8 @@ const PendingChanges = {
         });
       }
     } else {
-      if (pc.parentRecordId) {
-        DB.update(pc.table, pc.parentRecordId, pc.proposedData);
+      if (pc.parentRecordId || DB.getById(pc.table, pc.proposedData.id)) {
+        DB.update(pc.table, pc.proposedData.id, pc.proposedData);
       } else {
         DB.insert(pc.table, pc.proposedData);
       }
@@ -197,6 +207,11 @@ const PendingChanges = {
       DB.update('invoices', pc.parentRecordId, { status: 'Draft', rejectionReason: reason || '' });
     }
 
+    if (pc.table === 'transmittals') {
+      const transId = pc.parentRecordId || pc.proposedData.id;
+      DB.update('transmittals', transId, { status: 'Draft', rejectionReason: reason || '' });
+    }
+
     DB.update('pendingChanges', pendingId, {
       status: 'rejected',
       rejectionReason: reason,
@@ -222,6 +237,10 @@ const PendingChanges = {
   },
 
   delete(pendingId) {
+    const pc = DB.getById('pendingChanges', pendingId);
+    if (pc && pc.table === 'transmittals' && !pc.parentRecordId) {
+      DB.delete('transmittals', pc.proposedData.id);
+    }
     DB.delete('pendingChanges', pendingId);
   },
 

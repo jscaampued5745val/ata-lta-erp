@@ -219,18 +219,24 @@ const Transmittal = {
   // ============================================================
   // Helpers
   // ============================================================
-  statusBadge(status) {
+  statusBadge(status, t) {
     const role = Auth.user?.role;
-    const label = this.getTransmittalDisplayStatus(status, role);
+    let label = this.getTransmittalDisplayStatus(status, role, t);
     const map = {
       'Draft': 'badge badge-ghost',
       'Sent': 'badge badge-info',
       'Acknowledged': 'badge badge-success'
     };
-    return el('span', { class: map[status] || 'badge', text: label });
+    let badgeClass = map[status] || 'badge';
+    if (t && t.pendingChangeId) {
+      badgeClass = 'badge badge-warn';
+      label = 'Pending Approval';
+    }
+    return el('span', { class: badgeClass, text: label });
   },
 
-  getTransmittalDisplayStatus(status, role) {
+  getTransmittalDisplayStatus(status, role, t) {
+    if (t && t.pendingChangeId) return 'Pending Approval';
     return status;
   },
 
@@ -456,6 +462,10 @@ const Transmittal = {
     const entity = Auth.activeEntity;
 
     let items = DB.getWhere('transmittals', t => (entity === 'ALL' ? Auth.user.entities.includes(t.entity) : t.entity === entity));
+    items.forEach(t => {
+      const pc = DB.getWhere('pendingChanges', p => p.table === 'transmittals' && p.status === 'pending' && p.proposedData && p.proposedData.id === t.id)[0];
+      t.pendingChangeId = pc ? pc.id : null;
+    });
     items = items.filter(t => t.status !== 'Cancelled' && !(t.status === 'Acknowledged' && t.archived));
     const hasItems = items.length > 0;
 
@@ -559,7 +569,7 @@ const Transmittal = {
       tr.appendChild(el('td', { text: this.getWorkRequestTitle(t.workRequestId) }));
       tr.appendChild(el('td', { text: this.getClientName(t.clientId) }));
       const tdStatus = el('td');
-      tdStatus.appendChild(this.statusBadge(t.status));
+      tdStatus.appendChild(this.statusBadge(t.status, t));
       tr.appendChild(tdStatus);
       tr.appendChild(el('td', { text: String((t.items || []).length) }));
       const tdAct = el('td');
@@ -608,7 +618,7 @@ const Transmittal = {
     };
 
     boardPhases.forEach(phase => {
-      const colItems = items.filter(t => phase.statuses.includes(t.status) && !t.pendingChangeId);
+      const colItems = items.filter(t => phase.statuses.includes(t.status));
       colItems.sort((a, b) => {
         const oa = typeof a.boardOrder === 'number' ? a.boardOrder : null;
         const ob = typeof b.boardOrder === 'number' ? b.boardOrder : null;
@@ -642,12 +652,15 @@ const Transmittal = {
       const itemCount = (t.items || []).length;
       const date = t.sentAt || t.createdAt;
 
-      const displayStatus = self.getTransmittalDisplayStatus(t.status, Auth.user?.role);
-      const statusPriorityClass = {
+      const displayStatus = self.getTransmittalDisplayStatus(t.status, Auth.user?.role, t);
+      let statusPriorityClass = {
         'Draft': 'card-v2-priority-normal',
         'Sent': 'card-v2-priority-medium',
         'Acknowledged': 'card-v2-priority-low'
       }[t.status] || 'card-v2-priority-normal';
+      if (t.pendingChangeId) {
+        statusPriorityClass = 'card-v2-priority-medium';
+      }
 
       const progressMap = { 'Draft': 0, 'Sent': 50, 'Acknowledged': 100 };
       const progress = progressMap[t.status] || 0;

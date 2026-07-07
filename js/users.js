@@ -1083,7 +1083,19 @@ const Users = {
 
     const key = keyPrefix + '-' + String(index).padStart(3, '0');
 
-    const row = el('div', { class: 'approval-item' });
+    const row = el('div', { class: 'approval-item', style: 'cursor: pointer;' });
+    row.addEventListener('click', () => {
+      if (item.type === 'change') {
+        this.pendingDetailId = item.id;
+        App.handleRoute();
+      } else if (item.kind === 'disbursementCreation' || item.kind === 'disbursementRelease') {
+        location.hash = '#disbursement/detail/' + item.id;
+      } else if (item.kind === 'billingRelease') {
+        location.hash = '#billing/detail/' + item.id;
+      } else if (item.kind === 'transmittalRelease') {
+        location.hash = '#transmittal/detail/' + item.id;
+      }
+    });
 
     // Status icon
     const icon = el('div', { class: 'approval-item-icon' });
